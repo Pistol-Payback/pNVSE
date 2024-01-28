@@ -6,6 +6,9 @@
 #include <string>
 #include "ppNVSE.h"
 #include "GameUI.h"
+
+#include "ppNVSE_functions.h"
+#include "WeapInstFunct.h"
 //NoGore is unsupported in xNVSE
 
 IDebugLog		gLog("ppNVSE.log");
@@ -31,6 +34,28 @@ NVSEDataInterface* g_dataInterface{};
 NVSESerializationInterface* g_serializationInterface{};
 NVSEConsoleInterface* g_consoleInterface{};
 NVSEEventManagerInterface* g_eventInterface{};
+
+#define WantInventoryRefFunctions 1 // set to 1 if you want these PluginAPI functions
+#if WantInventoryRefFunctions
+_InventoryReferenceCreate InventoryReferenceCreate{};
+_InventoryReferenceGetForRefID InventoryReferenceGetForRefID{};
+_InventoryReferenceGetRefBySelf InventoryReferenceGetRefBySelf{};
+_InventoryReferenceCreateEntry InventoryReferenceCreateEntry{};
+#endif
+
+#define WantLambdaFunctions 0 // set to 1 if you want these PluginAPI functions
+#if WantLambdaFunctions
+_LambdaDeleteAllForScript LambdaDeleteAllForScript{};
+_LambdaSaveVariableList LambdaSaveVariableList{};
+_LambdaUnsaveVariableList LambdaUnsaveVariableList{};
+_IsScriptLambda IsScriptLambda{};
+#endif
+
+#define WantScriptFunctions 0 // set to 1 if you want these PluginAPI functions
+#if WantScriptFunctions
+_HasScriptCommand HasScriptCommand{};
+_DecompileScript DecompileScript{};
+#endif
 
 NVSEArrayVarInterface* g_arrayInterface{};
 NVSEArrayVarInterface g_arrayVar;
@@ -76,9 +101,6 @@ TESObjectWEAP* g_fistsWeapon = nullptr;
  * This is because the "fn_.h" files are only used here,
  * and they are included after such globals/macros have been defined.
  ***************/
-
-#include "ppNVSE_functions.h"
-
 
  // Shortcut macro to register a script command (assigning it an Opcode)............................................................................
 #define RegisterScriptCommand(name) nvse->RegisterCommand(&kCommandInfo_ ##name); //Default return type (return a number)
@@ -214,7 +236,28 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		nvse->InitExpressionEvaluatorUtils(&g_expEvalUtils);
 
 		g_eventInterface = (NVSEEventManagerInterface*)nvse->QueryInterface(kInterface_EventManager);
+
+		#if WantInventoryRefFunctions
+				InventoryReferenceCreate = (_InventoryReferenceCreate)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreate);
+				InventoryReferenceGetForRefID = (_InventoryReferenceGetForRefID)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetForRefID);
+				InventoryReferenceGetRefBySelf = (_InventoryReferenceGetRefBySelf)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetRefBySelf);
+				InventoryReferenceCreateEntry = (_InventoryReferenceCreateEntry)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreateEntry);
+		#endif
+
+		#if WantLambdaFunctions
+				LambdaDeleteAllForScript = (_LambdaDeleteAllForScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaDeleteAllForScript);
+				LambdaSaveVariableList = (_LambdaSaveVariableList)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaSaveVariableList);
+				LambdaUnsaveVariableList = (_LambdaUnsaveVariableList)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaUnsaveVariableList);
+				IsScriptLambda = (_IsScriptLambda)nvseData->GetFunc(NVSEDataInterface::kNVSEData_IsScriptLambda);
+		#endif
+
+		#if WantScriptFunctions
+				HasScriptCommand = (_HasScriptCommand)nvseData->GetFunc(NVSEDataInterface::kNVSEData_HasScriptCommand);
+				DecompileScript = (_DecompileScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_DecompileScript);
+		#endif
+
 	}
+
 	//	See https://geckwiki.com/index.php?title=NVSE_Opcode_Base
 
 	UInt32 const ppNVSEPluginOpcodeBase = 0x3E1C;
@@ -226,6 +269,16 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD_ARR(pRotateAroundObjectLocally)
 	REG_CMD_ARR(pReadFile)
 	REG_CMD(pWriteFile)
+	REG_CMD(pSaveNif)
+	REG_CMD(NewWeapInst)
+	REG_CMD(IsWeapInst)
+	REG_CMD_FORM(GetWeaponBase)
+	REG_CMD(iModAlt)
+	REG_CMD(GetWeaponModFlags)
+	REG_CMD(SetWeaponModFlags)
+
+	REG_CMD(MoveFileTo)
+	REG_CMD_FORM(GetTopicSpeaker)
 
 	return true;
 }

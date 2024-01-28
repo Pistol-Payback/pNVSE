@@ -71,6 +71,9 @@
     <ClCompile Include="NiStreamFunctions.cpp">
       <Filter>functions</Filter>
     </ClCompile>
+    <ClCompile Include="..\nvse\nvse\InventoryReference.cpp">
+      <Filter>nvse</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\GameAPI.h">
@@ -147,6 +150,12 @@
     </ClInclude>
     <ClInclude Include="ppNVSE.h" />
     <ClInclude Include="ppNVSE_Functions.h">
+      <Filter>functions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\InventoryReference.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="WeapInstFunct.h">
       <Filter>functions</Filter>
     </ClInclude>
   </ItemGroup>

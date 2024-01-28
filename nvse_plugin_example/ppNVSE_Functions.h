@@ -1,8 +1,41 @@
 #pragma once
-#include<iostream>
+#include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <unordered_set>
+#include <unordered_map>
+#include <vector>
+#include <InventoryRef.h>
+#include "StringVar.h"
+
 #define PI 3.14159265
+
+static EquipData FindEquipped(TESObjectREFR* thisObj, FormMatcher& matcher) {
+	ExtraContainerChanges* pContainerChanges = static_cast<ExtraContainerChanges*>(thisObj->extraDataList.GetByType(kExtraData_ContainerChanges));
+	return (pContainerChanges) ? pContainerChanges->FindEquipped(matcher) : EquipData();
+}
+
+class MatchBySlot : public FormMatcher
+{
+	UInt32 m_slotMask;
+public:
+	MatchBySlot(UInt32 slot) : m_slotMask(TESBipedModelForm::MaskForSlot(slot)) {}
+	bool Matches(TESForm* pForm) const {
+		UInt32 formMask = 0;
+		if (pForm) {
+			if (pForm->IsWeapon()) {
+				formMask = TESBipedModelForm::eSlot_Weapon;
+			}
+			else {
+				TESBipedModelForm* pBip = DYNAMIC_CAST(pForm, TESForm, TESBipedModelForm);
+				if (pBip) {
+					formMask = pBip->partMask;
+				}
+			}
+		}
+		return (formMask & m_slotMask) != 0;
+	}
+};
 
 /*
 
@@ -35,13 +68,279 @@ bool Cmd_ToggleFreeCamCursor_Execute(COMMAND_ARGS)
 
 }*/
 
+//Functions....................................................................................................................................................
+
+static ParamInfo kParams_ConvertWavToVoice[3] =
+{
+	{"form", kParamType_AnyForm, 0},
+	{"form", kParamType_AnyForm, 0},
+	{"string", kParamType_String, 0}
+};
+
+DEFINE_COMMAND_PLUGIN(ConvertWavToVoice, "Converts a wav file to a voice file path", false, kParams_ConvertWavToVoice);
+bool Cmd_ConvertWavToVoice_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+
+	const std::string sourcePath;
+	const std::string GeckPath;
+	const std::string voicetype;
+
+
+	//UInt32 ResponseNum = topicResponse->data.responseNumber;
+	TESTopicInfo* topicInfo = NULL;
+	tList<Condition*> conditions = topicInfo->conditions;
+	UInt32 Speaker = topicInfo->speaker;
+
+	TESTopicInfoResponse* topicResponse = ThisStdCall<TESTopicInfoResponse*>(0x61E780, topicInfo, nullptr);
+	UInt32 ResponseNum = topicResponse->data.responseNumber;
+	tList<TESTopic*> ParentTopic = topicInfo->relatedTopics->linkFrom;
+
+	TESActorBase* actorBase = nullptr;
+
+	if (!actorBase)
+	{
+		//actorBase = ((Actor*)thisObj)->baseForm;
+	}
+	if (actorBase->baseData.voiceType)
+		UInt32 VoiceType = actorBase->baseData.voiceType->refID;
+		BGSVoiceType* VoiceTypeBGS = actorBase->baseData.voiceType;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo, &topicResponse, &voicetype)) {
+
+		auto Quest = topicInfo->quest->refID;
+
+		//Plugin/VoiceType/Quest_ParentTopic_TopicInfoID_ResponseNum
+
+		std::ifstream sourceFile(sourcePath, std::ios::binary);
+		std::ofstream destinationFile(GeckPath, std::ios::binary);
+
+		if (sourceFile && destinationFile) {
+			// Read and write in chunks to efficiently copy the file
+			const int bufferSize = 4096;
+			char buffer[bufferSize];
+
+			while (!sourceFile.eof()) {
+				sourceFile.read(buffer, bufferSize);
+				destinationFile.write(buffer, sourceFile.gcount());
+			}
+
+			std::cout << "File copied successfully." << std::endl;
+		}
+		else {
+			std::cerr << "Error opening files." << std::endl;
+		}
+
+	}
+	return true;
+}
+
+static ParamInfo kParams_MoveFileTo[2] =
+{
+	{"string", kParamType_String, 0},
+	{"string", kParamType_String, 0}
+};
+
+DEFINE_COMMAND_PLUGIN(MoveFileTo, "Copy a file to another place on the drive", false, kParams_MoveFileTo);
+bool Cmd_MoveFileTo_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+
+	char destinationPath[MAX_PATH]; // relative to "Fallout New Vegas" folder.
+	destinationPath[0] = 0;
+
+	char sourcePath[MAX_PATH]; // relative to "Fallout New Vegas" folder.
+	sourcePath[0] = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &sourcePath, &destinationPath) && sourcePath[0] && destinationPath[0]) {
+
+		std::string sSourceFile = (GetFalloutDirectory() + sourcePath);
+		std::ifstream sourceFile(sSourceFile, std::ios::binary);
+
+		std::string sDestinationFile = (GetFalloutDirectory() + destinationPath);
+		std::ofstream destinationFile(sDestinationFile, std::ios::binary | std::ios::trunc);
+
+		if (sourceFile && destinationFile) {
+			const int bufferSize = 4096;
+			char buffer[bufferSize];
+
+			while (sourceFile.read(buffer, bufferSize) && sourceFile.gcount() > 0) {
+				destinationFile.write(buffer, sourceFile.gcount());
+			}
+
+			Console_Print("File copied successfully.");
+
+		}
+		else {
+
+			Console_Print("Error opening files.");
+
+		}
+
+	}
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(GetTopicSpeaker, "Converts a wav file to a voice file path", false, kParams_OneForm);
+bool Cmd_GetTopicSpeaker_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	TESTopicInfo* topicInfo = NULL;
+	UInt32 Speaker = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo)) {
+
+		Speaker = topicInfo->speaker;
+		*result = Speaker;
+
+	}
+	return true;
+}
+
+DEFINE_COMMAND_PLUGIN(GetTopicPrompt, "Grabs the prompt of a topic info", false, kParams_OneForm);
+bool Cmd_GetTopicPrompt_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	TESTopicInfo* topicInfo = NULL;
+	String sPrompt;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo)) {
+
+		sPrompt = topicInfo->prompt;
+		const char* sReturn = sPrompt.CStr();
+		//*result = AssignToStringVar(PASS_COMMAND_ARGS, sReturn);
+		//g_stringInterface->Assign(PASS_COMMAND_ARGS, sReturn);
+
+	}
+	return true;
+}
+
+static ParamInfo kParamsGetWeaponModFlags[1] =
+{
+	{"Object Ref", kParamType_ObjectRef, 0}
+};
+
+static ParamInfo kParamsSetWeaponModFlags[2] =
+{
+	{"Object Ref", kParamType_ObjectRef, 0},
+	{"int", kParamType_Integer, 0}
+};
+
+DEFINE_COMMAND_PLUGIN(GetWeaponModFlags, "Allows you to get both world and inv ref mod flags", false, kParamsGetWeaponModFlags);
+bool Cmd_GetWeaponModFlags_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+
+	TESObjectREFR* Weapon;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &Weapon)) {
+
+		ExtraWeaponModFlags* xWeaponModFlags = static_cast<ExtraWeaponModFlags*>(Weapon->extraDataList.GetByType(kExtraData_WeaponModFlags));
+		if (xWeaponModFlags)
+			*result = xWeaponModFlags->flags;
+
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(SetWeaponModFlags, "Allows you to set both world and inv ref mod flags", false, kParamsSetWeaponModFlags);
+bool Cmd_SetWeaponModFlags_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+
+	TESObjectREFR* Weapon;
+	UInt32 flags = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &Weapon, &flags)) {
+
+		ExtraWeaponModFlags* xWeaponModFlags = static_cast<ExtraWeaponModFlags*>(Weapon->extraDataList.GetByType(kExtraData_WeaponModFlags));
+
+		// Modify existing flags
+		if (xWeaponModFlags) {
+
+			if (flags) {
+				xWeaponModFlags->flags = (UInt8)flags;
+			}
+			else{
+
+				Weapon->extraDataList.Remove(xWeaponModFlags, true);
+			}
+
+		} // Create new extra data
+		else if (flags) {
+			Console_Print("Create");
+			xWeaponModFlags = ExtraWeaponModFlags::Create();
+			if (xWeaponModFlags) {
+
+				InventoryRef* invRef; //= InventoryReferenceGetForRefID(Weapon->refID);
+				if (invRef) {
+
+					Console_Print("Is Inv Ref");
+					//xWeaponModFlags = invRef->CreateExtraData();
+					xWeaponModFlags->flags = (UInt8)flags;
+					if (invRef->GetCount() > 1){
+						//invRef = invRef->SplitFromStack();
+					}
+
+					Weapon->extraDataList.Add(xWeaponModFlags);
+
+				}
+				else {
+					Console_Print("Is Not Inv Ref");
+					xWeaponModFlags->flags = (UInt8)flags;
+					Weapon->extraDataList.Add(xWeaponModFlags);
+				}
+
+			}
+
+		}
+
+	}
+
+	return true;
+
+}
+
+//...........................................................................................................................................
+
+static ParamInfo kParamsiModAlt[3] =
+{
+	{"IMOD", kParamType_ImageSpaceModifier, 0},
+	{"Float", kParamType_Float, 1},
+	{"Object Ref", kParamType_ObjectRef, 1}
+};
+
+DEFINE_COMMAND_ALT_PLUGIN(iModAlt, ApplyImageSpaceModifierAlt, "Alt verion of iMod that allows for a target", false, kParamsiModAlt);
+bool Cmd_iModAlt_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	TESImageSpaceModifier *apMod;
+	float afStrength = 1.0;
+	TESObjectREFR *apTarget = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &apMod, &afStrength, &apTarget)) {
+
+		CdeclCall(0x5299A0, apMod, afStrength, apTarget->GetNiNode());
+
+	}
+
+	return true;
+}
+
+//............................................................................................................................................
+
 static ParamInfo kParams_pSaveNif[2] =
 {
 	{"string", kParamType_String, 0},
-	{"int", kParamType_ObjectID, 0}
+	{"form", kParamType_AnyForm, 0}
 };
 
-DEFINE_COMMAND_PLUGIN(pSaveNif, 0, 1, kParams_OneOptionalInt);
+DEFINE_COMMAND_PLUGIN(pSaveNif, 0, 1, kParams_pSaveNif);
 bool Cmd_pSaveNif_Execute(COMMAND_ARGS)
 {
 
@@ -54,17 +353,24 @@ bool Cmd_pSaveNif_Execute(COMMAND_ARGS)
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &filePath, &tesForm) && filePath[0]) {
 
-		if (!tesForm)
-			if (thisObj)
-				tesForm = thisObj->baseForm;
-		//NiNode* node = ThisStdCall<NiNode*>(0x43FCD0, tesForm);
-		NiObject* apNode = ThisStdCall<NiObject*>(0x43FCD0, tesForm);
-		char Stream[sizeof(NiStream)];
-		NiStream* pStream = (NiStream*)Stream;
-		NiStream::Create(pStream);
-		pStream->InsertObject(apNode);
-		pStream->Save2(filePath);
-		pStream->~NiStream();
+		if (tesForm) {
+			//if (thisObj) {
+				//tesForm = thisObj->baseForm;
+			//}
+
+			Console_Print("Saving Nif...", filePath);
+			//NiNode* node = ThisStdCall<NiNode*>(0x43FCD0, tesForm);
+			NiNode* apNode = ThisStdCall<NiNode*>(0x43FCD0, tesForm);
+			//NiAVObject* apNode = ThisStdCall<NiAVObject*>(0x43FCD0, tesForm);
+			//NiObject* apNode = ThisStdCall<NiObject*>(0x43FCD0, tesForm);
+			char Stream[sizeof(NiStream)];
+			NiStream* pStream = (NiStream*)Stream;
+			NiStream::Create(pStream);
+			pStream->InsertObject(apNode);
+			pStream->Save2(filePath);
+			pStream->~NiStream();
+
+		}
 
 	}
 

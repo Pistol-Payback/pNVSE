@@ -5,6 +5,7 @@
 
 #if RUNTIME
 #include "GameAPI.h"
+#include "InventoryRef.h"
 #endif
 
 struct CommandInfo;
@@ -664,9 +665,27 @@ struct NVSEDataInterface
 	// v2: xNVSE caches script data for additional performance and short circuit evaluation, if you are manipulating script data then you can clear the cache 
 	void (*ClearScriptDataCache)();
 	// v3
-	
-	
+
 };
+
+//== Type definitions of function pointers, to easily cast the functions returned by NVSEDataInterface::GetFunc
+
+// Inventory Reference function pointer typedefs:
+typedef InventoryRef* (__stdcall* _InventoryReferenceCreate)(TESObjectREFR* container, const InventoryRef::Data& data, bool bValidate);
+typedef InventoryRef* (*_InventoryReferenceGetForRefID)(UInt32 refID);
+typedef InventoryRef* (*_InventoryReferenceGetRefBySelf)(InventoryRef* self);
+typedef TESObjectREFR* (__stdcall* _InventoryReferenceCreateEntry)(TESObjectREFR* container, TESForm* itemForm, SInt32 countDelta, ExtraDataList* xData);
+
+// Lambda function pointer typedefs:
+typedef void (*_LambdaDeleteAllForScript)(Script* parentScript);
+typedef void (*_LambdaSaveVariableList)(Script* parentScript);
+typedef void (*_LambdaUnsaveVariableList)(Script* parentScript);
+typedef bool (*_IsScriptLambda)(Script* parentScript);
+
+// Script-related function pointer typedefs:
+typedef bool (*_HasScriptCommand)(Script* script, CommandInfo* info, CommandInfo* eventBlock);
+typedef bool (*_DecompileScript)(Script* script, SInt32 lineNumber, char* buffer, UInt32 bufferSize);
+
 #endif
 
 /**** serialization API docs ***************************************************
@@ -1317,4 +1336,43 @@ struct NVSELoggingInterface
 	// Example result "Data\NVSE\Plugins\Logs\"
 	// The path is guaranteed to exist; xNVSE creates it at init if needed.
 	const char* (__fastcall* GetPluginLogPath)();
+};
+
+/**
+ *  A more straight-forward way to define commands.
+ *  Usage:
+ *	```
+ *  NVSECommandBuilder builder(nvse);
+ *  builder.Create("MyCommand", returnType, { ParamInfo{ "param1", kParamType_Integer, 0 }, ParamInfo{ "param2", kParamType_String, 0 } }, false, Cmd_MyCommand_Execute);
+ *  // or
+ *  builder.Create("MyCommand", returnType, { ParamInfo{ "param1", kParamType_Integer, 0 }, ParamInfo{ "param2", kParamType_String, 0 } }, false, [](COMMAND_ARGS)
+ *  {
+ *     return true;
+ *  });
+ *	```
+ */
+class NVSECommandBuilder
+{
+	const NVSEInterface* scriptInterface;
+public:
+	explicit NVSECommandBuilder(const NVSEInterface* scriptInterface) : scriptInterface(scriptInterface) {}
+
+	void Create(const char* name, CommandReturnType returnType, std::initializer_list<ParamInfo> params, bool refRequired, Cmd_Execute fn, Cmd_Parse parse = nullptr, const char* altName = "") const
+	{
+		ParamInfo* paramCopy = nullptr;
+		if (params.size())
+		{
+			paramCopy = new ParamInfo[params.size()];
+			int index = 0;
+			for (const auto& param : params)
+			{
+				paramCopy[index++] = param;
+			}
+		}
+
+		auto commandInfo = CommandInfo{
+			name, altName, 0, "", refRequired, static_cast<UInt16>(params.size()), paramCopy, fn, parse, nullptr, 0
+		};
+		scriptInterface->RegisterTypedCommand(&commandInfo, returnType);
+	}
 };

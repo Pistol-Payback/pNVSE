@@ -532,7 +532,7 @@ public:
 	virtual bool    Save2(const char* pcName);
 
 	static NiStream* Create(NiStream* apThis);
-	void				InsertObject(NiObject* apThis);
+	void				InsertObject(NiNode* apThis);
 
 	DWORD filler[369];
 };

@@ -1631,7 +1631,7 @@ public:
 	UInt32				speaker;			// 3C
 	UInt32				actorValueOrPerk;	// 40
 	UInt32				speechChallenge;	// 44
-	UInt32				unk48;				// 48
+	TESQuest*			quest;				// 48
 	UInt32				modInfoFileOffset;	// 4C	during LoadForm
 
 	__forceinline Script* GetResultScript(UInt32 onEnd)

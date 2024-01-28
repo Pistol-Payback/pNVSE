@@ -1,3 +1,4 @@
+
 #include "NiNodes.h"
 
 NiStream* NiStream::Create(NiStream* apThis) {
@@ -5,6 +6,6 @@ NiStream* NiStream::Create(NiStream* apThis) {
 }
 
 // 0xA66370
-void NiStream::InsertObject(NiObject* apObject) {
+void NiStream::InsertObject(NiNode* apObject) {
 	ThisStdCall(0xA66370, this, apObject);
 }
