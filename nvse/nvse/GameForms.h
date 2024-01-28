@@ -1604,6 +1604,16 @@ struct TESTopicInfoResponse
 };
 
 // 50
+
+//class BSStringT : public TESForm {
+	//BSStringT();
+	//~BSStringT();
+
+	//char* pString;
+	//UInt16 sLen;
+	//UInt16 sMaxLen;
+//};
+
 class TESTopicInfo : public TESForm
 {
 public:
@@ -1617,6 +1627,7 @@ public:
 		tList<TESTopic*>	unknown;
 	};
 
+	//TESCondition            conditions;            // 18
 	tList<Condition*>	conditions;			// 18
 	UInt16				unk20;				// 20
 	UInt8				saidOnce;			// 22
@@ -1626,6 +1637,10 @@ public:
 	UInt8				flags2;				// 26
 	UInt8				pad27;				// 27
 	String				prompt;				// 28
+
+	//BSStringT                prompt;                // 28
+	//BSSimpleList<TESTopic*>    addTopics;            // 30
+
 	tList<TESTopic*>	addTopics;			// 30
 	RelatedTopics	*	relatedTopics;		// 38
 	UInt32				speaker;			// 3C
@@ -1633,6 +1648,7 @@ public:
 	UInt32				speechChallenge;	// 44
 	TESQuest*			quest;				// 48
 	UInt32				modInfoFileOffset;	// 4C	during LoadForm
+	TESTopic* parentTopic; // Modded
 
 	__forceinline Script* GetResultScript(UInt32 onEnd)
 	{

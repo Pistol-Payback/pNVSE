@@ -279,6 +279,7 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	REG_CMD(MoveFileTo)
 	REG_CMD_FORM(GetTopicSpeaker)
+	REG_CMD_STR(GetTopicPrompt)
 
 	return true;
 }

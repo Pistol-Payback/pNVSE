@@ -210,9 +210,11 @@ bool Cmd_GetTopicPrompt_Execute(COMMAND_ARGS)
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo)) {
 
 		sPrompt = topicInfo->prompt;
+		Console_Print("%s", sPrompt);
 		const char* sReturn = sPrompt.CStr();
+		Console_Print(sReturn);
 		//*result = AssignToStringVar(PASS_COMMAND_ARGS, sReturn);
-		//g_stringInterface->Assign(PASS_COMMAND_ARGS, sReturn);
+		g_strInterface->Assign(PASS_COMMAND_ARGS, sReturn);
 
 	}
 	return true;
