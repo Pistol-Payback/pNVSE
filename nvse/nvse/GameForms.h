@@ -1605,14 +1605,16 @@ struct TESTopicInfoResponse
 
 // 50
 
-//class BSStringT : public TESForm {
-	//BSStringT();
-	//~BSStringT();
+class BSStringT {
 
-	//char* pString;
-	//UInt16 sLen;
-	//UInt16 sMaxLen;
-//};
+public:
+	BSStringT();
+	~BSStringT();
+
+	char* pString;
+	UInt16 sLen;
+	UInt16 sMaxLen;
+};
 
 class TESTopicInfo : public TESForm
 {
@@ -1636,9 +1638,9 @@ public:
 	UInt8				flags1;				// 25
 	UInt8				flags2;				// 26
 	UInt8				pad27;				// 27
-	String				prompt;				// 28
+	//String				prompt;				// 28
 
-	//BSStringT                prompt;                // 28
+	BSStringT                prompt;                // 28
 	//BSSimpleList<TESTopic*>    addTopics;            // 30
 
 	tList<TESTopic*>	addTopics;			// 30

@@ -205,15 +205,13 @@ bool Cmd_GetTopicPrompt_Execute(COMMAND_ARGS)
 
 	*result = 0;
 	TESTopicInfo* topicInfo = NULL;
-	String sPrompt;
+	BSStringT* sPrompt = NULL;
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo)) {
 
-		sPrompt = topicInfo->prompt;
-		Console_Print("%s", sPrompt);
-		const char* sReturn = sPrompt.CStr();
+		const char* sReturn = (&topicInfo->prompt)->pString;
 		Console_Print(sReturn);
-		//*result = AssignToStringVar(PASS_COMMAND_ARGS, sReturn);
+		_MESSAGE(sReturn);
 		g_strInterface->Assign(PASS_COMMAND_ARGS, sReturn);
 
 	}
@@ -342,6 +340,14 @@ static ParamInfo kParams_pSaveNif[2] =
 	{"form", kParamType_AnyForm, 0}
 };
 
+NiStream* NiStreamCreate(NiStream* apThis) {
+	return ThisStdCall<NiStream*>(0xA66150, apThis);
+}
+
+// 0xA66370
+void NiStreamInsertObject(NiStream* niStream, NiNode* apObject) {
+	ThisStdCall(0xA66370, niStream, apObject);
+}
 DEFINE_COMMAND_PLUGIN(pSaveNif, 0, 1, kParams_pSaveNif);
 bool Cmd_pSaveNif_Execute(COMMAND_ARGS)
 {
@@ -362,13 +368,16 @@ bool Cmd_pSaveNif_Execute(COMMAND_ARGS)
 
 			Console_Print("Saving Nif...", filePath);
 			//NiNode* node = ThisStdCall<NiNode*>(0x43FCD0, tesForm);
+
 			NiNode* apNode = ThisStdCall<NiNode*>(0x43FCD0, tesForm);
+
 			//NiAVObject* apNode = ThisStdCall<NiAVObject*>(0x43FCD0, tesForm);
 			//NiObject* apNode = ThisStdCall<NiObject*>(0x43FCD0, tesForm);
+
 			char Stream[sizeof(NiStream)];
 			NiStream* pStream = (NiStream*)Stream;
-			NiStream::Create(pStream);
-			pStream->InsertObject(apNode);
+			NiStreamCreate(pStream);
+			NiStreamInsertObject(pStream, apNode);
 			pStream->Save2(filePath);
 			pStream->~NiStream();
 
