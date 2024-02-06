@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include <InventoryRef.h>
+#include <nvse/InventoryRef.h>
 
 using UInt32List = std::list<UInt32>;
 extern std::unordered_map<UInt32, UInt32List> s_WeaponInstanceIndex;

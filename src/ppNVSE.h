@@ -2,12 +2,14 @@
 
 #include <atomic>
 
-#include "ParamInfos.h"
+#include "nvse/ParamInfos.h"
 
-#include "PluginAPI.h"
-#include "GameUI.h" 
+#include "nvse/PluginAPI.h"
+#include "nvse/GameUI.h"
 #include "common/ICriticalSection.h"
-#include "GameData.h"
+#include "nvse/GameData.h"
+
+#define NO_MANGLE_DLLEXPORT extern "C" __declspec(dllexport)
 
 using namespace std::literals;
 

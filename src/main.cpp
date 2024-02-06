@@ -5,16 +5,16 @@
 #include "nvse/GameObjects.h"
 #include <string>
 #include "ppNVSE.h"
-#include "GameUI.h"
+#include "nvse/GameUI.h"
 
 #include "ppNVSE_functions.h"
 #include "WeapInstFunct.h"
 //NoGore is unsupported in xNVSE
 
-IDebugLog		gLog("ppNVSE.log");
+IDebugLog gLog("ppNVSE.log");
 constexpr UInt32 g_PluginVersion = 1;
 
-PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
+PluginHandle g_pluginHandle = kPluginHandle_Invalid;
 
 NVSEMessagingInterface* g_messagingInterface{};
 NVSEInterface* g_nvseInterface{};
@@ -23,7 +23,7 @@ NVSECommandTableInterface* g_cmdTableInterface{};
 //UI 11-15-2023
 UInt32 s_UpdateCursor = 0;
 InterfaceManager* g_interfaceManager;
-NiNode* s_pc1stPersonNode = nullptr, * g_cursorNode;
+NiNode *s_pc1stPersonNode = nullptr, *g_cursorNode;
 
 // RUNTIME = Is not being compiled as a GECK plugin.
 
@@ -61,7 +61,8 @@ NVSEArrayVarInterface* g_arrayInterface{};
 NVSEArrayVarInterface g_arrayVar;
 
 bool (*ExtractArgsEx)(COMMAND_ARGS_EX, ...);
-bool (*ExtractFormatStringArgs)(UInt32 fmtStringPos, char* buffer, COMMAND_ARGS_EX, UInt32 maxParams, ...);  // From JIP_NVSE.H
+bool (*ExtractFormatStringArgs)(UInt32 fmtStringPos, char* buffer, COMMAND_ARGS_EX, UInt32 maxParams, ...);
+// From JIP_NVSE.H
 NVSEArrayVarInterface* g_arrInterface = nullptr;
 NVSEArrayVar* (*CreateArray)(const NVSEArrayElement* data, UInt32 size, Script* callingScript);
 NVSEArrayVar* (*CreateStringMap)(const char** keys, const NVSEArrayElement* values, UInt32 size, Script* callingScript);
@@ -69,7 +70,7 @@ NVSEArrayVar* (*CreateMap)(const double* keys, const NVSEArrayElement* values, U
 bool (*AssignArrayResult)(NVSEArrayVar* arr, double* dest);
 void (*SetElement)(NVSEArrayVar* arr, const NVSEArrayElement& key, const NVSEArrayElement& value);
 void (*AppendElement)(NVSEArrayVar* arr, const NVSEArrayElement& value);
-UInt32(*GetArraySize)(NVSEArrayVar* arr);
+UInt32 (*GetArraySize)(NVSEArrayVar* arr);
 NVSEArrayVar* (*LookupArrayByID)(UInt32 id);
 bool (*GetElement)(NVSEArrayVar* arr, const NVSEArrayElement& key, NVSEArrayElement& outElement);
 bool (*GetArrayElements)(NVSEArrayVar* arr, NVSEArrayElement* elements, NVSEArrayElement* keys);
@@ -81,9 +82,11 @@ NVSEMessagingInterface* g_msg = nullptr;
 NVSEScriptInterface* g_scriptInterface = nullptr;
 NVSECommandTableInterface* g_commandInterface = nullptr;
 const CommandInfo* (*GetCmdByName)(const char* name);
-bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
+bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container,
+                           NVSEArrayElement* result, UInt8 numArgs, ...);
 bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
-TESObjectREFR* (__stdcall* InventoryRefCreateEntry)(TESObjectREFR* container, TESForm* itemForm, SInt32 countDelta, ExtraDataList* xData);
+TESObjectREFR* (__stdcall*InventoryRefCreateEntry)(TESObjectREFR* container, TESForm* itemForm, SInt32 countDelta,
+                                                   ExtraDataList* xData);
 ExpressionEvaluatorUtils g_expEvalUtils;
 
 // Singletons
@@ -102,8 +105,9 @@ TESObjectWEAP* g_fistsWeapon = nullptr;
  * and they are included after such globals/macros have been defined.
  ***************/
 
- // Shortcut macro to register a script command (assigning it an Opcode)............................................................................
+// Shortcut macro to register a script command (assigning it an Opcode)............................................................................
 #define RegisterScriptCommand(name) nvse->RegisterCommand(&kCommandInfo_ ##name); //Default return type (return a number)
+
 #define REG_CMD(name) nvse->RegisterCommand(&kCommandInfo_##name);  //Short version of RegisterScriptCommand, from JIP.
 #define REG_TYPED_CMD(name, type) nvse->RegisterTypedCommand(&kCommandInfo_##name,kRetnType_##type);  //from JG
 #define REG_CMD_STR(name) nvse->RegisterTypedCommand(&kCommandInfo_##name, kRetnType_String); //From JIPLN
@@ -141,28 +145,30 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 	case NVSEMessagingInterface::kMessage_DeferredInit: break;
 	case NVSEMessagingInterface::kMessage_ClearScriptDataCache: break;
 	case NVSEMessagingInterface::kMessage_MainGameLoop: break;
-		/*
-		if (s_UpdateCursor) {
-			if (g_interfaceManager->hasMouseMoved)
-			{
-				POINT p;
-				GetCursorPos(&p);
-				g_interfaceManager->cursor->node->Update();
-				Console_Print("Running Update");
-				g_interfaceManager->cursorX = p.x;
-				g_interfaceManager->cursorY = p.y;
-				float converter = *(float*)0x11D8A48;
-				g_cursorNode->LocalTranslate().x = ((p.x) * converter) - g_screenWidth;
-				g_cursorNode->LocalTranslate().z = g_screenHeight - ((p.y) * converter);
-			}
+	/*
+	if (s_UpdateCursor) {
+		if (g_interfaceManager->hasMouseMoved)
+		{
+			POINT p;
+			GetCursorPos(&p);
+			g_interfaceManager->cursor->node->Update();
+			Console_Print("Running Update");
+			g_interfaceManager->cursorX = p.x;
+			g_interfaceManager->cursorY = p.y;
+			float converter = *(float*)0x11D8A48;
+			g_cursorNode->LocalTranslate().x = ((p.x) * converter) - g_screenWidth;
+			g_cursorNode->LocalTranslate().z = g_screenHeight - ((p.y) * converter);
 		}
-		*/
+	}
+	*/
 	case NVSEMessagingInterface::kMessage_ScriptCompile: break;
 	default: break;
 	}
 }
 
-bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info)
+// Man, you need to format your code :frenzy:
+
+NO_MANGLE_DLLEXPORT bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info)
 {
 	_MESSAGE("query");
 
@@ -174,7 +180,7 @@ bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info)
 	return true;
 }
 
-bool NVSEPlugin_Load(NVSEInterface* nvse)
+NO_MANGLE_DLLEXPORT bool NVSEPlugin_Load(NVSEInterface* nvse)
 {
 	_MESSAGE("load");
 
@@ -197,11 +203,12 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	}
 
 	// register to receive messages from NVSE
-	((NVSEMessagingInterface*)nvse->QueryInterface(kInterface_Messaging))->RegisterListener(nvse->GetPluginHandle(), "NVSE", MessageHandler);
+	((NVSEMessagingInterface*)nvse->QueryInterface(kInterface_Messaging))->RegisterListener(
+		nvse->GetPluginHandle(), "NVSE", MessageHandler);
 
 	if (!nvse->isEditor)
 	{
-		PluginHandle const nvsePluginHandle = nvse->GetPluginHandle();  //from JiPLN
+		PluginHandle const nvsePluginHandle = nvse->GetPluginHandle(); //from JiPLN
 
 		auto const nvseData = (NVSEDataInterface*)nvse->QueryInterface(kInterface_Data);
 
@@ -237,25 +244,28 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 		g_eventInterface = (NVSEEventManagerInterface*)nvse->QueryInterface(kInterface_EventManager);
 
-		#if WantInventoryRefFunctions
-				InventoryReferenceCreate = (_InventoryReferenceCreate)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreate);
-				InventoryReferenceGetForRefID = (_InventoryReferenceGetForRefID)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetForRefID);
-				InventoryReferenceGetRefBySelf = (_InventoryReferenceGetRefBySelf)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetRefBySelf);
-				InventoryReferenceCreateEntry = (_InventoryReferenceCreateEntry)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreateEntry);
-		#endif
+#if WantInventoryRefFunctions
+		InventoryReferenceCreate = (_InventoryReferenceCreate)nvseData->GetFunc(
+			NVSEDataInterface::kNVSEData_InventoryReferenceCreate);
+		InventoryReferenceGetForRefID = (_InventoryReferenceGetForRefID)nvseData->GetFunc(
+			NVSEDataInterface::kNVSEData_InventoryReferenceGetForRefID);
+		InventoryReferenceGetRefBySelf = (_InventoryReferenceGetRefBySelf)nvseData->GetFunc(
+			NVSEDataInterface::kNVSEData_InventoryReferenceGetRefBySelf);
+		InventoryReferenceCreateEntry = (_InventoryReferenceCreateEntry)nvseData->GetFunc(
+			NVSEDataInterface::kNVSEData_InventoryReferenceCreateEntry);
+#endif
 
-		#if WantLambdaFunctions
+#if WantLambdaFunctions
 				LambdaDeleteAllForScript = (_LambdaDeleteAllForScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaDeleteAllForScript);
 				LambdaSaveVariableList = (_LambdaSaveVariableList)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaSaveVariableList);
 				LambdaUnsaveVariableList = (_LambdaUnsaveVariableList)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaUnsaveVariableList);
 				IsScriptLambda = (_IsScriptLambda)nvseData->GetFunc(NVSEDataInterface::kNVSEData_IsScriptLambda);
-		#endif
+#endif
 
-		#if WantScriptFunctions
+#if WantScriptFunctions
 				HasScriptCommand = (_HasScriptCommand)nvseData->GetFunc(NVSEDataInterface::kNVSEData_HasScriptCommand);
 				DecompileScript = (_DecompileScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_DecompileScript);
-		#endif
-
+#endif
 	}
 
 	//	See https://geckwiki.com/index.php?title=NVSE_Opcode_Base

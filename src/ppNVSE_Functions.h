@@ -5,8 +5,8 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include <InventoryRef.h>
-#include "StringVar.h"
+#include <nvse/InventoryRef.h>
+#include "nvse/StringVar.h"
 
 #define PI 3.14159265
 
