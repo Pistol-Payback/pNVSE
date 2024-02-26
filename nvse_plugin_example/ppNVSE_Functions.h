@@ -90,7 +90,7 @@ bool Cmd_ConvertWavToVoice_Execute(COMMAND_ARGS)
 	//UInt32 ResponseNum = topicResponse->data.responseNumber;
 	TESTopicInfo* topicInfo = NULL;
 	tList<Condition*> conditions = topicInfo->conditions;
-	UInt32 Speaker = topicInfo->speaker;
+	//UInt32 Speaker = topicInfo->speaker;
 
 	TESTopicInfoResponse* topicResponse = ThisStdCall<TESTopicInfoResponse*>(0x61E780, topicInfo, nullptr);
 	UInt32 ResponseNum = topicResponse->data.responseNumber;
@@ -182,37 +182,111 @@ bool Cmd_MoveFileTo_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_PLUGIN(GetTopicSpeaker, "Converts a wav file to a voice file path", false, kParams_OneForm);
+DEFINE_COMMAND_PLUGIN(GetTopicSpeaker, "Returns the line speaker", false, kParams_OneForm);
 bool Cmd_GetTopicSpeaker_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
 	TESTopicInfo* topicInfo = NULL;
-	UInt32 Speaker = 0;
+	TESObject* Speaker;
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo)) {
 
 		Speaker = topicInfo->speaker;
-		*result = Speaker;
+		//Console_Print((const char*)Speaker);
+		*result = Speaker ? Speaker->refID : 0;
 
 	}
 	return true;
 }
 
-DEFINE_COMMAND_PLUGIN(GetTopicPrompt, "Grabs the prompt of a topic info", false, kParams_OneForm);
+static ParamInfo kParams_OneForm_OptInt[2] =
+{
+	{	"form",		kParamType_AnyForm,	0	},
+	{	"int",		kParamType_Integer, 1	},
+};
+DEFINE_COMMAND_PLUGIN(GetTopicPrompt, "Grabs the prompt of a topic info", false, kParams_OneForm_OptInt);
 bool Cmd_GetTopicPrompt_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
-	TESTopicInfo* topicInfo = NULL;
-	BSStringT* sPrompt = NULL;
+	const TESForm* Form = NULL;
+	UInt32 promptType = 0;
+	
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &Form, &promptType)) {
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &topicInfo)) {
+		const char* sReturn = "NULL";
+		TESTopic* topicRef = NULL;
+		TESTopicInfo* topicInfo = NULL;
 
-		const char* sReturn = (&topicInfo->prompt)->pString;
-		Console_Print(sReturn);
-		_MESSAGE(sReturn);
+		if (Form->typeID == kFormType_TESTopicInfo) {
+
+			topicInfo = static_cast<TESTopicInfo*>(const_cast<TESForm*>(Form));
+
+			topicRef = (topicInfo->parentTopic);
+
+		}else if (Form->typeID == kFormType_TESTopic) {
+
+			topicRef = static_cast<TESTopic*>(const_cast<TESForm*>(Form));
+
+		}
+		else {
+			Console_Print("Error GetTopicPrompt Form is not a Topic");
+			return true;
+		}
+
+		if (topicInfo && promptType == 1 && (topicInfo->prompt).CStr() != nullptr) {
+			sReturn = (topicInfo->prompt).CStr();
+		}
+		else if (promptType == 2 && topicRef->unk34.Includes("")) {
+			sReturn = (topicRef->unk34).CStr();
+		}
+		else {
+			sReturn = ((&topicRef->fullName)->name).CStr();
+		}
+
 		g_strInterface->Assign(PASS_COMMAND_ARGS, sReturn);
+
+	}
+	return true;
+}
+
+DEFINE_COMMAND_PLUGIN(TopicHasPromptType, "Checks if a topic or topic info has a specific prompt type", false, kParams_OneForm_OptInt);
+bool Cmd_TopicHasPromptType_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	const TESForm* Form = NULL;
+	UInt32 promptType = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &Form, &promptType)) {
+
+		TESTopic* topicRef = NULL;
+		TESTopicInfo* topicInfo = NULL;
+
+		if (Form->typeID == kFormType_TESTopicInfo) {
+
+			topicInfo = static_cast<TESTopicInfo*>(const_cast<TESForm*>(Form));
+
+			topicRef = (topicInfo->parentTopic);
+
+		}
+		else if (Form->typeID == kFormType_TESTopic) {
+
+			topicRef = static_cast<TESTopic*>(const_cast<TESForm*>(Form));
+
+		}
+		else {
+			Console_Print("Error TopicHasPromptType Form is not a Topic");
+			return true;
+		}
+
+		if (topicInfo && promptType == 1 && (topicInfo->prompt).CStr() != nullptr) {
+			*result = 1;
+		}
+		else if (promptType == 2 && topicRef->unk34.Includes("")) {
+			*result = 1;
+		}
 
 	}
 	return true;

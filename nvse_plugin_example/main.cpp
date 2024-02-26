@@ -270,9 +270,9 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD_ARR(pReadFile)
 	REG_CMD(pWriteFile)
 	REG_CMD(pSaveNif)
-	REG_CMD(NewWeapInst)
-	REG_CMD(IsWeapInst)
-	REG_CMD_FORM(GetWeaponBase)
+
+	//REG_CMD(IsWeapInst)
+	//REG_CMD_FORM(GetWeaponBase)
 	REG_CMD(iModAlt)
 	REG_CMD(GetWeaponModFlags)
 	REG_CMD(SetWeaponModFlags)
@@ -280,6 +280,21 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD(MoveFileTo)
 	REG_CMD_FORM(GetTopicSpeaker)
 	REG_CMD_STR(GetTopicPrompt)
+
+	//Weapon Modifiers
+
+	REG_CMD(RegWSWeapon)
+	REG_CMD_FORM(NewWeaponModifier)
+
+	REG_CMD(SetWeaponAttachment)
+	REG_CMD_ARR(GetWeaponAttachments)
+	REG_CMD_ARR(GetWeaponSlots)
+
+	REG_CMD_FORM(GetWeaponModifier)
+
+	REG_CMD(GetWeaponModifierID)
+	REG_CMD(HasWeaponModifier)
+		
 
 	return true;
 }

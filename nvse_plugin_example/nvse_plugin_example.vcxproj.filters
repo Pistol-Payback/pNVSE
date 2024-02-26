@@ -74,6 +74,9 @@
     <ClCompile Include="..\nvse\nvse\InventoryReference.cpp">
       <Filter>nvse</Filter>
     </ClCompile>
+    <ClCompile Include="RewriteWeaponStats.cpp">
+      <Filter>functions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\GameAPI.h">

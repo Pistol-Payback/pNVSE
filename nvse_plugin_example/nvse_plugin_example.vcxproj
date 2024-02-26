@@ -344,6 +344,7 @@
     </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NiStreamFunctions.cpp" />
+    <ClCompile Include="RewriteWeaponStats.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\CommandTable.h" />

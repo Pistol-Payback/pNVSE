@@ -1605,17 +1605,6 @@ struct TESTopicInfoResponse
 
 // 50
 
-class BSStringT {
-
-public:
-	BSStringT();
-	~BSStringT();
-
-	char* pString;
-	UInt16 sLen;
-	UInt16 sMaxLen;
-};
-
 class TESTopicInfo : public TESForm
 {
 public:
@@ -1638,14 +1627,14 @@ public:
 	UInt8				flags1;				// 25
 	UInt8				flags2;				// 26
 	UInt8				pad27;				// 27
-	//String				prompt;				// 28
+	String				prompt;				// 28
 
-	BSStringT                prompt;                // 28
+	//BSStringT                prompt;                // 28
 	//BSSimpleList<TESTopic*>    addTopics;            // 30
 
 	tList<TESTopic*>	addTopics;			// 30
 	RelatedTopics	*	relatedTopics;		// 38
-	UInt32				speaker;			// 3C
+	TESObject*				speaker;			// 3C
 	UInt32				actorValueOrPerk;	// 40
 	UInt32				speechChallenge;	// 44
 	TESQuest*			quest;				// 48
@@ -1678,14 +1667,14 @@ public:
 		UInt8			pad031[3];
 	};
 
-	TESFullName		fullName;	// 18
+	TESFullName		fullName;	// 18 Player Topic Text Prompt
 
 	UInt8			type;			// 24	DATA
 	UInt8			flags;			// 25	DATA also used as bool or flag, connected to INFOGENERAL
 	UInt8			pad26[2];		// 26
 	float			priority;		// 28	PNAM
 	tList<Info*>	infos;			// 2C
-	String			unk34;			// 34	TDUM
+	String			unk34;			// 34	TDUM Player Dummy Line Prompt
 	UInt16			unk3C;			// 3C	XIDX
 	UInt16			unk3E;			// 3E
 };
