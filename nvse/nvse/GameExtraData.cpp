@@ -257,6 +257,143 @@ ExtraContainerChanges::EntryData* ExtraContainerChanges::EntryData::Create(TESFo
 	return xData;
 }
 
+__declspec(naked) float __vectorcall ContChangesEntry::GetWeaponModEffectValue(UInt32 effectType) const
+{
+	__asm
+	{
+		push	edx
+		mov		eax, [ecx]
+		test	eax, eax
+		jz		retn0
+		mov		edx, [ecx + 8]
+		mov		ecx, [eax]
+		test	ecx, ecx
+		jz		retn0
+		push	edx
+		push	kXData_ExtraWeaponModFlags
+		call	BaseExtraList::GetByType
+		pop		ecx
+		test	eax, eax
+		jz		retn0
+		mov		dl, [eax + 0xC]
+		mov		eax, [esp]
+		test	dl, 1
+		jz		check2nd
+		cmp[ecx + 0x180], eax
+		jnz		check2nd
+		movss	xmm0, [ecx + 0x18C]
+		pop		ecx
+		retn
+	check2nd:
+		test	dl, 2
+		jz		check3rd
+		cmp[ecx + 0x184], eax
+		jnz		check3rd
+		movss	xmm0, [ecx + 0x190]
+		pop		ecx
+		retn
+	check3rd:
+		test	dl, 4
+		jz		retn0
+		cmp[ecx + 0x188], eax
+		jnz		retn0
+		movss	xmm0, [ecx + 0x194]
+		pop		ecx
+		retn
+	retn0:
+		xorps	xmm0, xmm0
+		pop		ecx
+		retn
+	}
+}
+
+__declspec(naked) ContChangesEntry* __fastcall ContChangesEntryList::FindForItem(TESForm* item) const
+{
+	__asm
+	{
+	listIter:
+		test	ecx, ecx
+			jz		retnNULL
+			mov		eax, [ecx]
+			mov		ecx, [ecx + 4]
+			test	eax, eax
+			jz		listIter
+			cmp[eax + 8], edx
+			jnz		listIter
+			retn
+			retnNULL :
+		xor eax, eax
+			retn
+	}
+}
+
+__declspec(naked) float __vectorcall ContChangesEntry::GetBaseHealth() const
+{
+	__asm
+	{
+		mov			eax, [ecx + 8]
+		mov			dl, [eax + 4]
+		cmp			dl, kFormType_TESObjectWEAP
+		jnz			notWeapon
+		cvtsi2ss	xmm1, [eax + 0x98]
+		mov			edx, 0xA
+		call		ContChangesEntry::GetWeaponModEffectValue
+		addss		xmm0, xmm1
+		retn
+	notWeapon:
+		cmp			dl, kFormType_TESObjectARMO
+		jnz			done
+		cvtsi2ss	xmm0, [eax + 0x6C]
+		retn
+	done:
+		xorps		xmm0, xmm0
+		retn
+	}
+}
+
+__declspec(naked) float __vectorcall ContChangesEntry::GetHealthPercent() const
+{
+	__asm
+	{
+		mov		eax, [ecx + 8]
+		mov		dl, [eax + 4]
+		mov		al, dl
+		and		al, 0x38
+		cmp		al, dl
+		jnz		invalid
+		push	esi
+		mov		esi, ecx
+		movss	xmm0, SS_100
+		mov		eax, [ecx]
+		test	eax, eax
+		jz		done
+		mov		ecx, [eax]
+		test	ecx, ecx
+		jz		done
+		push	kXData_ExtraHealth
+		call	BaseExtraList::GetByType
+		test	eax, eax
+		jz		done
+		movq	xmm2, xmm0
+		movss	xmm3, [eax + 0xC]
+		mov		ecx, esi
+		call	ContChangesEntry::GetBaseHealth
+		divss	xmm3, xmm0
+		mulss	xmm3, xmm2
+		minss	xmm2, xmm3
+		movq	xmm0, xmm2
+	done :
+		pop		esi
+		retn
+	invalid :
+		movss	xmm0, kFltMin1
+		retn
+		ALIGN 4
+	kFltMin1 :
+		__asm _emit 0x00 __asm _emit 0x00 __asm _emit 0x80 __asm _emit 0xBF
+	}
+}
+
 ExtraContainerChanges::ExtendDataList* ExtraContainerChanges::EntryData::Add(ExtraDataList* newList)
 {
 	if (extendData)
@@ -429,7 +566,7 @@ ExtraDataList* ExtraContainerChanges::SetEquipped(TESForm* obj, bool bEquipped, 
 		EntryData* xData = data->objList->Find(ItemInEntryDataListMatcher(obj));
 		if (xData) {
 			ExtraDataList* Possible = NULL;
-			bool atleastOne = xData->extendData && (xData->extendData->Count()>0);
+			bool atleastOne = xData->extendData && (xData->extendData->Count() > 0);
 			if (atleastOne)
 				for (ExtendDataList::Iterator iter = xData->extendData->Begin(); !iter.End(); ++iter)
 					if (iter.Get()->HasType(kExtraData_Worn) || iter.Get()->HasType(kExtraData_WornLeft)) {
@@ -438,7 +575,7 @@ ExtraDataList* ExtraContainerChanges::SetEquipped(TESForm* obj, bool bEquipped, 
 								iter.Get()->RemoveByType(kExtraData_Worn);
 								iter.Get()->RemoveByType(kExtraData_WornLeft);
 								Cleanup();
-								return iter.Get(); 
+								return iter.Get();
 							}
 
 					}
@@ -450,11 +587,11 @@ ExtraDataList* ExtraContainerChanges::SetEquipped(TESForm* obj, bool bEquipped, 
 				xData->extendData = ExtraContainerChangesExtendDataListCreate(NULL);
 			if (Possible) {
 				Possible->Add(ExtraWorn::Create());
-				return Possible; 
+				return Possible;
 			}
 		}
 	}
-	return NULL; 
+	return NULL;
 }
 
 bool ExtraContainerChanges::Remove(TESForm* obj, ExtraDataList* dataList, bool bFree)

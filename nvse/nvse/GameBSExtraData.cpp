@@ -18,6 +18,30 @@ void BaseExtraList::MarkType(UInt32 type, bool bCleared)
 	if (bCleared) flag &= ~bitMask;
 	else flag |= bitMask;
 }
+#define CALL_EAX(addr) __asm mov eax, addr __asm call eax
+__declspec(naked) ExtraDataList* ExtraDataList::CreateCopy(bool bCopyAndRemove)
+{
+	__asm
+	{
+		push	esi
+		mov		esi, ecx
+		push	0x20
+		call	Game_DoHeapAlloc
+		xorps	xmm0, xmm0
+		movups[eax], xmm0
+		movups[eax + 0x10], xmm0
+		mov		dword ptr[eax], 0x10143E8
+		movzx	edx, byte ptr[esp + 8]
+		push	edx
+		push	esi
+		mov		esi, eax
+		mov		ecx, eax
+		CALL_EAX(0x412490)
+		mov		eax, esi
+		pop		esi
+		retn	4
+	}
+}
 
 ExtraDataList* ExtraDataList::Create(BSExtraData* xBSData)
 {

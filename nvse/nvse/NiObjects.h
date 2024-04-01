@@ -113,6 +113,8 @@ public:
 	RotAndTranslate				dat0064;				// 064 world ?
 
 	void Dump(UInt32 level, const char * indent);
+	void Update();
+
 };
 STATIC_ASSERT(sizeof(NiAVObject) == 0x94);
 

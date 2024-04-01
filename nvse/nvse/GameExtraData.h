@@ -349,16 +349,14 @@ public:
 				if (iter->HasType(kExtraData_LeveledItem)) return true;
 			return false;
 		}
+		float __vectorcall GetWeaponModEffectValue(UInt32 effectType) const;
+		float __vectorcall GetBaseHealth() const;
+		float __vectorcall GetHealthPercent() const;
 	};
 
 	struct EntryDataList : tList<EntryData>
 	{
-		EntryData *FindForItem(TESForm *item)
-		{
-			for (auto iter = Begin(); !iter.End(); ++iter)
-				if (iter->type == item) return iter.Get();
-			return NULL;
-		}
+		EntryData* __fastcall FindForItem(TESForm* item) const;
 	};
 
 	typedef std::vector<EntryData*> DataArray;
@@ -405,6 +403,10 @@ public:
 		return data ? data->objList : NULL;
 	}
 };
+typedef ExtraContainerChanges::EntryData ContChangesEntry;
+typedef ExtraContainerChanges::FoundEquipData EquipData;
+typedef ExtraContainerChanges::EntryDataList ContChangesEntryList;
+
 typedef ExtraContainerChanges::DataArray ExtraContainerDataArray;
 typedef ExtraContainerChanges::ExtendDataArray ExtraContainerExtendDataArray;
 

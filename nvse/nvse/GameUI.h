@@ -21,7 +21,7 @@ public:
 	InterfaceManager();
 	~InterfaceManager();
 
-	static InterfaceManager *	GetSingleton(void);
+	static InterfaceManager *	GetSingleton(void) { return *(InterfaceManager**)(0x11D8A80); };
 	static bool					IsMenuVisible(UInt32 menuType);
 	static Menu *				GetMenuByType(UInt32 menuType);
 	static Menu *				TempMenuByType(UInt32 menuType);
@@ -35,7 +35,7 @@ public:
 	UInt32				flags;							// 000	bit 1 would be "not menu mode"
 	SceneGraph			* sceneGraph004;				// 004
 	SceneGraph			* sceneGraph008;				// 008
-	UInt8				byt00C;							// 00C
+	UInt8				currentMode;					// 00C
 	UInt8				pad00D[3];						// 00D
 	UInt32				unk010[(0x028 - 0x010) >> 2];	// 010
 	Tile				* cursor;						// 028

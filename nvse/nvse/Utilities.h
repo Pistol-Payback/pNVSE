@@ -5,6 +5,14 @@
 #include <vector>
 #include <memory>
 
+void* __stdcall Game_DoHeapAlloc(size_t size);
+void __stdcall Game_HeapFree(void* ptr);
+
+template <typename T = char> __forceinline T* Game_HeapAlloc(size_t count = 1)
+{
+	return (T*)Game_DoHeapAlloc(count * sizeof(T));
+}
+
 class Script;
 
 void DumpClass(void * theClassPtr, UInt32 nIntsToDump = 512);
@@ -348,7 +356,7 @@ std::vector<std::string> SplitString(std::string s, std::string delimiter);
 
 #define INLINE_HOOK(retnType, callingConv, ...) static_cast<retnType(callingConv*)(__VA_ARGS__)>([](__VA_ARGS__) [[msvc::forceinline]] -> retnType
 
-UInt8* GetParentBasePtr(void* addressOfReturnAddress, bool lambda = false);
+//UInt8* GetParentBasePtr(void* addressOfReturnAddress, bool lambda = false);
 
 //Example in https://en.cppreference.com/w/cpp/utility/variant/visit
 //Allows function overloading with c++ lambdas.

@@ -105,8 +105,8 @@ struct PackageInfo
 class BaseProcess
 {
 public:
-	BaseProcess();
-	~BaseProcess();
+	//BaseProcess();
+	//~BaseProcess();
 
 	struct AmmoInfo
 	{
@@ -205,76 +205,76 @@ public:
 		kProcessLevel_Low = 3
 	};
 
-	virtual void	Destroy(bool noDealloc);
-	virtual void	Unk_01(void);
-	virtual void	Unk_02(void);
-	virtual void	Unk_03(void);
-	virtual void	Unk_04(void);
-	virtual void	Unk_05(void);
-	virtual void	Unk_06(void);
-	virtual void	Unk_07(void);
-	virtual void	Unk_08(void);
-	virtual void	Unk_09(void);
-	virtual void	Unk_0A(void);
-	virtual void	Unk_0B(void);
-	virtual void	Unk_0C(void);
-	virtual void	Unk_0D(void);
-	virtual void	Unk_0E(void);
-	virtual void	Unk_0F(void);
-	virtual void	Unk_10(void);
-	virtual void	Unk_11(void);
-	virtual void	Unk_12(void);
-	virtual void	Unk_13(void);
-	virtual void	Unk_14(void);
-	virtual void	Unk_15(void);
-	virtual void	Unk_16(void);
-	virtual void	Unk_17(void);
-	virtual void	Unk_18(void);
-	virtual void	Unk_19(void);
-	virtual void	Unk_1A(void);
-	virtual void	Unk_1B(void);
-	virtual void	Unk_1C(void);
-	virtual void	Unk_1D(void);
-	virtual void	Unk_1E(void);
-	virtual void	Unk_1F(void);
-	virtual void	Unk_20(void);
-	virtual void	Unk_21(void);
-	virtual void	Unk_22(void);
-	virtual void	Unk_23(void);
-	virtual void	Unk_24(void);
-	virtual void	Unk_25(void);
-	virtual void	Unk_26(void);
-	virtual void	Unk_27(void);
-	virtual void	Unk_28(void);
-	virtual void	Unk_29(void);
-	virtual void	Unk_2A(void);
-	virtual void	Unk_2B(void);
-	virtual void	Unk_2C(void);
-	virtual void	Unk_2D(void);
-	virtual void	Unk_2E(void);
-	virtual void	Unk_2F(void);
-	virtual void	Unk_30(void);
-	virtual void	Unk_31(void);
-	virtual void	Unk_32(void);
-	virtual void	Unk_33(void);
-	virtual void	Unk_34(void);
-	virtual void	Unk_35(void);
-	virtual void	Unk_36(void);
-	virtual void	Unk_37(void);
-	virtual void	Unk_38(void);
-	virtual void	Unk_39(void);
-	virtual void	Unk_3A(void);
-	virtual void	Unk_3B(void);
-	virtual void	Unk_3C(void);
-	virtual void	Unk_3D(void);
-	virtual void	Unk_3E(void);
-	virtual void	Unk_3F(void);
-	virtual void	Unk_40(void);
+	/*000*/virtual void		Destroy(bool deFree);
+	/*004*/virtual void		Copy(BaseProcess* from);
+	/*008*/virtual void		Unk_02(void);
+	/*00C*/virtual void		RunProcess(void* refr, float arg2);
+	/*010*/virtual void		RunProcess2(void* refr);
+	/*014*/virtual void		Unk_05(void);
+	/*018*/virtual void		Unk_06(void);
+	/*01C*/virtual void		Unk_07(void);
+	/*020*/virtual void		Unk_08(void);
+	/*024*/virtual bool		CheckForNewPackage(Actor* actor, UInt8 flag);
+	/*028*/virtual void		SetLastTimeProcessed();
+	/*02C*/virtual void		Unk_0B(void);
+	/*030*/virtual void		Unk_0C(void);
+	/*034*/virtual void		Unk_0D(void);
+	/*038*/virtual void		Unk_0E(void);
+	/*03C*/virtual void		Unk_0F(void);
+	/*040*/virtual void		Unk_10(void);
+	/*044*/virtual void		Unk_11(void);
+	/*048*/virtual void		Unk_12(void);
+	/*04C*/virtual void		Unk_13(void);
+	/*050*/virtual void		Unk_14(void);
+	/*054*/virtual void		Unk_15(void);
+	/*058*/virtual void		Unk_16(void);
+	/*05C*/virtual void		Unk_17(void);
+	/*060*/virtual UInt8	GetIdleDoneOnce();
+	/*064*/virtual void		Unk_19(void);
+	/*068*/virtual void		Unk_1A(void);
+	/*06C*/virtual void		Unk_1B(void);
+	/*070*/virtual void		Unk_1C(void);
+	/*074*/virtual void		Unk_1D(void);
+	/*078*/virtual void		Unk_1E(void);
+	/*07C*/virtual void		ProcessSandman(Actor* actor);
+	/*080*/virtual void		ProcessCannibal(Actor* actor);
+	/*084*/virtual void		Unk_21(void);
+	/*088*/virtual void		Unk_22(void);
+	/*08C*/virtual void		Unk_23(void);
+	/*090*/virtual void		Unk_24(void);
+	/*094*/virtual void		Unk_25(void);
+	/*098*/virtual void		Unk_26(void);
+	/*09C*/virtual void		Unk_27(void);
+	/*0A0*/virtual void		Unk_28(void);
+	/*0A4*/virtual void		Unk_29(void);
+	/*0A8*/virtual void		Unk_2A(void);
+	/*0AC*/virtual void		Unk_2B(void);
+	/*0B0*/virtual void		Unk_2C(void);
+	/*0B4*/virtual void		Unk_2D(void);
+	/*0B8*/virtual void		Unk_2E(void);
+	/*0BC*/virtual void		Unk_2F(void);
+	/*0C0*/virtual void		Unk_30(void);
+	/*0C4*/virtual void		Unk_31(void);
+	/*0C8*/virtual void		Unk_32(void);
+	/*0CC*/virtual void		Unk_33(void);
+	/*0D0*/virtual void		Unk_34(void);
+	/*0D4*/virtual void		Unk_35(void);
+	/*0D8*/virtual void		StopIdle(Actor* actor);
+	/*0DC*/virtual void		Unk_37(void);
+	/*0E0*/virtual void		UpdateEssentialDownTimer();
+	/*0E4*/virtual float	GetEssentialDownTimer();
+	/*0E8*/virtual void		SetEssentialDownTimer(float _downTimer);
+	/*0EC*/virtual void		Unk_3B(void);
+	/*0F0*/virtual void		Unk_3C(void);
+	/*0F4*/virtual void		Unk_3D(void);
+	/*0F8*/virtual void		GetDetectionEvent(Actor* actor);	// arg not used
+	/*0FC*/virtual void		CreateDetectionEvent(Actor* actor, float posX, float posY, float posZ, UInt32 soundLevel, UInt32 eventType, TESObjectREFR* locationRef);	// actor & eventType unused
+	/*100*/virtual void		RemoveDetectionEvent();
 	virtual void	Unk_41(void);
 	virtual void	Unk_42(void);
 	virtual void	Unk_43(void);
 	virtual bool	HasCaughtPlayerPickpocketting(void);
-	virtual void	Unk_45(void);
+	/*114*/virtual void		SetHasCaughtPlayerPickpocketting(bool doSet);
 	virtual void	Unk_46(void);
 	virtual void	Unk_47(void);
 	virtual void	Unk_48(void);
@@ -286,44 +286,44 @@ public:
 	virtual void	Unk_4E(void);
 	virtual void	Unk_4F(void);
 	virtual void	Unk_50(void);
-	virtual void	Unk_51(void);
+	/*144*/virtual void GetFaceGenAnimData(Actor* actor);
 	virtual ExtraContainerChanges::EntryData* GetWeaponInfo(); /* WeaponInfo* ? */
 	virtual AmmoInfo* GetAmmoInfo();
 	virtual void	Unk_54(void);
 	virtual void	Unk_55(void);
 	virtual void	Unk_56(void);
 	virtual void	Unk_57(void);
-	virtual void	Unk_58(void);
+	/*160*/virtual void		Unk_58(ContChangesEntry* _weapInfo, NiNode* rootNode, bool arg3);
 	virtual void	Unk_59(void);
 	virtual void	UpdateAmmoInfo(AmmoInfo*);
 	virtual void	Unk_5B(void);
-	virtual void	Unk_5C(void);
-	virtual void	Unk_5D(void);	// Called by 5E with count itemExtraList item
-	virtual void	Unk_5E(void);	// EquipItem and UnEquipItem doEquip item count itemExtraList bytes = [equipArgC lockUnequip unk unEquipArcC lockEquip arg14 ] (arg as from Actor::(Un)EquipItem)
-	virtual void	Unk_5F(void);
-	virtual void	Unk_60(void);
+	/*170*/virtual void		HandleQueuedEquipItems(Actor* actor);
+	/*174*/virtual bool		IsItemQueued(TESForm* item, ExtraDataList* xDataList, bool doEquip);
+	/*178*/virtual void		QueueEquipItem(Actor* actor, bool doEquip, TESForm* item, UInt32 count, ExtraDataList* xDataList, bool applyEnchantment, bool noUnequip, bool removeEnchantment, UInt8 arg9, bool playSound);
+	/*17C*/virtual void		RemoveItemFromQueue(TESForm* item, ExtraDataList* xDataList);
+	/*180*/virtual void		RemoveAllItemsFromQueue();
 	virtual NiNode* GetProjectileNode();
 	virtual void	SetProjectileNode(NiNode* node);
-	virtual void	Unk_63(void);
-	virtual void	Unk_64(void);
+	/*18C*/virtual void		SetWeaponNode(NiControllerManager* ctrlMgr, NiNode* node);
+	/*190*/virtual NiNode* GetWeaponNode(void* vbp01Names);
 	virtual void	Unk_65(void);
 	virtual void	Unk_66(void);
 	virtual void	Unk_67(void);
-	virtual void	Unk_68(void);
+	/*1A0*/virtual NiNode* GetWeaponNode2(UInt32 arg);
 	virtual void	Unk_69(void);
-	virtual void	Unk_6A(void);
-	virtual void	Unk_6B(void);
-	virtual void	Unk_6C(void);
-	virtual void	Unk_6D(void);
+	/*1A8*/virtual bool		IsUsingOneHandGrenade();
+	/*1AC*/virtual bool		IsUsingOneHandMine();
+	/*1B0*/virtual bool		IsUsingOneHandThrownMineOrGrenade();
+	/*1B4*/virtual bool		IsUsingOneHandThrown();
 	virtual AnimData* GetAnimData(void);
 	virtual void	Unk_6F(void);
 	virtual void	Unk_70(void);
 	virtual void	Unk_71(void);
 	virtual void	Unk_72(void);
-	virtual void	Unk_73(void);
+	/*1CC*/virtual void		Unk_73(bool weaponOut, void* bipedAnims, AnimData* pAnimData, Actor* actor);
 	virtual void	Unk_74(void);
 	virtual void	Unk_75(void);
-	virtual void	Unk_76(void);
+	/*1D8*/virtual void		Unk_76(Actor* actor);
 	virtual void	Unk_77(void);
 	virtual void	Unk_78(void);
 	virtual void	Unk_79(void);
@@ -593,8 +593,8 @@ public:
 	virtual void	Unk_181();
 	virtual void	Unk_182();
 	virtual void	Unk_183();
-	virtual void	Unk_184();
-	virtual void	SetQueuedIdleFlags(UInt32 flags);
+	virtual void	GetFadeType();
+	virtual void	SetQueuedIdleFlag(UInt32 flag);
 	virtual UInt32	GetQueuedIdleFlags();
 	virtual void	Unk_187();
 	virtual void	Unk_188();
@@ -907,10 +907,10 @@ public:
 	MagicTarget							*magicTarget1BC;	// 1BC
 	AnimData							*animData;			// 1C0
 	BSAnimGroupSequence					*animSequence[3];	// 1C4
-	float								unk1D0;				// 1D0
-	float								unk1D4;				// 1D4
+	float								angle1D0;			// 1D0
+	float								time1D4;			// 1D4
 	UInt8								byte1D8;			// 1D8
-	UInt8								byte1D9;			// 1D9
+	UInt8								isUsingAutoWeapon;	// 1D9
 	UInt8								gap1DA[2];			// 1DA
 	NiNode								*limbNodes[15];		// 1DC
 	NiNode								*unk218;			// 218
@@ -1111,9 +1111,25 @@ public:
 	float								flt450;				// 450
 	UInt32								unk454[6];			// 454
 };
-STATIC_ASSERT(sizeof(HighProcess) == 0x46C);
+static_assert(sizeof(HighProcess) == 0x46C);
 
 class AnimSequenceBase;
+
+class AnimIdle : public NiRefObject
+{
+public:
+	UInt32 unk008;
+	UInt32 unk00C;
+	UInt32 unk010;
+	UInt32 sequenceID;
+	BSAnimGroupSequence* unk018;
+	NiRefObject* unk01C[2];
+	NiRefObject* unk024[2];
+	TESIdleForm* idleForm;
+	UInt32 unk030;
+	Actor* actor;
+};
+STATIC_ASSERT(sizeof(AnimIdle) == 0x38);
 
 // 100+
 struct AnimData
@@ -1151,33 +1167,44 @@ struct AnimData
 	NiNode* nLForearm;			// 030
 	NiNode* nHead;				// 034
 	NiNode* nWeapon;			// 038
-	UInt32							unk03C[2];			// 03C
+	NiNode* UNUSED03C;			// 03C
+	NiNode* UNUSED040;			// 040
 	NiNode* nNeck1;			// 044
-	UInt32							unk048[5];			// 048
+	float							unk048;				// 048
+	UInt16							groupIDs[8];		// 04C
 	SInt32							sequenceState1[8];	// 05C
 	SInt32							sequenceState2[8];	// 07C
-	UInt32							unk09C[12];			// 09C
-	float							flt0CC;				// 0CC
-	float							flt0D0;				// 0D0
+	UInt16							unk09C[8];			// 09C
+	UInt32							unk0AC[8];			// 0AC
+	UInt8							byte0CC;			// 0CC
+	UInt8							byte0CD;			// 0CD
+	UInt8							byte0CE;			// 0CE
+	UInt8							byte0CF;			// 0CF
+	float							timePassed;			// 0D0
 	UInt32							unk0D4;				// 0D4
-	NiControllerManager* unk0D8;			// 0D8
-	NiTPointerMap<AnimSequenceBase>* unk0DC;			// 0DC
+	NiControllerManager* controllerManager;			// 0D8
+	NiTPointerMap<AnimSequenceBase>* mapAnimSequenceBase;// 0DC
 	BSAnimGroupSequence* animSequence[8];	// 0E0
 	BSAnimGroupSequence* animSeq100;		// 100
-	UInt32							unk104;				// 104
-	UInt32							unk108;				// 108
-	float							flt10C;				// 10C
-	float							flt110;				// 110
-	float							flt114;				// 114
-	float							flt118;				// 118
-	float							flt11C;				// 11C
-	UInt8							byte120;			// 120
-	UInt8							byte121;			// 121
-	UInt16							word122;			// 122
-	Unk124* unk124;			// 124
-	Unk128* unk128;			// 128
+	tList<KFModel>	loadingAnims;
+	float movementSpeedMult;
+	float rateOfFire;
+	float turboSpeedMult;
+	float weaponReloadSpeed;
+	float equipSpeed;
+	bool noBlend120;
+	UInt8 byte121;
+	UInt16 unk122;
+	AnimIdle* idleAnim;
+	AnimIdle* idleAnimQueued;
+	NiNode* node12C;
+	NiNode* node130;
+	tList<void> list134;
+
+	AnimGroupID GetNextAttackGroupID(TESObjectWEAP* weap = nullptr) const;
+
 };
-STATIC_ASSERT(sizeof(AnimData) == 0x12C);
+static_assert(sizeof(AnimData) == 0x13C);
 
 class CombatController;
 
@@ -1266,7 +1293,7 @@ public:
 	UInt32			actionID;	// 24
 	UInt32			unk28;		// 28
 };
-STATIC_ASSERT(sizeof(CombatAction) == 0x2C);
+static_assert(sizeof(MiddleHighProcess) == 0x25C);
 
 // 188
 class CombatController : public TESPackage
@@ -1297,7 +1324,7 @@ public:
 		CombatController* cmbtCtrl;	// 1C4
 		UInt32									unk1C8[25];	// 1C8
 	};
-	STATIC_ASSERT(sizeof(Unk09C) == 0x22C);
+	static_assert(sizeof(HighProcess) == 0x46C);
 
 	CombatActors* combatActors;		// 080
 	CombatProcedure* combatProcedure1;	// 084

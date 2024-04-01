@@ -74,6 +74,8 @@ template <typename T> __forceinline void RawSwap(const T &lhs, const T &rhs)
 #define NOP_0xE NOP_0x7 NOP_0x7
 #define NOP_0xF NOP_0x7 NOP_0x8
 
+#define EMIT_DW(b0, b1, b2, b3) EMIT(b3) EMIT(b2) EMIT(b1) EMIT(b0)
+
 class PrimitiveCS
 {
 	DWORD		m_owningThread;

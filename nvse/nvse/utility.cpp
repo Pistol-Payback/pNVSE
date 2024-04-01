@@ -43,6 +43,25 @@ __declspec(naked) PrimitiveCS *PrimitiveCS::Enter()
 		retn
 	}
 }
+#define JMP_EAX(addr)  __asm mov eax, addr __asm jmp eax
+
+__declspec(naked) void* __stdcall Game_DoHeapAlloc(size_t size)
+{
+	__asm
+	{
+		mov		ecx, 0x11F6238
+		JMP_EAX(0xAA3E40)
+	}
+}
+
+__declspec(naked) void __stdcall Game_HeapFree(void* ptr)
+{
+	__asm
+	{
+		mov		ecx, 0x11F6238
+		JMP_EAX(0xAA4060)
+	}
+}
 
 __declspec(naked) TESForm* __stdcall LookupFormByRefID(UInt32 refID)
 {

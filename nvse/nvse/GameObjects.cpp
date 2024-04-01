@@ -3,6 +3,7 @@
 #include "GameExtraData.h"
 #include "GameTasks.h"
 #include "GameUI.h"
+#include "GameAPI.h"
 #include "SafeWrite.h"
 #include "NiObjects.h"
 
@@ -254,14 +255,36 @@ __declspec(naked) float __vectorcall GetDistance3D(const TESObjectREFR* ref1, co
 	}
 }
 
-void Actor::EquipItem(TESForm * objType, UInt32 equipCount, ExtraDataList* itemExtraList, UInt32 unk3, bool lockEquip, UInt32 unk5)
+__declspec(naked) NiNode* __fastcall TESObjectREFR::GetNode(const char* nodeName) const
 {
-	ThisStdCall(s_Actor_EquipItem, this, objType, equipCount, itemExtraList, unk3, lockEquip, unk5);
+	__asm
+	{
+		//call	TESObjectREFR::GetNiNode
+		test	eax, eax
+		//jz		done
+		//cmp[edx], 0
+		//jz		done
+		//mov		ecx, eax
+		//call	NiNode::GetBlock
+		//test	eax, eax
+		//jz		done
+		//xor edx, edx
+		//mov		ecx, [eax]
+		//cmp		dword ptr[ecx + 0xC], ADDR_ReturnThis
+		//cmovnz	eax, edx
+		done :
+		retn
+	}
 }
 
-void Actor::UnequipItem(TESForm* objType, UInt32 unk1, ExtraDataList* itemExtraList, UInt32 unk3, bool lockUnequip, UInt32 unk5)
+void Actor::EquipItem(TESForm * objType, UInt32 equipCount, ExtraDataList* itemExtraList, UInt32 unk3, bool lockEquip, UInt32 playsound)
 {
-	ThisStdCall(s_Actor_UnequipItem, this, objType, unk1, itemExtraList, unk3, lockUnequip, unk5);
+	ThisStdCall(s_Actor_EquipItem, this, objType, equipCount, itemExtraList, unk3, lockEquip, playsound);
+}
+
+void Actor::UnequipItem(TESForm* objType, UInt32 unk1, ExtraDataList* itemExtraList, UInt32 unk3, bool lockUnequip, UInt32 playsound)
+{
+	ThisStdCall(s_Actor_UnequipItem, this, objType, unk1, itemExtraList, unk3, lockUnequip, playsound);
 }
 
 EquippedItemsList Actor::GetEquippedItems()
@@ -313,6 +336,297 @@ TESObjectWEAP* Actor::GetEquippedWeapon() const
 		if (weaponInfo) return (TESObjectWEAP*)weaponInfo->type;
 	}
 	return NULL;
+}
+
+__declspec(naked) void __fastcall SetContainerItemsHealthHook(TESContainer* container, int, float healthPerc)
+{
+	__asm
+	{
+		push	esi
+		push	edi
+		movss	xmm0, [esp + 0xC]
+		minss	xmm0, kMaxHealth
+		xorps	xmm1, xmm1
+		maxss	xmm0, xmm1
+		movss[esp + 0xC], xmm0
+		lea		esi, [ecx + 4]
+		ALIGN 16
+		iterHead:
+		test	esi, esi
+		jz		done
+		mov		edi, [esi]
+		mov		esi, [esi + 4]
+		test	edi, edi
+		jz		iterHead
+		mov		eax, [edi + 8]
+		mov		ecx, [edi + 4]
+		mov		dl, [ecx + 4]
+		cmp		dl, kFormType_TESObjectARMO
+		jz		hasHealth
+		cmp		dl, kFormType_TESObjectWEAP
+		jnz		clrExtra
+		cmp		byte ptr[ecx + 0xF4], 0xA
+		jb		hasHealth
+	clrExtra :
+		test	eax, eax
+		jz		iterHead
+		mov		dword ptr[eax + 8], 0x3F800000
+		mov		edx, [eax]
+		test	edx, edx
+		jnz		iterHead
+		mov[edi + 8], edx
+		push	eax
+		call	Game_HeapFree
+		jmp		iterHead
+		ALIGN 16
+		hasHealth:
+		test	eax, eax
+		jnz		hasExtra
+		push	0xC
+		call	Game_DoHeapAlloc
+		mov[edi + 8], eax
+		xor edx, edx
+		mov[eax], edx
+		mov[eax + 4], edx
+		mov		edx, [esp + 0xC]
+		mov[eax + 8], edx
+		jmp		iterHead
+		ALIGN 16
+	hasExtra:
+		movss	xmm0, [esp + 0xC]
+		minss	xmm0, [eax + 8]
+		movss[eax + 8], xmm0
+		jmp		iterHead
+	done :
+		pop		edi
+		pop		esi
+		retn	4
+		ALIGN 4
+		kMaxHealth :
+		__asm _emit 0x77 __asm _emit 0xBE __asm _emit 0x7F __asm _emit 0x3F
+	}
+}
+
+#define CALL_EAX(addr) __asm mov eax, addr __asm call eax
+
+__declspec(naked) void __fastcall ShowItemMessage(TESForm* item, const char* msgStr)
+{
+	__asm
+	{
+		push	ebp
+		mov		ebp, esp
+		push	edx
+		call	TESForm::GetTheName
+		cmp[eax], 0
+		jz		done
+		sub		esp, 0x70
+		mov		edx, eax
+		lea		ecx, [ebp - 0x74]
+		call	StrCopy
+		mov[eax], ' '
+		mov		edx, [ebp - 4]
+		lea		ecx, [eax + 1]
+		call	StrCopy
+		mov		word ptr[eax], '.'
+		push	0
+		push	0x40000000
+		push	0
+		push	0x10208E0
+		push	0
+		lea		eax, [ebp - 0x74]
+		push	eax
+		CALL_EAX(0x7052F0)
+		done:
+		leave
+		retn
+	}
+}
+
+__declspec(naked) void Actor::EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip, UInt32 noMessage)
+{
+	__asm
+	{
+		push	ebp
+		mov		ebp, esp
+		push	ecx
+		mov		ecx, [ebp + 8]
+		mov		eax, [ecx + 8]
+		push	eax
+		mov		ecx, 1
+		mov		dl, [eax + 4]
+		cmp		dl, kFormType_TESObjectARMO
+		jz		doneType
+		cmp		dl, kFormType_TESObjectBOOK
+		jz		doneType
+		cmp		dl, kFormType_AlchemyItem
+		jz		doneType
+		cmp		dl, kFormType_TESAmmo
+		jz		countMax
+		cmp		dl, kFormType_TESObjectWEAP
+		jnz		done
+		cmp		byte ptr[eax + 0xF4], 0xA
+		jb		doneType
+	countMax :
+		xor ecx, ecx
+	doneType :
+		push	1
+		push	dword ptr[ebp + 0xC]
+		push	1
+		mov		eax, [ebp + 8]
+		mov		edx, [eax]
+		test	edx, edx
+		jz		noExtra
+		mov		edx, [edx]
+		noExtra:
+		push	edx
+		mov		edx, [eax + 4]
+		test	ecx, ecx
+		cmovz	ecx, edx
+		push	ecx
+		push	dword ptr[ebp - 8]
+		mov		ecx, [ebp - 4]
+		CALL_EAX(0x88C650)
+		cmp		byte ptr[ebp + 0x10], 0
+		jnz		done
+		mov		edx, ds:0x11D2A10
+		mov		ecx, [ebp - 8]
+		call	ShowItemMessage
+	done :
+		leave
+		retn	0xC
+	}
+}
+
+const bool kInventoryType[] =
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+	1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0
+};
+
+__declspec(naked) void TESObjectREFR::AddItemAlt(TESForm* form, UInt32 count, float condition, UInt32 doEquip, UInt32 noMessage)
+{
+	__asm
+	{
+		push	ebp
+		mov		ebp, esp
+		push	ecx
+		sub		esp, 0x10
+		push	esi
+		lea		ecx, [ebp - 0x10]
+		CALL_EAX(0x481610)
+		mov		ecx, [ebp + 8]
+		movzx	eax, byte ptr[ecx + 4]
+		cmp		al, kFormType_TESLevItem
+		jz		lvlItem
+		cmp		al, kFormType_BGSListForm
+		jz		itemList
+		cmp		kInventoryType[eax], 0
+		jz		done
+		push	0
+		push	dword ptr[ebp + 0xC]
+		push	ecx
+		lea		ecx, [ebp - 0x10]
+		CALL_EAX(0x4818E0)
+		jmp		doMove
+	lvlItem :
+		push	0
+		mov		ecx, [ebp - 4]
+		CALL_EAX(0x567E10)
+		push	0
+		lea		ecx, [ebp - 0x10]
+		push	ecx
+		push	dword ptr[ebp + 0xC]
+		push	eax
+		mov		ecx, [ebp + 8]
+		add		ecx, 0x30
+		CALL_EAX(0x487F70)
+		jmp		doMove
+	itemList :
+		mov		esi, [ebp + 8]
+		add		esi, 0x18
+		ALIGN 16
+	listIter :
+		test	esi, esi
+		jz		doMove
+		mov		ecx, [esi]
+		mov		esi, [esi + 4]
+		test	ecx, ecx
+		jz		listIter
+		movzx	eax, byte ptr[ecx + 4]
+		cmp		kInventoryType[eax], 0
+		jz		listIter
+		push	0
+		push	dword ptr[ebp + 0xC]
+		push	ecx
+		lea		ecx, [ebp - 0x10]
+		CALL_EAX(0x4818E0)
+		jmp		listIter
+		ALIGN 16
+	doMove:
+		push	dword ptr[ebp + 0x10]
+		lea		ecx, [ebp - 0x10]
+		call	SetContainerItemsHealthHook
+		push	dword ptr[ebp + 0x18]
+		push	dword ptr[ebp - 4]
+		lea		ecx, [ebp - 0x10]
+		CALL_EAX(0x4821A0)
+		cmp		byte ptr[ebp + 0x14], 0
+		jz		done
+		mov		ecx, [ebp - 4]
+		mov		eax, [ecx]
+		cmp		dword ptr[eax + 0x100], 0x8D0360
+		jnz		done
+		call	TESObjectREFR::GetContainerChangesList
+		test	eax, eax
+		jz		done
+		mov[ebp - 0x14], eax
+		lea		esi, [ebp - 0xC]
+		ALIGN 16
+		eqpIter:
+		test	esi, esi
+		jz		done
+		mov		eax, [esi]
+		mov		esi, [esi + 4]
+		test	eax, eax
+		jz		eqpIter
+		mov		edx, [eax + 4]
+		mov		ecx, [ebp - 0x14]
+		call	ContChangesEntryList::FindForItem
+		test	eax, eax
+		jz		eqpIter
+		push	dword ptr[ebp + 0x18]
+		push	0
+		push	eax
+		mov		ecx, [ebp - 4]
+		call	Actor::EquipItemAlt
+		jmp		eqpIter
+		ALIGN 16
+	done:
+		lea		ecx, [ebp - 0x10]
+		CALL_EAX(0x481680)
+		pop		esi
+		leave
+		retn	0x14
+	}
+}
+
+__declspec(naked) ContChangesEntryList* TESObjectREFR::GetContainerChangesList() const
+{
+	__asm
+	{
+		push	kXData_ExtraContainerChanges
+		add		ecx, 0x44
+		call	BaseExtraList::GetByType
+		test	eax, eax
+		jz		done
+		mov		eax, [eax + 0xC]
+		test	eax, eax
+		jz		done
+		mov		eax, [eax]
+		done:
+		retn
+	}
 }
 
 bool TESObjectREFR::GetInventoryItems(InventoryItemsMap &invItems)
@@ -448,4 +762,53 @@ void Actor::SetWantsWeaponOut(bool wantsWeaponOut)
 void PlayerCharacter::UpdateCamera(bool isCalledFromFunc21, bool _zero_skipUpdateLOD)
 {
 	ThisStdCall(0x94AE40, this, (UInt8)isCalledFromFunc21, (UInt8)_zero_skipUpdateLOD);
+}
+
+__declspec(naked) void Actor::RefreshAnimData()
+{
+	__asm
+	{
+		push	esi
+		mov		esi, [ecx + 0x68]
+		test	esi, esi
+		jz		done
+		cmp		dword ptr[esi + 0x28], 0
+		jnz		done
+		mov		eax, [esi + 0x1C0]
+		test	eax, eax
+		jz		done
+		push	ecx
+		cmp		byte ptr[esi + 0x135], 0
+		jz		skipBlend1
+		cmp		dword ptr[eax + 0xF0], 0
+		jz		skipBlend1
+		push	0
+		push	4
+		mov		ecx, eax
+		CALL_EAX(0x4994F0)
+		mov		eax, [esi + 0x1C0]
+		skipBlend1:
+		push	0
+		mov		ecx, eax
+		CALL_EAX(0x499240)
+		pop		ecx
+		cmp		dword ptr[ecx + 0xC], 0x14
+		jnz		done
+		cmp		byte ptr[esi + 0x135], 0
+		mov		esi, [ecx + 0x690]
+		jz		skipBlend2
+		cmp		dword ptr[esi + 0xF0], 0
+		jz		skipBlend2
+		push	0
+		push	4
+		mov		ecx, esi
+		CALL_EAX(0x4994F0)
+		skipBlend2:
+		push	0
+		mov		ecx, esi
+		CALL_EAX(0x499240)
+		done :
+		pop		esi
+		retn
+	}
 }

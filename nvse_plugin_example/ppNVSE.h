@@ -37,7 +37,14 @@ extern NVSECommandTableInterface* g_commandInterface;
 extern const CommandInfo* (*GetCmdByName)(const char* name);
 extern bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 extern bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
+
 extern TESObjectREFR* (__stdcall* InventoryRefCreateEntry)(TESObjectREFR* container, TESForm* itemForm, SInt32 countDelta, ExtraDataList* xData);
+typedef InventoryRef* (*_InventoryRefCreate)(TESObjectREFR* container, const InventoryRef::Data& data, bool bValidate);
+extern _InventoryRefCreate InventoryRefCreate;
+
+typedef InventoryRef* (*_InventoryRefGetForID)(UInt32 refID);
+extern _InventoryRefGetForID InventoryRefGetForID;
+
 extern NVSEEventManagerInterface* g_eventInterface;
 
 //Singletons

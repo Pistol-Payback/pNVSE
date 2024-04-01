@@ -180,6 +180,8 @@ class BGSEncounterZone;
 class BGSExplosion;
 class BGSDebris;
 class BGSRagdoll;
+class WeapInst;
+class WeapInstBase;
 
 struct Condition;
 
@@ -334,6 +336,23 @@ public:
 	// 018 / 028
 
 	// Looks like there is another DWord here, used as a byte: LastLoaded or Active or Selected ? 
+
+	bool IsPlayer() const { return refID == 0x14; } //From JIP
+
+	//Weapon Smith................................................
+
+	TESForm*		GetModifierParent();
+	bool			IsModifierForm();
+	UInt32 			GetModifierID();
+	bool			MarkAsStaticForm();
+	bool			IsStaticForm();
+	WeapInst*		LookupModifierByID(UInt32 InstID);
+	UInt32			CreateInst();
+
+	//TESForm_Ext
+
+	bool IsReference();
+	bool IsBaseForm();
 
 	TESForm *		TryGetREFRParent(void);
 	UInt8			GetModIndex() const;
@@ -2969,15 +2988,22 @@ struct ValidBip01Names {	// somehow descend from NiNodeArray
 	// 010
 	struct Data
 	{
-		TESForm		* model;	// 000 can be a modelled form (Armor or Weapon) or a Race if not equipped
-		TESModel	* texture;	// 004 texture or model for said form
-		NiNode		* bones;	// 008 NiNode for the modelled form
-		UInt32		unk00C;		// 00C Number , bool or flag
+		union									// 00 can be a modelled form (Armor or Weapon) or a Race if not equipped
+		{
+			TESForm* item;
+			TESObjectARMO* armor;
+			TESObjectWEAP* weapon;
+			TESRace* race;
+		};
+		TESModelTextureSwap* modelTexture;	// 04 texture or model for said form
+		void* object;		// 08 NiNode for the modelled form
+		UInt8					hasSkinnedGeom;	// 0C
+		UInt8					pad0D[3];		// 0D
 	};
 
 	NiNode			* bip01;		// 000 receive Bip01 node, then optionally Bip01Head, Weapon, Bip01LForeTwist, Bip01Spine2, Bip01Neck1
 	OptionalBone	bones[5];		// 004
-	Data			unk002C[20];	// 02C indexed by the EquipSlot
+	Data			slotData[20];	// 02C indexed by the EquipSlot
 	Data			unk016C[20];	// 16C indexed by the EquipSlot
 	Character		* character;	// 2B0
 

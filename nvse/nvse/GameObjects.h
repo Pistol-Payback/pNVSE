@@ -11,6 +11,7 @@ struct ScriptEventList;
 class ActiveEffect;
 class NiNode;
 class Animation;
+struct InventoryRef;
 
 // 008
 class TESChildCell
@@ -34,30 +35,29 @@ public:
 	TESObjectREFR();
 	~TESObjectREFR();
 
-	virtual void		Unk_4E(void);	// GetStartingPosition(Position, Rotation, WorldOrCell)
-	virtual void		Unk_4F(void);
+	/*138*/virtual bool		GetStartingPosition(NiVector3* outPos, NiVector3* outRot, TESForm** outWrldOrCell, TESForm* defaultWrldOrCell);
+	/*13C*/virtual void		SayTopic(TESSound* sound, TESTopic* topic, TESObjectREFR* target, bool dontUseNiNode, bool notVoice, bool useLipFile, UInt8 unused, bool subtitles);
 	virtual void		Unk_50(void);
-	virtual void		Unk_51(void);
-	virtual bool		CastShadows(void);
-	virtual void		Unk_53(void);
+	/*144*/virtual void		DamageObject(float damage, bool allowDestroyed);
+	/*148*/virtual bool		GetCastsShadows();
+	/*14C*/virtual void		SetCastsShadows(bool doSet);
 	virtual void		Unk_54(void);
 	virtual void		Unk_55(void);
 	virtual void		Unk_56(void);
-	virtual void		Unk_57(void);
-	virtual void		Unk_58(void);
+	/*15C*/virtual bool		IsObstacle();
+	/*160*/virtual bool		BaseIsQuestItem();
 	virtual void		Unk_59(void);
 	virtual void		Unk_5A(void);
 	virtual void		Unk_5B(void);
 	virtual void		Unk_5C(void);
 	virtual void		Unk_5D(void);
-	virtual void		Unk_5E(void);
-	virtual TESObjectREFR*		RemoveItem(TESForm* toRemove, BaseExtraList* extraList, UInt32 count, UInt32 unk3, UInt32 unk4, TESObjectREFR* destRef, 
-		UInt32 unk6, UInt32 unk7, UInt32 unk8, UInt8 unk9);	// 40 unk2 quantity? Returns the reference assigned to the removed item.
-	virtual void		Unk_60(void);
-	virtual void		Unk_61(void);	// Linked to AddItem, (item, count, ExtraDataList), func0042 in OBSE
-	virtual void		Unk_62(void);	// Linked to Unequip (and or equip maybe)
-	virtual void		Unk_63(void);
-	virtual void		AddItem(TESForm* item, ExtraDataList* xDataList, UInt32 Quantity);	// Needs confirmation
+	/*178*/virtual void		RefreshDynamicLight();
+	/*17C*/virtual TESObjectREFR* RemoveItem(TESForm* toRemove, BaseExtraList* extraList, UInt32 quantity, bool keepOwner, bool drop, TESObjectREFR* destRef, UInt32 unk6, UInt32 unk7, bool unk8, bool unk9);
+	/*180*/virtual void		Unk_60(void);
+	/*184*/virtual bool		LoadEquipedItem3D(TESForm* item, UInt32 count, ExtraDataList* xData, bool lockEquip);
+	/*188*/virtual void		Unk_62(void);
+	/*18C*/virtual void		Unk_63(void);
+	/*190*/virtual void		AddItem(TESForm* item, ExtraDataList* xDataList, UInt32 quantity);
 	virtual void		Unk_65(void);
 	virtual void		Unk_66(void);
 	virtual void		Unk_67(void);					// Actor: GetMagicEffectList
@@ -158,6 +158,12 @@ public:
 	bool Update3D_v1c();	// Less worse version as used by some modders
 	TESContainer* GetContainer();
 	bool IsMapMarker();
+
+	bool GetDisabled() const;
+	ContChangesEntryList* GetContainerChangesList() const;
+	ContChangesEntry* GetContainerChangesEntry(TESForm* itemForm) const;
+	SInt32 GetItemCount(TESForm* form) const;
+	void AddItemAlt(TESForm* item, UInt32 count, float condition, UInt32 doEquip = 0, UInt32 noMessage = 1);
 	bool GetInventoryItems(InventoryItemsMap &invItems);
 	ExtraDroppedItemList* GetDroppedItems();
 
@@ -166,6 +172,8 @@ public:
 	float __vectorcall GetDistance(TESObjectREFR* target) const;
 
 	static TESObjectREFR* Create(bool bTemp = false);
+
+	NiNode* __fastcall GetNode(const char* nodeName) const;
 
 	MEMBER_FN_PREFIX(TESObjectREFR);
 #if RUNTIME
@@ -388,7 +396,7 @@ public:
 	virtual void		Unk_D5(void);
 	virtual void		Unk_D6(void);
 	virtual void		Unk_D7(void);
-	virtual void		Unk_D8(void);	// IsPlayerRef
+	virtual void		IsPlayerRef(void);	// IsPlayerRef
 	virtual void		Unk_D9(void);
 	virtual void		Unk_DA(void);
 	virtual void		Unk_DB(void);
@@ -483,6 +491,7 @@ public:
 	virtual void		Unk_134(void);
 	virtual void		Unk_135(void);
 	virtual void		Unk_136(void);
+	void				FireWeapon();
 	
 	MagicCaster			magicCaster;			// 088
 	MagicTarget			magicTarget;			// 094
@@ -495,7 +504,9 @@ public:
 	UInt8								unk104;							// 104 Is in combat
 	UInt8								pad105[3];						// 105
 	UInt32								lifeState;						// 108 saved as byte HasHealth = 1 or 2, optionally 6
-	UInt32								unk10C[(0x140-0x10C) >> 2];		// 10B 12C is an array (of combat targets ?)
+	UInt32 unk10C;
+	UInt32 nextAttackAnimGroupId110;
+	UInt32								unk114[(0x140 - 0x114) >> 2];		// 10B 12C is an array (of combat targets ?)
 	UInt32								unk140;							// 140 looks like a flag. Bit31 used while checking if non essential can take damage
 	UInt8                               unk144;							// 144
 	UInt8                               unk145;							// 145 Has to do with package evaluation
@@ -522,14 +533,26 @@ public:
 	void UnequipItem(TESForm* objType, UInt32 unequipCount = 1, ExtraDataList* itemExtraList = NULL, UInt32 unk3 = 1, bool lockEquip = false, UInt32 unk5 = 1);
 
 	EquippedItemsList	GetEquippedItems();
+	void EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip = 0, UInt32 noMessage = 1);
 	ExtraContainerDataArray	GetEquippedEntryDataList();
 	ExtraContainerExtendDataArray GetEquippedExtendDataList();
+
+	//Actor_Ext:
+
+	bool SilentUnequip(TESForm* item, ExtraDataList* xData);
+	bool SilentEquip(TESForm* item, ExtraDataList* xData);
+
+	bool QueueToSkipGroup(UInt16 AnimGroupID);	//Skips the next animation matching the AnimGroupID.
+	bool QueueToSkipAnimation();				//Skips the animation that's currently running in gamemode.
+
+	bool ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count, bool copy);
 
 	// Copied from JIP.
 	TESObjectWEAP* GetEquippedWeapon() const;
 
 	// Credits to lStewieAl
 	void SetWantsWeaponOut(bool wantsWeaponOut);
+	void RefreshAnimData();
 };
 
 STATIC_ASSERT(offsetof(Actor, magicCaster) == 0x088);
@@ -602,7 +625,7 @@ public:
 	UInt8								disabledControlFlags;			// 680 kControlFlag_xxx
 	UInt8								unk0681[3];						// 681
 	UInt32								unk684[(0x68C - 0x684) >> 2];	// 684
-	ValidBip01Names						* playerVB01N;					// 68C
+	ValidBip01Names						* bipedAnims1stPerson;					// 68C
 	ExtraAnim::Animation				* extraAnimation;				// 690 ExtraDataAnim::Data
 	NiNode								* playerNode;					// 694 used as node if unk64A is true
 	UInt32								unk698[(0x6A8-0x698) >> 2];		// 698

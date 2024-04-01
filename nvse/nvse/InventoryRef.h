@@ -1,11 +1,8 @@
 #pragma once
+//#include "GameBSExtraData.h"
+#include "GameObjects.h"
 
-#include "GameExtraData.h"
-
-// 30
-// Taken from JIP LN NVSE plugin, with some tweaks.
-// This is just a stripped-down version of xNVSE's internal InventoryReference class.
-// It exists so plugins have limited access to the internal functions.
+// Copied from JIP
 struct InventoryRef
 {
 	struct Data
@@ -22,10 +19,11 @@ struct InventoryRef
 	UInt8				pad2E[2];		// 2E
 
 	SInt32 GetCount() const { return data.entry->countDelta; }
-#if 0
-	// todo: fix these by porting over some functions from JIP
 	ExtraDataList* CreateExtraData();
+	// Returns the copied-to ContChangesEntry*, if it exists.
+	ContChangesEntry* CopyWithNewExtraData(ExtraDataList* newDataList);
 	ExtraDataList* __fastcall SplitFromStack(SInt32 maxStack = 1);
-#endif
 };
 
+//typedef InventoryRef* (*_InventoryRefGetForID)(UInt32 refID);
+//extern _InventoryRefGetForID InventoryRefGetForID;

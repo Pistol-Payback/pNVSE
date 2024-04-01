@@ -4,8 +4,32 @@
     <Filter Include="nvse">
       <UniqueIdentifier>{92a4f350-f2ec-4fca-bdd3-927732d91b34}</UniqueIdentifier>
     </Filter>
-    <Filter Include="functions">
+    <Filter Include="kNVSE">
+      <UniqueIdentifier>{193ba5b1-b715-4471-9f28-4ca86b89e792}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE">
+      <UniqueIdentifier>{a1c9836a-a39e-4f12-8985-c1ef763a84e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\SaveSystem">
+      <UniqueIdentifier>{47ad13fa-f0af-4d2a-8b4b-4533629f107d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\SaveSystem\Load/Save">
+      <UniqueIdentifier>{d5400dec-b9cd-4980-b056-4abcebcd4277}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\DataExtensions">
+      <UniqueIdentifier>{449196dc-49b5-4ef5-b806-9935e9c6a4da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RecycleBin">
+      <UniqueIdentifier>{8d994140-73ca-47df-9d5e-5f400dbd8858}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\functions">
       <UniqueIdentifier>{010e4101-a209-4fed-af9f-5ffa21a85c34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\OBS_GekUDFs">
+      <UniqueIdentifier>{b0db34de-3d9c-4927-a386-d11d8a2740df}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\Initializers">
+      <UniqueIdentifier>{ef8d6125-bf4d-459c-8f82-ec760bdc3b29}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -68,14 +92,35 @@
     <ClCompile Include="..\nvse\nvse\GameProcess.cpp">
       <Filter>nvse</Filter>
     </ClCompile>
-    <ClCompile Include="NiStreamFunctions.cpp">
-      <Filter>functions</Filter>
-    </ClCompile>
     <ClCompile Include="..\nvse\nvse\InventoryReference.cpp">
       <Filter>nvse</Filter>
     </ClCompile>
-    <ClCompile Include="RewriteWeaponStats.cpp">
-      <Filter>functions</Filter>
+    <ClCompile Include="game_types.cpp">
+      <Filter>kNVSE</Filter>
+    </ClCompile>
+    <ClCompile Include="SaveSystem.cpp">
+      <Filter>ppNVSE\SaveSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="L1_Load.cpp">
+      <Filter>ppNVSE\SaveSystem\Load/Save</Filter>
+    </ClCompile>
+    <ClCompile Include="L2_Save.cpp">
+      <Filter>ppNVSE\SaveSystem\Load/Save</Filter>
+    </ClCompile>
+    <ClCompile Include="L3_SaveHooks.cpp">
+      <Filter>ppNVSE\SaveSystem\Load/Save</Filter>
+    </ClCompile>
+    <ClCompile Include="Actor_Ext.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClCompile>
+    <ClCompile Include="TESForm_Ext.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClCompile>
+    <ClCompile Include="WeaponSmith.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClCompile>
+    <ClCompile Include="ScrappedFunctions.cpp">
+      <Filter>RecycleBin</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -133,12 +178,6 @@
     <ClInclude Include="..\nvse\nvse\CommandTable.h">
       <Filter>nvse</Filter>
     </ClInclude>
-    <ClInclude Include="fn_intro_to_script_functions.h">
-      <Filter>functions</Filter>
-    </ClInclude>
-    <ClInclude Include="fn_typed_functions.h">
-      <Filter>functions</Filter>
-    </ClInclude>
     <ClInclude Include="..\nvse\nvse\GameScript.h">
       <Filter>nvse</Filter>
     </ClInclude>
@@ -153,13 +192,40 @@
     </ClInclude>
     <ClInclude Include="ppNVSE.h" />
     <ClInclude Include="ppNVSE_Functions.h">
-      <Filter>functions</Filter>
+      <Filter>ppNVSE\functions</Filter>
     </ClInclude>
     <ClInclude Include="..\nvse\nvse\InventoryReference.h">
       <Filter>nvse</Filter>
     </ClInclude>
-    <ClInclude Include="WeapInstFunct.h">
-      <Filter>functions</Filter>
+    <ClInclude Include="WS_Funct.h">
+      <Filter>ppNVSE\functions</Filter>
+    </ClInclude>
+    <ClInclude Include="game_types.h">
+      <Filter>kNVSE</Filter>
+    </ClInclude>
+    <ClInclude Include="commands_animation.h">
+      <Filter>kNVSE</Filter>
+    </ClInclude>
+    <ClInclude Include="class_vtbls.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="initHooks.cpp">
+      <Filter>ppNVSE\Initializers</Filter>
+    </ClInclude>
+    <ClInclude Include="SaveSystem.h">
+      <Filter>ppNVSE\SaveSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Initializers.h">
+      <Filter>ppNVSE\Initializers</Filter>
+    </ClInclude>
+    <ClInclude Include="Actor_Ext.h">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClInclude>
+    <ClInclude Include="WeaponSmith.h">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClInclude>
+    <ClInclude Include="TestHooks.h">
+      <Filter>RecycleBin</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

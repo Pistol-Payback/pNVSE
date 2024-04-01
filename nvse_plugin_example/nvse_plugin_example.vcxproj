@@ -328,6 +328,7 @@
     <ClCompile Include="..\nvse\nvse\SafeWrite.cpp" />
     <ClCompile Include="..\nvse\nvse\Utilities.cpp" />
     <ClCompile Include="..\nvse\nvse\utility.cpp" />
+    <ClCompile Include="Actor_Ext.cpp" />
     <ClCompile Include="dllmain.c">
       <ForcedIncludeFiles Condition="'$(Configuration)|$(Platform)'=='Debug ng|Win32'">
       </ForcedIncludeFiles>
@@ -342,9 +343,15 @@
       <ForcedIncludeFiles Condition="'$(Configuration)|$(Platform)'=='Release GECK|Win32'">
       </ForcedIncludeFiles>
     </ClCompile>
+    <ClCompile Include="game_types.cpp" />
+    <ClCompile Include="L1_Load.cpp" />
+    <ClCompile Include="L3_SaveHooks.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="NiStreamFunctions.cpp" />
-    <ClCompile Include="RewriteWeaponStats.cpp" />
+    <ClCompile Include="L2_Save.cpp" />
+    <ClCompile Include="SaveSystem.cpp" />
+    <ClCompile Include="ScrappedFunctions.cpp" />
+    <ClCompile Include="TESForm_Ext.cpp" />
+    <ClCompile Include="WeaponSmith.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\CommandTable.h" />
@@ -370,11 +377,18 @@
     <ClInclude Include="..\nvse\nvse\SafeWrite.h" />
     <ClInclude Include="..\nvse\nvse\Utilities.h" />
     <ClInclude Include="..\nvse\nvse\utility.h" />
-    <ClInclude Include="fn_intro_to_script_functions.h" />
-    <ClInclude Include="fn_typed_functions.h" />
+    <ClInclude Include="Actor_Ext.h" />
+    <ClInclude Include="class_vtbls.h" />
+    <ClInclude Include="commands_animation.h" />
+    <ClInclude Include="game_types.h" />
+    <ClInclude Include="Initializers.h" />
     <ClInclude Include="ppNVSE.h" />
     <ClInclude Include="ppNVSE_Functions.h" />
-    <ClInclude Include="WeapInstFunct.h" />
+    <ClInclude Include="SaveSystem.h" />
+    <ClInclude Include="TestHooks.h" />
+    <ClInclude Include="WS_Funct.h" />
+    <ClInclude Include="WeaponSmith.h" />
+    <ClInclude Include="initHooks.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="exports.def" />

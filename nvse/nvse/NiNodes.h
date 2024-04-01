@@ -892,8 +892,8 @@ public:
 	// 10
 	struct Unk014
 	{
-		NiRefObject	* unk00;	// 00
-		NiRefObject	* unk04;	// 04
+		NiRefObject* unk00;	// 00
+		NiRefObject* unk04;	// 04
 		UInt32		unk08;		// 08
 		UInt8		unk0C;		// 0C
 		UInt8		unk0D;		// 0D
@@ -903,7 +903,7 @@ public:
 	// 10
 	struct Unk018
 	{
-		NiRefObject	* unk00;	// 00
+		NiRefObject* unk00;	// 00
 		UInt16		unk04;		// 04
 		UInt16		unk06;		// 06
 		UInt16		unk08;		// 08
@@ -912,30 +912,57 @@ public:
 		UInt8		pad0E[2];	// 0E
 	};
 
-	char				* filePath;		// 008
-	UInt32				arraySize;		// 00C
-	UInt32				unk010;			// 010
-	Unk014				* unk014;		// 014
-	Unk018				* unk018;		// 018
-	float				weight;			// 01C
-	NiTextKeyExtraData	* unk020;		// 020
-	UInt32				cycleType;		// 024
-	float				freq;			// 028
-	float				begin;			// 02C
-	float				end;			// 030
-	float				last;			// 034
-	float				weightLast;		// 038
-	float				lastScaled;		// 03C
-	NiControllerManager * controllerMgr;	// 040
-	UInt32				state;			// 044
-	float				offset;			// 048
-	float				start;			// 04C - offset * -1?
-	float				end2;			// 050
-	UInt32				unk054;			// 054
-	UInt32				unk058;			// 058
-	char				* accumRoot;	// 05C - bone? (seen "Bip01")
-	NiNode				* niNode060;	// 060
-	NiStringPalette		* unk064;		// 064
+	enum AnimState
+	{
+		kAnimState_Inactive = 0x0,
+		kAnimState_Animating = 0x1,
+		kAnimState_EaseIn = 0x2,
+		kAnimState_EaseOut = 0x3,
+		kAnimState_TransSource = 0x4,
+		kAnimState_TransDest = 0x5,
+		kAnimState_MorphSource = 0x6,
+	};
+
+	enum CycleType
+	{
+		LOOP = 0x0,
+		REVERSE = 0x1,
+		CLAMP = 0x2,
+		MAX_CYCLE_TYPES = 0x3,
+	};
+
+	char* sequenceName;		// 008
+	UInt32 numControlledBlocks;		// 00C
+	UInt32	arrayGrowBy;			// 010
+	Unk014* controlledBlocks;		// 014
+	Unk018* IDTagArray;		// 018
+	float seqWeight;			// 01C
+	NiTextKeyExtraData* textKeyData;		// 020
+	UInt32	cycleType;		// 024
+	float	frequency;			// 028
+	float	beginKeyTime;			// 02C
+	float	endKeyTime;			// 030
+	float	lastTime;			// 034
+	float	weightedLastTime;		// 038
+	float	lastScaledTime;		// 03C
+	NiControllerManager* owner;	// 040
+	UInt32	state;			// 044
+	float	offset;			// 048
+	float	CurrentTime;			// 04C - offset * -1?
+	float	endTime;			// 050
+	UInt32	destFrame;			// 054
+	NiControllerSequence* partnerSequence;			// 058
+	char* accumRootName;	// 05C - bone? (seen "Bip01")
+	NiNode*	niNode060;	// 060
+	NiStringPalette* deprecatedStringPalette;		// 064
+	SInt16 curAnimNIdx;
+	UInt16 wrd6A;
+	UInt32 spNotesA;
+	UInt16 numNotes;
+	UInt8 hasHashHashAtStartOfNodeName;
+	UInt8 byte73;
+
+	virtual bool Deactivate(float fEaseOutTime, bool bTransition);
 };
 
 // 06C
@@ -950,6 +977,319 @@ public:
 
 class NiNode;
 
+enum AnimGroupID : UInt8
+{
+	kAnimGroup_Idle = 0x0,
+	kAnimGroup_DynamicIdle,
+	kAnimGroup_SpecialIdle,
+	kAnimGroup_Forward,
+	kAnimGroup_Backward,
+	kAnimGroup_Left,
+	kAnimGroup_Right,
+	kAnimGroup_FastForward,
+	kAnimGroup_FastBackward,
+	kAnimGroup_FastLeft,
+	kAnimGroup_FastRight,
+	kAnimGroup_DodgeForward,
+	kAnimGroup_DodgeBack,
+	kAnimGroup_DodgeLeft,
+	kAnimGroup_DodgeRight,
+	kAnimGroup_TurnLeft,
+	kAnimGroup_TurnRight,
+	kAnimGroup_Aim,
+	kAnimGroup_AimUp,
+	kAnimGroup_AimDown,
+	kAnimGroup_AimIS,
+	kAnimGroup_AimISUp,
+	kAnimGroup_AimISDown,
+	kAnimGroup_Holster,
+	kAnimGroup_Equip,
+	kAnimGroup_Unequip,
+	kAnimGroup_AttackLeft,
+	kAnimGroup_AttackLeftUp,
+	kAnimGroup_AttackLeftDown,
+	kAnimGroup_AttackLeftIS,
+	kAnimGroup_AttackLeftISUp,
+	kAnimGroup_AttackLeftISDown,
+	kAnimGroup_AttackRight,
+	kAnimGroup_AttackRightUp,
+	kAnimGroup_AttackRightDown,
+	kAnimGroup_AttackRightIS,
+	kAnimGroup_AttackRightISUp,
+	kAnimGroup_AttackRightISDown,
+	kAnimGroup_Attack3,
+	kAnimGroup_Attack3Up,
+	kAnimGroup_Attack3Down,
+	kAnimGroup_Attack3IS,
+	kAnimGroup_Attack3ISUp,
+	kAnimGroup_Attack3ISDown,
+	kAnimGroup_Attack4,
+	kAnimGroup_Attack4Up,
+	kAnimGroup_Attack4Down,
+	kAnimGroup_Attack4IS,
+	kAnimGroup_Attack4ISUp,
+	kAnimGroup_Attack4ISDown,
+	kAnimGroup_Attack5,
+	kAnimGroup_Attack5Up,
+	kAnimGroup_Attack5Down,
+	kAnimGroup_Attack5IS,
+	kAnimGroup_Attack5ISUp,
+	kAnimGroup_Attack5ISDown,
+	kAnimGroup_Attack6,
+	kAnimGroup_Attack6Up,
+	kAnimGroup_Attack6Down,
+	kAnimGroup_Attack6IS,
+	kAnimGroup_Attack6ISUp,
+	kAnimGroup_Attack6ISDown,
+	kAnimGroup_Attack7,
+	kAnimGroup_Attack7Up,
+	kAnimGroup_Attack7Down,
+	kAnimGroup_Attack7IS,
+	kAnimGroup_Attack7ISUp,
+	kAnimGroup_Attack7ISDown,
+	kAnimGroup_Attack8,
+	kAnimGroup_Attack8Up,
+	kAnimGroup_Attack8Down,
+	kAnimGroup_Attack8IS,
+	kAnimGroup_Attack8ISUp,
+	kAnimGroup_Attack8ISDown,
+	kAnimGroup_AttackLoop,
+	kAnimGroup_AttackLoopUp,
+	kAnimGroup_AttackLoopDown,
+	kAnimGroup_AttackLoopIS,
+	kAnimGroup_AttackLoopISUp,
+	kAnimGroup_AttackLoopISDown,
+	kAnimGroup_AttackSpin,
+	kAnimGroup_AttackSpinUp,
+	kAnimGroup_AttackSpinDown,
+	kAnimGroup_AttackSpinIS,
+	kAnimGroup_AttackSpinISUp,
+	kAnimGroup_AttackSpinISDown,
+	kAnimGroup_AttackSpin2,
+	kAnimGroup_AttackSpin2Up,
+	kAnimGroup_AttackSpin2Down,
+	kAnimGroup_AttackSpin2IS,
+	kAnimGroup_AttackSpin2ISUp,
+	kAnimGroup_AttackSpin2ISDown,
+	kAnimGroup_AttackPower,
+	kAnimGroup_AttackForwardPower,
+	kAnimGroup_AttackBackPower,
+	kAnimGroup_AttackLeftPower,
+	kAnimGroup_AttackRightPower,
+	kAnimGroup_AttackCustom1Power,
+	kAnimGroup_AttackCustom2Power,
+	kAnimGroup_AttackCustom3Power,
+	kAnimGroup_AttackCustom4Power,
+	kAnimGroup_AttackCustom5Power,
+	kAnimGroup_PlaceMine,
+	kAnimGroup_PlaceMineUp,
+	kAnimGroup_PlaceMineDown,
+	kAnimGroup_PlaceMineIS,
+	kAnimGroup_PlaceMineISUp,
+	kAnimGroup_PlaceMineISDown,
+	kAnimGroup_PlaceMine2,
+	kAnimGroup_PlaceMine2Up,
+	kAnimGroup_PlaceMine2Down,
+	kAnimGroup_PlaceMine2IS,
+	kAnimGroup_PlaceMine2ISUp,
+	kAnimGroup_PlaceMine2ISDown,
+	kAnimGroup_AttackThrow,
+	kAnimGroup_AttackThrowUp,
+	kAnimGroup_AttackThrowDown,
+	kAnimGroup_AttackThrowIS,
+	kAnimGroup_AttackThrowISUp,
+	kAnimGroup_AttackThrowISDown,
+	kAnimGroup_AttackThrow2,
+	kAnimGroup_AttackThrow2Up,
+	kAnimGroup_AttackThrow2Down,
+	kAnimGroup_AttackThrow2IS,
+	kAnimGroup_AttackThrow2ISUp,
+	kAnimGroup_AttackThrow2ISDown,
+	kAnimGroup_AttackThrow3,
+	kAnimGroup_AttackThrow3Up,
+	kAnimGroup_AttackThrow3Down,
+	kAnimGroup_AttackThrow3IS,
+	kAnimGroup_AttackThrow3ISUp,
+	kAnimGroup_AttackThrow3ISDown,
+	kAnimGroup_AttackThrow4,
+	kAnimGroup_AttackThrow4Up,
+	kAnimGroup_AttackThrow4Down,
+	kAnimGroup_AttackThrow4IS,
+	kAnimGroup_AttackThrow4ISUp,
+	kAnimGroup_AttackThrow4ISDown,
+	kAnimGroup_AttackThrow5,
+	kAnimGroup_AttackThrow5Up,
+	kAnimGroup_AttackThrow5Down,
+	kAnimGroup_AttackThrow5IS,
+	kAnimGroup_AttackThrow5ISUp,
+	kAnimGroup_AttackThrow5ISDown,
+	kAnimGroup_Attack9,
+	kAnimGroup_Attack9Up,
+	kAnimGroup_Attack9Down,
+	kAnimGroup_Attack9IS,
+	kAnimGroup_Attack9ISUp,
+	kAnimGroup_Attack9ISDown,
+	kAnimGroup_AttackThrow6,
+	kAnimGroup_AttackThrow6Up,
+	kAnimGroup_AttackThrow6Down,
+	kAnimGroup_AttackThrow6IS,
+	kAnimGroup_AttackThrow6ISUp,
+	kAnimGroup_AttackThrow6ISDown,
+	kAnimGroup_AttackThrow7,
+	kAnimGroup_AttackThrow7Up,
+	kAnimGroup_AttackThrow7Down,
+	kAnimGroup_AttackThrow7IS,
+	kAnimGroup_AttackThrow7ISUp,
+	kAnimGroup_AttackThrow7ISDown,
+	kAnimGroup_AttackThrow8,
+	kAnimGroup_AttackThrow8Up,
+	kAnimGroup_AttackThrow8Down,
+	kAnimGroup_AttackThrow8IS,
+	kAnimGroup_AttackThrow8ISUp,
+	kAnimGroup_AttackThrow8ISDown,
+	kAnimGroup_Counter,
+	kAnimGroup_stomp,
+	kAnimGroup_BlockIdle,
+	kAnimGroup_BlockHit,
+	kAnimGroup_Recoil,
+	kAnimGroup_ReloadWStart,
+	kAnimGroup_ReloadXStart,
+	kAnimGroup_ReloadYStart,
+	kAnimGroup_ReloadZStart,
+	kAnimGroup_ReloadA,
+	kAnimGroup_ReloadB,
+	kAnimGroup_ReloadC,
+	kAnimGroup_ReloadD,
+	kAnimGroup_ReloadE,
+	kAnimGroup_ReloadF,
+	kAnimGroup_ReloadG,
+	kAnimGroup_ReloadH,
+	kAnimGroup_ReloadI,
+	kAnimGroup_ReloadJ,
+	kAnimGroup_ReloadK,
+	kAnimGroup_ReloadL,
+	kAnimGroup_ReloadM,
+	kAnimGroup_ReloadN,
+	kAnimGroup_ReloadO,
+	kAnimGroup_ReloadP,
+	kAnimGroup_ReloadQ,
+	kAnimGroup_ReloadR,
+	kAnimGroup_ReloadS,
+	kAnimGroup_ReloadW,
+	kAnimGroup_ReloadX,
+	kAnimGroup_ReloadY,
+	kAnimGroup_ReloadZ,
+	kAnimGroup_JamA,
+	kAnimGroup_JamB,
+	kAnimGroup_JamC,
+	kAnimGroup_JamD,
+	kAnimGroup_JamE,
+	kAnimGroup_JamF,
+	kAnimGroup_JamG,
+	kAnimGroup_JamH,
+	kAnimGroup_JamI,
+	kAnimGroup_JamJ,
+	kAnimGroup_JamK,
+	kAnimGroup_JamL,
+	kAnimGroup_JamM,
+	kAnimGroup_JamN,
+	kAnimGroup_JamO,
+	kAnimGroup_JamP,
+	kAnimGroup_JamQ,
+	kAnimGroup_JamR,
+	kAnimGroup_JamS,
+	kAnimGroup_JamW,
+	kAnimGroup_JamX,
+	kAnimGroup_JamY,
+	kAnimGroup_JamZ,
+	kAnimGroup_Stagger,
+	kAnimGroup_Death,
+	kAnimGroup_Talking,
+	kAnimGroup_PipBoy,
+	kAnimGroup_JumpStart,
+	kAnimGroup_JumpLoop,
+	kAnimGroup_JumpLand,
+	kAnimGroup_HandGrip1,
+	kAnimGroup_HandGrip2,
+	kAnimGroup_HandGrip3,
+	kAnimGroup_HandGrip4,
+	kAnimGroup_HandGrip5,
+	kAnimGroup_HandGrip6,
+	kAnimGroup_JumpLoopForward,
+	kAnimGroup_JumpLoopBackward,
+	kAnimGroup_JumpLoopLeft,
+	kAnimGroup_JumpLoopRight,
+	kAnimGroup_PipBoyChild,
+	kAnimGroup_JumpLandForward,
+	kAnimGroup_JumpLandBackward,
+	kAnimGroup_JumpLandLeft,
+	kAnimGroup_JumpLandRight,
+
+	kAnimGroup_Max						// = 0x0FFF,	// Temporary until known
+};
+
+class NiAVObjectPalette : public NiObject
+{
+};
+
+
+class NiDefaultAVObjectPalette : public NiAVObjectPalette
+{
+public:
+	NiTStringPointerMap<NiAVObject> m_kHash;
+	NiAVObject* m_pkScene;
+};
+
+
+class NiDefaultAVObjectPalette;
+
+/* 12659 */
+class NiTimeController : public NiObject
+{
+public:
+	UInt16 m_uFlags;
+	float m_fFrequency;
+	float m_fPhase;
+	float m_fLoKeyTime;
+	float m_fHiKeyTime;
+	float m_fStartTime;
+	float m_fLastTime;
+	float m_fWeightedLastTime;
+	float m_fScaledTime;
+	NiObjectNET* m_pkTarget;
+	NiPointer<NiTimeController> m_spNext;
+};
+static_assert(sizeof(NiTimeController) == 0x34);
+
+// 7C
+class NiControllerManager : public NiTimeController
+{
+public:
+	virtual void	Unk_2D(void);
+
+	NiTArray<NiControllerSequence*>	sequences;		// 34
+	NiTSet<NiControllerSequence*> m_kActiveSequences;
+	NiTStringPointerMap<NiControllerSequence> m_kSequenceMap;
+	NiTArray<void*>* pListener;
+	bool m_bCumulitive;
+	NiTSet<NiControllerSequence*> m_kTempBlendSeqs;
+	NiDefaultAVObjectPalette* m_spObjectPalette;
+};
+//static_assert(sizeof(NiControllerManager) == 0x7C);
+
+struct NiUpdateData
+{
+	float		timePassed;			// 00
+	bool		updateControllers;	// 04
+	bool		isMultiThreaded;	// 05
+	UInt8		byte06;				// 06
+	bool		updateGeomorphs;	// 07
+	bool		updateShadowScene;	// 08
+	UInt8		pad09[3];			// 09
+
+	NiUpdateData() { ZeroMemory(this, sizeof(NiUpdateData)); }
+};
+
 // 02C+
 class TESAnimGroup
 {
@@ -959,256 +1299,6 @@ public:
 	~TESAnimGroup();
 
 	virtual void Destructor(bool arg0);
-
-	enum{
-		kAnimGroup_Idle					= 0x0,
-		kAnimGroup_DynamicIdle,
-		kAnimGroup_SpecialIdle,
-		kAnimGroup_Forward,
-		kAnimGroup_Backward,
-		kAnimGroup_Left,
-		kAnimGroup_Right,
-		kAnimGroup_FastForward,
-		kAnimGroup_FastBackward,
-		kAnimGroup_FastLeft,
-		kAnimGroup_FastRight,
-		kAnimGroup_DodgeForward,
-		kAnimGroup_DodgeBack,
-		kAnimGroup_DodgeLeft,
-		kAnimGroup_DodgeRight,
-		kAnimGroup_TurnLeft,
-		kAnimGroup_TurnRight,
-		kAnimGroup_Aim,
-		kAnimGroup_AimUp,
-		kAnimGroup_AimDown,
-		kAnimGroup_AimIS,
-		kAnimGroup_AimISUp,
-		kAnimGroup_AimISDown,
-		kAnimGroup_Holster,
-		kAnimGroup_Equip,
-		kAnimGroup_Unequip,
-		kAnimGroup_AttackLeft,
-		kAnimGroup_AttackLeftUp,
-		kAnimGroup_AttackLeftDown,
-		kAnimGroup_AttackLeftIS,
-		kAnimGroup_AttackLeftISUp,
-		kAnimGroup_AttackLeftISDown,
-		kAnimGroup_AttackRight,
-		kAnimGroup_AttackRightUp,
-		kAnimGroup_AttackRightDown,
-		kAnimGroup_AttackRightIS,
-		kAnimGroup_AttackRightISUp,
-		kAnimGroup_AttackRightISDown,
-		kAnimGroup_Attack3,
-		kAnimGroup_Attack3Up,
-		kAnimGroup_Attack3Down,
-		kAnimGroup_Attack3IS,
-		kAnimGroup_Attack3ISUp,
-		kAnimGroup_Attack3ISDown,
-		kAnimGroup_Attack4,
-		kAnimGroup_Attack4Up,
-		kAnimGroup_Attack4Down,
-		kAnimGroup_Attack4IS,
-		kAnimGroup_Attack4ISUp,
-		kAnimGroup_Attack4ISDown,
-		kAnimGroup_Attack5,
-		kAnimGroup_Attack5Up,
-		kAnimGroup_Attack5Down,
-		kAnimGroup_Attack5IS,
-		kAnimGroup_Attack5ISUp,
-		kAnimGroup_Attack5ISDown,
-		kAnimGroup_Attack6,
-		kAnimGroup_Attack6Up,
-		kAnimGroup_Attack6Down,
-		kAnimGroup_Attack6IS,
-		kAnimGroup_Attack6ISUp,
-		kAnimGroup_Attack6ISDown,
-		kAnimGroup_Attack7,
-		kAnimGroup_Attack7Up,
-		kAnimGroup_Attack7Down,
-		kAnimGroup_Attack7IS,
-		kAnimGroup_Attack7ISUp,
-		kAnimGroup_Attack7ISDown,
-		kAnimGroup_Attack8,
-		kAnimGroup_Attack8Up,
-		kAnimGroup_Attack8Down,
-		kAnimGroup_Attack8IS,
-		kAnimGroup_Attack8ISUp,
-		kAnimGroup_Attack8ISDown,
-		kAnimGroup_AttackLoop,
-		kAnimGroup_AttackLoopUp,
-		kAnimGroup_AttackLoopDown,
-		kAnimGroup_AttackLoopIS,
-		kAnimGroup_AttackLoopISUp,
-		kAnimGroup_AttackLoopISDown,
-		kAnimGroup_AttackSpin,
-		kAnimGroup_AttackSpinUp,
-		kAnimGroup_AttackSpinDown,
-		kAnimGroup_AttackSpinIS,
-		kAnimGroup_AttackSpinISUp,
-		kAnimGroup_AttackSpinISDown,
-		kAnimGroup_AttackSpin2,
-		kAnimGroup_AttackSpin2Up,
-		kAnimGroup_AttackSpin2Down,
-		kAnimGroup_AttackSpin2IS,
-		kAnimGroup_AttackSpin2ISUp,
-		kAnimGroup_AttackSpin2ISDown,
-		kAnimGroup_AttackPower,
-		kAnimGroup_AttackForwardPower,
-		kAnimGroup_AttackBackPower,
-		kAnimGroup_AttackLeftPower,
-		kAnimGroup_AttackRightPower,
-		kAnimGroup_AttackCustom1Power,
-		kAnimGroup_AttackCustom2Power,
-		kAnimGroup_AttackCustom3Power,
-		kAnimGroup_AttackCustom4Power,
-		kAnimGroup_AttackCustom5Power,
-		kAnimGroup_PlaceMine,
-		kAnimGroup_PlaceMineUp,
-		kAnimGroup_PlaceMineDown,
-		kAnimGroup_PlaceMineIS,
-		kAnimGroup_PlaceMineISUp,
-		kAnimGroup_PlaceMineISDown,
-		kAnimGroup_PlaceMine2,
-		kAnimGroup_PlaceMine2Up,
-		kAnimGroup_PlaceMine2Down,
-		kAnimGroup_PlaceMine2IS,
-		kAnimGroup_PlaceMine2ISUp,
-		kAnimGroup_PlaceMine2ISDown,
-		kAnimGroup_AttackThrow,
-		kAnimGroup_AttackThrowUp,
-		kAnimGroup_AttackThrowDown,
-		kAnimGroup_AttackThrowIS,
-		kAnimGroup_AttackThrowISUp,
-		kAnimGroup_AttackThrowISDown,
-		kAnimGroup_AttackThrow2,
-		kAnimGroup_AttackThrow2Up,
-		kAnimGroup_AttackThrow2Down,
-		kAnimGroup_AttackThrow2IS,
-		kAnimGroup_AttackThrow2ISUp,
-		kAnimGroup_AttackThrow2ISDown,
-		kAnimGroup_AttackThrow3,
-		kAnimGroup_AttackThrow3Up,
-		kAnimGroup_AttackThrow3Down,
-		kAnimGroup_AttackThrow3IS,
-		kAnimGroup_AttackThrow3ISUp,
-		kAnimGroup_AttackThrow3ISDown,
-		kAnimGroup_AttackThrow4,
-		kAnimGroup_AttackThrow4Up,
-		kAnimGroup_AttackThrow4Down,
-		kAnimGroup_AttackThrow4IS,
-		kAnimGroup_AttackThrow4ISUp,
-		kAnimGroup_AttackThrow4ISDown,
-		kAnimGroup_AttackThrow5,
-		kAnimGroup_AttackThrow5Up,
-		kAnimGroup_AttackThrow5Down,
-		kAnimGroup_AttackThrow5IS,
-		kAnimGroup_AttackThrow5ISUp,
-		kAnimGroup_AttackThrow5ISDown,
-		kAnimGroup_Attack9,
-		kAnimGroup_Attack9Up,
-		kAnimGroup_Attack9Down,
-		kAnimGroup_Attack9IS,
-		kAnimGroup_Attack9ISUp,
-		kAnimGroup_Attack9ISDown,
-		kAnimGroup_AttackThrow6,
-		kAnimGroup_AttackThrow6Up,
-		kAnimGroup_AttackThrow6Down,
-		kAnimGroup_AttackThrow6IS,
-		kAnimGroup_AttackThrow6ISUp,
-		kAnimGroup_AttackThrow6ISDown,
-		kAnimGroup_AttackThrow7,
-		kAnimGroup_AttackThrow7Up,
-		kAnimGroup_AttackThrow7Down,
-		kAnimGroup_AttackThrow7IS,
-		kAnimGroup_AttackThrow7ISUp,
-		kAnimGroup_AttackThrow7ISDown,
-		kAnimGroup_AttackThrow8,
-		kAnimGroup_AttackThrow8Up,
-		kAnimGroup_AttackThrow8Down,
-		kAnimGroup_AttackThrow8IS,
-		kAnimGroup_AttackThrow8ISUp,
-		kAnimGroup_AttackThrow8ISDown,
-		kAnimGroup_Counter,
-		kAnimGroup_stomp,
-		kAnimGroup_BlockIdle,
-		kAnimGroup_BlockHit,
-		kAnimGroup_Recoil,
-		kAnimGroup_ReloadWStart,
-		kAnimGroup_ReloadXStart,
-		kAnimGroup_ReloadYStart,
-		kAnimGroup_ReloadZStart,
-		kAnimGroup_ReloadA,
-		kAnimGroup_ReloadB,
-		kAnimGroup_ReloadC,
-		kAnimGroup_ReloadD,
-		kAnimGroup_ReloadE,
-		kAnimGroup_ReloadF,
-		kAnimGroup_ReloadG,
-		kAnimGroup_ReloadH,
-		kAnimGroup_ReloadI,
-		kAnimGroup_ReloadJ,
-		kAnimGroup_ReloadK,
-		kAnimGroup_ReloadL,
-		kAnimGroup_ReloadM,
-		kAnimGroup_ReloadN,
-		kAnimGroup_ReloadO,
-		kAnimGroup_ReloadP,
-		kAnimGroup_ReloadQ,
-		kAnimGroup_ReloadR,
-		kAnimGroup_ReloadS,
-		kAnimGroup_ReloadW,
-		kAnimGroup_ReloadX,
-		kAnimGroup_ReloadY,
-		kAnimGroup_ReloadZ,
-		kAnimGroup_JamA,
-		kAnimGroup_JamB,
-		kAnimGroup_JamC,
-		kAnimGroup_JamD,
-		kAnimGroup_JamE,
-		kAnimGroup_JamF,
-		kAnimGroup_JamG,
-		kAnimGroup_JamH,
-		kAnimGroup_JamI,
-		kAnimGroup_JamJ,
-		kAnimGroup_JamK,
-		kAnimGroup_JamL,
-		kAnimGroup_JamM,
-		kAnimGroup_JamN,
-		kAnimGroup_JamO,
-		kAnimGroup_JamP,
-		kAnimGroup_JamQ,
-		kAnimGroup_JamR,
-		kAnimGroup_JamS,
-		kAnimGroup_JamW,
-		kAnimGroup_JamX,
-		kAnimGroup_JamY,
-		kAnimGroup_JamZ,
-		kAnimGroup_Stagger,
-		kAnimGroup_Death,
-		kAnimGroup_Talking,
-		kAnimGroup_PipBoy,
-		kAnimGroup_JumpStart,
-		kAnimGroup_JumpLoop,
-		kAnimGroup_JumpLand,
-		kAnimGroup_HandGrip1,
-		kAnimGroup_HandGrip2,
-		kAnimGroup_HandGrip3,
-		kAnimGroup_HandGrip4,
-		kAnimGroup_HandGrip5,
-		kAnimGroup_HandGrip6,
-		kAnimGroup_JumpLoopForward,
-		kAnimGroup_JumpLoopBackward,
-		kAnimGroup_JumpLoopLeft,
-		kAnimGroup_JumpLoopRight,
-		kAnimGroup_PipBoyChild,
-		kAnimGroup_JumpLandForward,
-		kAnimGroup_JumpLandBackward,
-		kAnimGroup_JumpLandLeft,
-		kAnimGroup_JumpLandRight,
-
-		kAnimGroup_Max						// = 0x0FFF,	// Temporary until known
-	};
 
 	// 24
 	struct AnimGroupInfo {
@@ -1239,7 +1329,7 @@ public:
 	static UInt32 AnimGroupForString(const char* groupName);
 };
 
-extern std::span<TESAnimGroup::AnimGroupInfo> g_animGroups;
+extern std::span<AnimGroupID> g_animGroups;
 
 void DumpAnimGroups(void);
 
