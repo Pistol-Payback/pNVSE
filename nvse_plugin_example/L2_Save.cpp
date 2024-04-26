@@ -3,64 +3,121 @@
 
 namespace SaveSystem {
 
+	void SaveExtraData(ExtraDataList* xDataList)
+	{
+
+		BSExtraData* extraData = xDataList->m_data;
+
+		while (extraData) {
+
+			SaveData::WriteRecord8(extraData->type);
+
+			switch (extraData->type) {
+			case kXData_ExtraOwnership: {
+				ExtraOwnership* xData = (ExtraOwnership*)extraData;
+				if (xData)
+				{
+					SaveData::WriteRecord32(xData->owner->refID);
+				}
+			}
+									  break;
+			case kXData_ExtraCount: {
+
+				ExtraCount* xData = (ExtraCount*)extraData;
+				if (xData)
+				{
+					SaveData::WriteRecord32(xData->count);
+				}
+			}
+								  break;
+			case kXData_ExtraHealth: {
+
+				ExtraHealth* xData = (ExtraHealth*)extraData;
+				if (xData)
+				{
+					SaveData::WriteRecordFloat(xData->health);
+				}
+			}
+								   break;
+			case kXData_ExtraHotkey: {
+
+				ExtraHotkey* xData = (ExtraHotkey*)extraData;
+				if (xData)
+				{
+					SaveData::WriteRecord8(xData->index);
+				}
+			}
+								   break;
+			default:
+				break;
+			}
+
+			extraData = extraData->next;
+
+		}
+
+		SaveData::WriteRecord8(kXData_ExtraUnknown00);
+
+	}
+
 	void SaveCollectedData() {
 
-		//Console_Print("SaveCollectedData");
-
 		UInt32 TotalLength = aSaveData.size();
-		//Console_Print("SaveGameCallback size %d", TotalLength);
-		WriteRecord32(TotalLength);
+		SaveData::WriteRecord32(TotalLength);
 
 		TESForm* rWeapon = nullptr;
-		TESObjectREFR* form = nullptr;
+		TESForm* rLocation = nullptr;
 
 		for (auto it = aSaveData.begin(); it != aSaveData.end(); ++it) {
 
-			SaveData* saveData = *it;
-			WeapInst* Instance = LookupFormByRefID(saveData->baseRefID)->LookupModifierByID(saveData->instID);
+			SaveDataObj* saveData = (SaveDataObj*)*it;
+			Instance_WEAP* Instance = LookupFormByRefID(saveData->baseRefID)->LookupInstanceByID(saveData->instID);
 			if (Instance) {
-				rWeapon = Instance->Clone; //Add this
+				rWeapon = Instance->clone; //Add this
 				if (saveData->location) {
-					form = (TESObjectREFR*)LookupFormByRefID(saveData->location);
+					rLocation = LookupFormByRefID(saveData->location);
 				}
 			}
 
-			if (rWeapon && form) {
+			if (rWeapon && rLocation) {
 
-				WriteRecord32(saveData->baseRefID);
-				WriteRecord8(saveData->instID);
-				WriteRecord32(saveData->location);
+				SaveData::WriteRecord32(saveData->baseRefID);
+				SaveData::WriteRecord8(saveData->instID);
+				SaveData::WriteRecord32(saveData->location);
 
-				if (saveData->location) {
+				ExtraDataList* xData = saveData->xData;
+				SaveExtraData(xData);
 
-					WriteRecord8(saveData->equipped);
-
-					ExtraDataList* xData = saveData->xData;
-					BSExtraData* mData = xData->m_data;
-
-					while (mData) {
-						WriteRecord8(mData->type);
-						//SaveExtraData(mData);
-						mData = mData->next;
-					}
+				if (rLocation->typeID != 57 && rLocation->typeID != 65) {
 
 					if (saveData->xData->HasType(kExtraData_Worn)) {
 						saveData->xData->RemoveByType(kExtraData_Worn);
+						((TESObjectREFR*)rLocation)->AddItem(rWeapon, saveData->xData, 1);
+						((Actor*)rLocation)->SilentEquip(rWeapon, saveData->xData);
 					}
-					form->AddItem(rWeapon, saveData->xData, 1);
-
-					if (saveData->equipped) {
-						//SilentEquip((Actor*)form, rWeapon, saveData->xData);
+					else {
+						((TESObjectREFR*)rLocation)->AddItem(rWeapon, saveData->xData, 1);
 					}
 
 				}
-				else {
-					WriteRecord32(saveData->x);
-					WriteRecord32(saveData->y);
-					WriteRecord32(saveData->z);
-					WriteRecord32(saveData->xR);
-					WriteRecord32(saveData->yR);
-					WriteRecord32(saveData->zR);
+				else if (rLocation->typeID == 57 || rLocation->typeID == 65){
+
+					Console_Print("Saving world references: %s", rWeapon->GetTheName());
+					Console_Print("Saving In Location: %s", rLocation->GetTheName());
+
+					SaveDataWorldObj* saveDataWorld = (SaveDataWorldObj*)saveData;
+
+					SaveData::WriteRecordFloat(saveDataWorld->x);
+					SaveData::WriteRecordFloat(saveDataWorld->y);
+					SaveData::WriteRecordFloat(saveDataWorld->z);
+
+					SaveData::WriteRecordFloat(saveDataWorld->xR);
+					SaveData::WriteRecordFloat(saveDataWorld->yR);
+					SaveData::WriteRecordFloat(saveDataWorld->zR);
+					
+					TESObjectREFR* placeref = rWeapon->PlaceAtCell(rLocation, saveDataWorld->x, saveDataWorld->y, saveDataWorld->z, saveDataWorld->xR, saveDataWorld->yR, saveDataWorld->zR);
+					placeref->extraDataList = *xData;
+
 				}
 			}
 
@@ -71,58 +128,53 @@ namespace SaveSystem {
 
 	void SaveGameCallback(void*)
 	{
-		//WriteRecord(1, 2, "W", 2);
-		//Console_Print("SaveGameCallback");
 
 		const char* EditorID;
 
-		OpenRecord(1, 2);
+		SaveData::OpenRecord(1, 2);
 
-		WriteRecord32(static_cast<UInt32>(BaseExtraData.size()));	//Save the count of base forms that have Weapon Instances.
+		SaveData::WriteRecord32(static_cast<UInt32>(StaticInstance_WEAP::Linker.size()));	//Save the count of base forms that have Weapon Instances.
 
-		for (auto it = BaseExtraData.begin(); it != BaseExtraData.end(); ++it) {
+		for (auto it = StaticInstance_WEAP::Linker.begin(); it != StaticInstance_WEAP::Linker.end(); ++it) {
 
-			WeapInstBase* Base = it->second;
+			StaticInstance_WEAP* Base = it->second;
 
-			//Console_Print("Saving Weapon: %s", LookupFormByRefID(it->first)->GetEditorID());
-			//Console_Print("RefID %d", it->first);	//Load the count of baseforms.
-			WriteRecord32(it->first);
-
-			//Console_Print("Saving Instance array size: %d", static_cast<uint8_t>(Base->aInstances.size()));
-			WriteRecord8(static_cast<uint8_t>(Base->aInstances.size()));	//Save the count of instances iterated over.
+			SaveData::WriteRecord32(it->first);
+			SaveData::WriteRecord8(static_cast<uint8_t>(Base->aInstances.size()));	//Save the count of instances iterated over.
 
 			for (auto& rInstance : Base->aInstances) {
 
 				if (rInstance) {
 
-					WriteRecord8(static_cast<uint8_t>(rInstance->aAttachments.size()));	//Save attachment size.
-					//Console_Print("Saving Attachment size: %d", static_cast<uint8_t>(rInstance->aAttachments.size()));
+					size_t length = rInstance->key.length();
+
+					SaveData::WriteRecord32(length);
+					SaveData::WriteRecordData(rInstance->key.c_str(), length);
+
+					Console_Print("Saved Key: %s", rInstance->key.c_str());	//Load the count of baseforms.
+
+					SaveData::WriteRecord8(static_cast<uint8_t>(rInstance->aAttachments.size()));	//Save attachment size.
 
 					for (auto slot = rInstance->aAttachments.begin(); slot != rInstance->aAttachments.end(); ++slot) {
 
 						const char* sSlot = slot->first.c_str();
 						UInt32 rAttachment = slot->second;
-						size_t length;
 						if (rAttachment) {
 
 							const auto& sSlot = slot->first;
 							const char* sSlotCStr = sSlot.c_str();
 
-							//Console_Print("Save Slot %s", sSlotCStr);
-							auto length = sSlot.size();
-							//Console_Print("Size %d", length);
+							length = sSlot.size();
 
-							WriteRecord32(length);
-							WriteRecordData(sSlotCStr, length);
+							SaveData::WriteRecord32(length);
+							SaveData::WriteRecordData(sSlotCStr, length);
 
 							TESForm* attachment = LookupFormByRefID(rAttachment);
 							EditorID = attachment->GetEditorID();
-							//Console_Print("Save EditorID %s", EditorID);
 
 							length = strlen(EditorID);
-							//Console_Print("Size %d", length);
-							WriteRecord32(length);
-							WriteRecordData(EditorID, length);
+							SaveData::WriteRecord32(length);
+							SaveData::WriteRecordData(EditorID, length);
 						}
 					}
 
@@ -137,76 +189,4 @@ namespace SaveSystem {
 
 	}
 
-	void SaveExtraData(BSExtraData* extraData)
-	{
-
-		switch (extraData->type) {
-		case kXData_ExtraWorn: {
-
-			ExtraWorn* xData = (ExtraWorn*)extraData;
-			if (xData)
-			{
-				WriteRecord8(kXData_ExtraWorn);
-				xData->Create();
-			}
-		}
-							 break;
-		case kXData_ExtraOwnership: {
-			ExtraOwnership* xData = (ExtraOwnership*)extraData;
-			if (xData)
-			{
-				WriteRecord8(kXData_ExtraOwnership);
-				xData->owner;
-				xData->Create();
-			}
-		}
-								  break;
-		case kXData_ExtraCount: {
-
-			ExtraCount* xData = (ExtraCount*)extraData;
-			if (xData)
-			{
-				WriteRecord8(kXData_ExtraCount);
-				xData->count;
-				xData->Create();
-			}
-		}
-							  break;
-		case kXData_ExtraHealth: {
-
-			ExtraHealth* xData = (ExtraHealth*)extraData;
-			if (xData)
-			{
-				WriteRecord8(kXData_ExtraHealth);
-				xData->health;
-				xData->Create();
-			}
-		}
-							   break;
-		case kXData_ExtraCannotWear: {
-
-			ExtraCannotWear* xData = (ExtraCannotWear*)extraData;
-			if (xData)
-			{
-				WriteRecord8(kXData_ExtraCannotWear);
-				xData->Create();
-			}
-		}
-								   break;
-		case kXData_ExtraHotkey: {
-
-			ExtraHotkey* xData = (ExtraHotkey*)extraData;
-			if (xData)
-			{
-				WriteRecord8(kXData_ExtraHotkey);
-				xData->index;
-				xData->Create();
-			}
-		}
-							   break;
-		default:
-			// Handle default case
-			break;
-		}
-	}
 }

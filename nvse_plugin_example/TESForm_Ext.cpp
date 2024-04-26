@@ -1,5 +1,5 @@
 #pragma once
-#include "GameObjects.h"
+#include <ppNVSE.h>
 
 enum  //Memory Addresses
 {
@@ -29,4 +29,33 @@ bool TESForm::IsReference()
 {
 	return ((*(UInt32**)this)[0x3C] == kAddr_ReturnTrue);
 
+}
+
+TESObjectREFR* TESForm::PlaceAtCell(TESForm* worldOrCell, float x, float y, float z, float xR, float yR, float zR)
+{
+    TESObjectCELL* targetCell = nullptr;
+
+    if (worldOrCell->typeID == kFormType_TESObjectCELL)
+    {
+        targetCell = static_cast<TESObjectCELL*>(worldOrCell);
+    }
+    else
+    {
+        targetCell = static_cast<TESWorldSpace*>(worldOrCell)->cell;
+    }
+
+    DevKitDummyMarker->parentCell = targetCell;
+    DevKitDummyMarker->posX = x;
+    DevKitDummyMarker->posY = y;
+    DevKitDummyMarker->posZ = z;
+    DevKitDummyMarker->rotX = xR;
+    DevKitDummyMarker->rotY = yR;
+    DevKitDummyMarker->rotZ = zR;
+
+    if (targetCell)
+    {
+        return DevKitDummyMarker->PlaceAtMe(this, 1, 0, 0, 1);
+    }
+
+    return nullptr;
 }

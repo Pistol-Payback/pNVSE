@@ -122,6 +122,27 @@ TESForm *TESForm::CloneForm(bool persist) const
 	return result;
 }
 
+void TESForm::CopyFromAlt(const TESForm* form)
+{
+
+	this->CopyFrom(form);
+	// it looks like some fields are not copied, case in point: TESObjectCONT does not copy BoundObject information.
+	TESBoundObject* boundObject = DYNAMIC_CAST(this, TESForm, TESBoundObject);
+	if (boundObject)
+	{
+		TESBoundObject* boundSource = DYNAMIC_CAST(form, TESForm, TESBoundObject);
+		if (boundSource)
+		{
+			for (UInt8 i = 0; i < 6; i++)
+				boundObject->bounds[i] = boundSource->bounds[i];
+		}
+	}
+
+	//CALL_MEMBER_FN(DataHandler::Get(), DoAddForm)
+	//(this);
+
+}
+
 std::string TESForm::GetStringRepresentation() const
 {
 	return FormatString(R"([id: %X, edid: "%s", name: "%s"])", refID, GetName() ? GetName() : "", GetFullName() ? GetFullName()->name.CStr() : "<no name>");

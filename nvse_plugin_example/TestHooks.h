@@ -225,7 +225,7 @@ namespace MyHooks
 
 	}
 
-	std::unordered_map<UInt32, WeapInst*> aActors;
+	std::unordered_map<UInt32, Instance_WEAP*> aActors;
 	std::vector<ExtraContainerChanges::ExtendDataList*> aExtendData;
 	std::vector<TESForm*> aForms;
 	int iCounter = 10;
@@ -435,7 +435,9 @@ namespace MyHooks
 		//WriteRelCall(0x08945E9, (UInt32)HookDetourTemp);	//Crashed
 		//WriteRelCall(0x089464A, (UInt32)HookDetourTemp);	//Stopped only first person fire animation. Gun still fired.
 		//WriteRelCall(0x08945D1, (UInt32)HookDetourTemp);	//idk
-		//WriteRelCall(0x08B2AAF, (UInt32)HookDetourTemp);	//Stopped all firng/aiming animations in first person
+
+		//WriteRelCall(0x08B2AAF, (UInt32)HookDetourTemp);	//Stopped all firng/aiming animations in first person........................................
+
 		//WriteRelCall(0x08945C7, (UInt32)HookDetourTemp);	//Main Attack
 		//WriteRelCall(0x089458D, (UInt32)HookDetourTemp);	//Doesn't stop fire.
 		//WriteRelCall(0x089451F, (UInt32)HookDetourTemp);	//Doesn't stop fire.
@@ -447,8 +449,9 @@ namespace MyHooks
 		//WriteRelCall(0x0897AFB, (UInt32)HookDetourTemp);	//Freezes animations
 		//WriteRelCall(0x0897B11, (UInt32)HookDetourTemp);	//Weapon Animations
 
-		//WriteRelCall(0x0894299, (UInt32)HookDetourTemp);	//RemoveLine Stopped Anims
-		//WriteRelCall(0x08945AA, (UInt32)HookDetourTemp);	//RemoveLine
+		//WriteRelCall(0x0894299, (UInt32)HookDetourTemp);	//RemoveLine Stopped Anims.....................................................................
+		//WriteRelCall(0x08945AA, (UInt32)HookDetourTemp);	//RemoveLine.............................................................
+
 		//WriteRelCall(0x0893CDD, (UInt32)HookDetourTemp);	//RemoveLine
 		//WriteRelCall(0x0893CDD, (UInt32)HookDetourTemp);	//RemoveLine
 		//WriteRelCall(0x0893D6C, (UInt32)HookDetourTemp);	//RemoveLine

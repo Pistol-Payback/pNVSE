@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "Base_Ext.h"
 
 void* __stdcall Game_DoHeapAlloc(size_t size);
 void __stdcall Game_HeapFree(void* ptr);

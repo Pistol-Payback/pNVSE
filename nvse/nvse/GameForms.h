@@ -180,8 +180,11 @@ class BGSEncounterZone;
 class BGSExplosion;
 class BGSDebris;
 class BGSRagdoll;
-class WeapInst;
-class WeapInstBase;
+
+class Instance_WEAP;
+class StaticInstance_WEAP;
+class StaticInstance;
+class Instance;
 
 struct Condition;
 
@@ -339,20 +342,28 @@ public:
 
 	bool IsPlayer() const { return refID == 0x14; } //From JIP
 
+	__forceinline void MarkAsTemporary()
+	{
+		ThisCall(0x484490, this);
+	}
+
+
 	//Weapon Smith................................................
 
-	TESForm*		GetModifierParent();
-	bool			IsModifierForm();
-	UInt32 			GetModifierID();
-	bool			MarkAsStaticForm();
-	bool			IsStaticForm();
-	WeapInst*		LookupModifierByID(UInt32 InstID);
-	UInt32			CreateInst();
+	TESForm*				GetStaticParent();
+	bool					IsInstancedForm();
+	UInt32 					GetInstanceID();
+	bool					MarkAsStaticForm();
+	bool					IsStaticForm();
+	Instance_WEAP*			LookupInstanceByID(UInt32 InstID);
+	StaticInstance_WEAP*	LookupStaticInstance();
+	UInt32					CreateInst(std::string key);
 
 	//TESForm_Ext
 
 	bool IsReference();
 	bool IsBaseForm();
+	TESObjectREFR* PlaceAtCell(TESForm* form, float x, float y, float z, float xR, float yR, float zR);
 
 	TESForm *		TryGetREFRParent(void);
 	UInt8			GetModIndex() const;
@@ -367,6 +378,7 @@ public:
 	void DoAddForm(TESForm* newForm, bool bPersist = true, bool record = true) const;
 	// return a new base form which is the clone of this form
 	TESForm* CloneForm(bool bPersist = true) const;
+	void	CopyFromAlt(const TESForm* form);
 	bool     IsInventoryObject() const;
 
 	bool FormMatches(TESForm* toMatch) const;
@@ -2982,7 +2994,7 @@ struct ValidBip01Names {	// somehow descend from NiNodeArray
 	struct OptionalBone	
 	{
 		bool	exists;
-		NiNode	* bone;
+		NiNode* bone;
 	};
 
 	// 010

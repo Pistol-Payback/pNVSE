@@ -1,70 +1,135 @@
 #pragma once
+#include <thread>
 #include "SaveSystem.h"
 
 namespace SaveSystem {
 
-	void RebuildClones() {
+	ExtraDataList* LoadExtraDataList()
+	{
 
-		Script* PistolWeaponEditorCloneRebuild = ((Script * (__cdecl*)(const char*))(0x483A00))("PistolWeaponEditorCloneRebuild");
-		ArrayElementL scriptReturn;
-		UInt32 cloneRefID;
+		BSExtraData* xData = nullptr;
+		ExtraDataList* xDataList = xDataList->Create();
 
-		for (auto it = aCloneRebuild.begin(); it != aCloneRebuild.end(); ++it) {
-			cloneRefID = *it;
-			//g_scriptInterface->CallFunction(PistolWeaponEditorCloneRebuild, nullptr, nullptr, &scriptReturn, 1, LookupFormByRefID(cloneRefID));
+		UInt8 type = SaveData::ReadRecord8();
+
+		while (type != kXData_ExtraUnknown00) {
+
+			switch (type) {
+			case kXData_ExtraWorn:
+			{
+				xData = ExtraWorn::Create();
+				xDataList->Add(xData);
+			}
+			break;
+			case kXData_ExtraOwnership:
+			{
+				UInt32 refID = SaveData::ReadRecord32();
+				if (SaveData::ResolveRefID(refID, &refID) && refID) {
+					xData = ExtraOwnership::Create();
+					((ExtraOwnership*)xData)->owner = LookupFormByRefID(refID);
+					xDataList->Add(xData);
+				}
+
+			}
+			break;
+			case kXData_ExtraCount:
+			{
+				UInt32 iCount = SaveData::ReadRecord32();
+				xData = ExtraCount::Create();
+				((ExtraCount*)xData)->count = iCount;
+				xDataList->Add(xData);
+			}
+			break;
+			case kXData_ExtraHealth:
+			{
+				float fHealth = SaveData::ReadRecordFloat();
+				xData = ExtraHealth::Create();
+				((ExtraHealth*)xData)->health = fHealth;
+				xDataList->Add(xData);
+			}
+			break;
+			case kXData_ExtraCannotWear:
+			{
+				xData = ExtraCannotWear::Create();
+				xDataList->Add(xData);
+			}
+			break;
+			case kXData_ExtraHotkey:
+			{
+				UInt8 iIndex = SaveData::ReadRecord8();
+				xData = ExtraHotkey::Create();
+				((ExtraHotkey*)xData)->index = iIndex;
+				xDataList->Add(xData);
+			}
+			break;
+			default:
+				break;
+			}
+			type = SaveData::ReadRecord8();
+
 		}
-		aCloneRebuild.clear();
+
+		return xDataList;
 
 	}
 
 	void LoadCollectedData() {
 
-		//Console_Print("LoadCollectedData");
+		UInt32 Totallength = SaveData::ReadRecord32();
+		TESForm* rLocation = nullptr;
 
-		UInt32 Totallength = ReadRecord32();
-		TESObjectREFR* form = nullptr;
-		//Console_Print("LoadCollectedDataTotal %d", Totallength);
 		while (Totallength > 0) {
 
-			UInt32 baseRefID = ReadRecord32();
+			UInt32 baseRefID = SaveData::ReadRecord32();
 
-			if (ResolveRefID(baseRefID, &baseRefID) && baseRefID) {
+			if (SaveData::ResolveRefID(baseRefID, &baseRefID) && baseRefID) {
 
-				UInt8 instID = ReadRecord8();		//Get instance using baseRefID and instID
+				UInt8 instID = SaveData::ReadRecord8();		//Get instance using baseRefID and instID
 
-				//Console_Print("LoadCollectedData Weapon Base %s", LookupFormByRefID(baseRefID)->GetEditorID());
+				TESForm* rWeapon = LookupFormByRefID(baseRefID); //Add this
 
-				TESForm* rWeapon = LookupFormByRefID(baseRefID)->LookupModifierByID(instID)->Clone; //Add this
-				//Console_Print("LoadCollectedData Weapon Clone %s", rWeapon->GetEditorID());
+				Instance_WEAP* weap = rWeapon->LookupInstanceByID(instID);
+				if (weap) {
+					rWeapon = weap->clone;
+				}
 
-				float health = ReadRecordFloat();
+				UInt32 location = SaveData::ReadRecord32();
 
-				//Console_Print("LoadCollectedData Health %f", health);
+				if (SaveData::ResolveRefID(location, &location) && location) {
 
-				UInt32 location = ReadRecord32();
+					rLocation = LookupFormByRefID(location);
 
-				if (ResolveRefID(location, &location) && location) {
+					ExtraDataList* xData = LoadExtraDataList();
 
-					form = (TESObjectREFR*)LookupFormByRefID(location);
+					if (rLocation->typeID != 57 && rLocation->typeID != 65) {
 
-					if (form) {
-						bool bequipped = ReadRecord8();
-						//Console_Print("LoadCollectedData Equipped %d", bequipped);
-						//Add item to location using all values above.
-
-						form->AddItemAlt(rWeapon, 1, health, bequipped);
-						if (bequipped) {
-							//QueueToSkipGroup((Actor*)form, kAnimGroup_Equip);
+						if (xData->HasType(kExtraData_Worn)) {
+							xData->RemoveByType(kExtraData_Worn);
+							((Actor*)rLocation)->AddItem(rWeapon, xData, 1);
+							((Actor*)rLocation)->SilentEquip(rWeapon, xData);
+						}
+						else {
+							((TESObjectREFR*)rLocation)->AddItem(rWeapon, xData, 1);
 						}
 
 					}
 					else {
-						float x = ReadRecord32();	//Place in world
-						float y = ReadRecord32();
-						float z = ReadRecord32();
-						float xR = ReadRecord32();
-						float yR = ReadRecord32();
-						float zR = ReadRecord32();
+
+						float x = SaveData::ReadRecordFloat();
+						float y = SaveData::ReadRecordFloat();
+						float z = SaveData::ReadRecordFloat();
+						float xR = SaveData::ReadRecordFloat();
+						float yR = SaveData::ReadRecordFloat();
+						float zR = SaveData::ReadRecordFloat();
+
+						queueToSpawn.emplace_back(
+							rWeapon,
+							(TESObjectCELL*)rLocation,
+							xData,
+							x, y, z,
+							xR, yR, zR
+							);
+
 					}
 				}
 			}
@@ -76,44 +141,89 @@ namespace SaveSystem {
 
 	bool ClearAllWeapData() {
 
-		//deletes every weapon instances that may have been created in other saves when loading a new save.
+		//std::vector<std::thread> threads;
 
-		for (auto it = BaseExtraData.begin(); it != BaseExtraData.end(); ++it) {
+		for (auto it = StaticInstance_WEAP::Linker.begin(); it != StaticInstance_WEAP::Linker.end(); ++it) {
 
-			WeapInstBase* Base = it->second;
-			for (auto& rInstance : Base->aInstances) {
-				if (rInstance) {
-					//delete rInstance->Clone;
-					delete rInstance;
+			StaticInstance_WEAP* Base = it->second;
+
+			//threads.emplace_back([Base]() {
+
+				for (auto& rInstance : Base->aInstances) {
+					if (rInstance) {
+
+						
+						std::vector<void*> filter{ &rInstance->key };
+						for (auto it = onInstanceDeconstructEvent.handlers.begin(); it != onInstanceDeconstructEvent.handlers.end(); ++it) {
+
+							if (it->CompareFilters(filter)) {
+								g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 1, rInstance->clone);
+							}
+
+						}
+
+						//Iterate through attachments for deconstructors.
+
+						rInstance->clone->Destroy(0);
+						delete rInstance;
+					}
 				}
-			}
-			Base->aInstances.clear(); //Restore instance data when loading.
+				Base->aInstances.clear(); // Restore instance data when loading
+
+			//	});
 		}
 
-		aClones.clear();
-		aClones = std::move(aUsedClones);
-		aUsedClones.clear();
+		//for (std::thread& thread : threads) {
+			//thread.join();
+		//}
+		return true;
+	}
 
-		WeapInstList.clear();
+	/*
+	bool ClearAllWeapData2() {
+		std::vector<std::thread> threads;
+
+		// Clear aInstances vectors associated with StaticInstance objects
+		for (auto& pair : StaticInstance::Linker) {
+			StaticInstance* base = pair.second;
+			threads.emplace_back([base]() {
+				base->aInstances.clear();
+			});
+		}
+
+		// Delete Instance objects
+		for (auto& pair : Instance::Linker) {
+			Instance* instance = &pair.second;
+			threads.emplace_back([instance]() {
+				delete instance;
+			});
+		}
+
+		// Wait for all threads to finish
+		for (std::thread& thread : threads) {
+			thread.join();
+		}
+
+		// Clear the Linker maps
+		StaticInstance::Linker.clear();
+		Instance::Linker.clear();
 
 		return true;
 	}
+	*/
 
 	void LoadGameCallback(void*)
 	{
 
 		UInt32 type, version, length;
 		UInt32 iFinish = 0;
+		ArrayElementL scriptReturn;
 
-		while (GetNextRecordInfo(&type, &version, &length)) {
-
-			//SkipNBytes(length);
-			//Console_Print("SkipBytes %d", length);	//Load the count of baseforms.
+		while (SaveData::GetNextRecordInfo(&type, &version, &length)) {
 
 			ClearAllWeapData();
 
-			UInt32 aBaseForms = ReadRecord32();
-			//Console_Print("LoadGameCallbackTotal %d", aBaseForms);	//Load the count of baseforms.
+			UInt32 aBaseForms = SaveData::ReadRecord32();
 
 			TESForm* form = NULL;
 			TESForm* rAttachment = NULL;
@@ -121,10 +231,8 @@ namespace SaveSystem {
 
 			while (aBaseForms > 0) {
 
-				//Console_Print("Next block: %d", aBaseForms);	//Load the count of baseforms.
-				UInt32 refID = ReadRecord32();
-				//Console_Print("RefID %d", refID);	//Load the count of baseforms.
-				if (ResolveRefID(refID, &refID) && refID) {
+				UInt32 refID = SaveData::ReadRecord32();
+				if (SaveData::ResolveRefID(refID, &refID) && refID) {
 
 					form = LookupFormByRefID(refID);
 
@@ -133,44 +241,79 @@ namespace SaveSystem {
 						break;
 					}
 
-					//Console_Print("LoadGameCallbackTotal %s", form->GetEditorID());	//Load the count of baseforms.
-
-					UInt8 BaseFormInstances = ReadRecord8();					//The instance count
-					//Console_Print("Saving Instance array size: %d", BaseFormInstances);
+					UInt8 BaseFormInstances = SaveData::ReadRecord8();					//The instance count
 
 					while (BaseFormInstances > 0) {
 
-						UInt32 cloneRefID = form->CreateInst();	//Re-Create the instance
-						//Console_Print("InstID %d", cloneRefID);	//Total attachments on WI.
-						WeapInst* rInstance = WeapInstList[cloneRefID];											//Lookup the WeapInstBase that was just created by CreateInst
 
-						UInt8 i = ReadRecord8();		//Re-Apply attachments to WeapInst
+						length = SaveData::ReadRecord32();
+						char* key = new char[length + 1];
+						SaveData::ReadRecordData(key, length);
+						key[length] = '\0';
 
-						//Console_Print("Total Attachments %d", i);	//Total attachments on WI.
-						while (i > 0) {
+						Instance_WEAP* rInstance = Instance_WEAP::create(StaticInstance_WEAP::Linker[form->refID], key);
+						//UInt32 cloneRefID = form->CreateInst(key);
 
-							length = ReadRecord32();
-							//Console_Print("sSlot size %d", length);	//Total attachments on WI.
-							char* sSlot = new char[length + 1];
-							ReadRecordData(sSlot, length);
-							sSlot[length] = '\0';
-							//Console_Print("Loading Slot %s", sSlot);
+						if (rInstance) //Re-Create the instance
+						{
 
-							length = ReadRecord32();
-							//Console_Print("Attachments size %d", length);	//Total attachments on WI.
-							char* EditorID = new char[length + 1];
-							ReadRecordData(EditorID, length);
-							EditorID[length] = '\0';
-							//Console_Print("Loading Attachments %s", EditorID);
-							rAttachment = ((TESForm * (__cdecl*)(char*))(0x483A00))(EditorID); //LookupEditorID of Attachment
+							//std::unordered_map<std::string, UInt32> aAttachments = {};
+							UInt8 i = SaveData::ReadRecord8();		//Re-Apply attachments to WeapInst
 
-							if (rAttachment)
-								rInstance->aAttachments[sSlot] = rAttachment->refID;
+							while (i > 0) {
 
-							--i;
+								length = SaveData::ReadRecord32();
+								char* sSlot = new char[length + 1];
+								SaveData::ReadRecordData(sSlot, length);
+								sSlot[length] = '\0';
+
+								length = SaveData::ReadRecord32();
+								char* EditorID = new char[length + 1];
+								SaveData::ReadRecordData(EditorID, length);
+								EditorID[length] = '\0';
+								rAttachment = ((TESForm * (__cdecl*)(char*))(0x483A00))(EditorID); //LookupEditorID of Attachment
+
+								if (rAttachment)
+									rInstance->aAttachments[sSlot] = rAttachment->refID;
+
+
+								std::vector<void*> filterOnAttach{ rAttachment, rInstance->baseInstance->parent };
+								for (auto it = onAttachWeapModReconstructEvent.handlers.begin(); it != onAttachWeapModReconstructEvent.handlers.end(); ++it) {
+									if (it->CompareFilters(filterOnAttach)) {
+										g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 2, rAttachment, rInstance->clone);
+									}
+								}
+
+								--i;
+
+							}
+
+							std::vector<void*> filter{ &key };
+							for (auto it = onInstanceReconstructEvent.handlers.begin(); it != onInstanceReconstructEvent.handlers.end(); ++it) {
+
+								if (it->CompareFilters(filter)) {
+									g_scriptInterface->CallFunction(it->script, nullptr, nullptr, &scriptReturn, 1, rInstance->clone);
+								}
+
+							}
 
 						}
+						else {//Handle unregistered forms
 
+							Console_Print("Skip Record: %s", form->GetTheName());
+							UInt8 i = SaveData::ReadRecord8();		//Re-Apply attachments to WeapInst
+
+							while (i > 0) {
+
+								SaveData::SkipNBytes(SaveData::ReadRecord32());	//Skip slot
+
+								SaveData::SkipNBytes(SaveData::ReadRecord32());	//Skip attachment editorID
+
+								--i;
+
+							}
+
+						}
 						--BaseFormInstances;
 
 					}

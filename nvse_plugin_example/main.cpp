@@ -1,3 +1,4 @@
+#pragma once
 #include "nvse/PluginAPI.h"
 #include "nvse/CommandTable.h"
 #include "nvse/GameAPI.h"
@@ -10,9 +11,10 @@
 #include "ppNVSE_functions.h"
 #include "WS_Funct.h"
 
-//#include "Actor_Ext.h"
-
 #include "Initializers.h"
+#include "Actor_Ext.h"
+
+#include "SaveSystem.h"
 
 #include "SafeWrite.h"
 
@@ -41,14 +43,6 @@ NVSEDataInterface* g_dataInterface{};
 NVSESerializationInterface* g_serializationInterface{};
 NVSEConsoleInterface* g_consoleInterface{};
 NVSEEventManagerInterface* g_eventInterface{};
-
-#define WantInventoryRefFunctions 1 // set to 1 if you want these PluginAPI functions
-#if WantInventoryRefFunctions
-_InventoryReferenceCreate InventoryReferenceCreate{};
-_InventoryRefGetForID InventoryRefGetForID;
-_InventoryReferenceGetRefBySelf InventoryReferenceGetRefBySelf{};
-_InventoryReferenceCreateEntry InventoryReferenceCreateEntry{};
-#endif
 
 #define WantLambdaFunctions 0 // set to 1 if you want these PluginAPI functions
 #if WantLambdaFunctions
@@ -81,7 +75,7 @@ NVSEArrayVar* (*LookupArrayByID)(UInt32 id);
 bool (*GetElement)(NVSEArrayVar* arr, const NVSEArrayElement& key, NVSEArrayElement& outElement);
 bool (*GetArrayElements)(NVSEArrayVar* arr, NVSEArrayElement* elements, NVSEArrayElement* keys);
 
-NVSEStringVarInterface* g_strInterface = nullptr;
+NVSEStringVarInterface g_strInterface;
 bool (*AssignString)(COMMAND_ARGS, const char* newValue);
 const char* (*GetStringVar)(UInt32 stringID);
 NVSEMessagingInterface* g_msg = nullptr;
@@ -90,9 +84,39 @@ NVSECommandTableInterface* g_commandInterface = nullptr;
 const CommandInfo* (*GetCmdByName)(const char* name);
 bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
-TESObjectREFR* (__stdcall* InventoryRefCreateEntry)(TESObjectREFR* container, TESForm* itemForm, SInt32 countDelta, ExtraDataList* xData);
-_InventoryRefCreate InventoryRefCreate;
 ExpressionEvaluatorUtils g_expEvalUtils;
+
+void DumpInfoToLog(const std::string& info) {
+	std::string sFile = GetFalloutDirectory() + "ppNVSE.log1";
+
+	std::ifstream checkFile(sFile);
+	if (!checkFile.good()) {
+		std::ofstream createFile(sFile);
+		if (!createFile.is_open()) {
+			Console_Print("Error: Unable to create log file.");
+			return;
+		}
+	}
+
+	std::ofstream logFile(sFile, std::ios_base::app);
+
+	if (logFile.is_open()) {
+		logFile << info << std::endl;
+		logFile.close();
+	}
+	else {
+		Console_Print("Error: Unable to open log file.");
+	}
+}
+
+
+bool IsGamePaused()
+{
+	bool isMainOrPauseMenuOpen = *(Menu**)0x11DAAC0; // g_startMenu, credits to lStewieAl
+	auto* console = ConsoleManager::GetSingleton();
+
+	return isMainOrPauseMenuOpen || console->IsConsoleOpen();
+}
 
 // Singletons
 TileMenu** g_tileMenuArray = nullptr;
@@ -101,6 +125,7 @@ UInt32 g_screenHeight = 0;
 ActorValueOwner* g_playerAVOwner = nullptr;
 DataHandler* g_dataHandler = nullptr;
 TESObjectWEAP* g_fistsWeapon = nullptr;
+TESObjectREFR* DevKitDummyMarker = nullptr;
 
 /****************
  * Here we include the code + definitions for our script functions,
@@ -136,9 +161,7 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 #endif
 	case NVSEMessagingInterface::kMessage_PreLoadGame: break;
 	case NVSEMessagingInterface::kMessage_ExitGame_Console: break;
-	case NVSEMessagingInterface::kMessage_PostLoadGame:
-		//RebuildClones();
-		break;
+	case NVSEMessagingInterface::kMessage_PostLoadGame: break;
 	case NVSEMessagingInterface::kMessage_PostPostLoad: break;
 	case NVSEMessagingInterface::kMessage_RuntimeScriptError: break;
 	case NVSEMessagingInterface::kMessage_DeleteGame: break;
@@ -151,37 +174,46 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 	case NVSEMessagingInterface::kMessage_DeferredInit: break;
 	case NVSEMessagingInterface::kMessage_ClearScriptDataCache: break;
 	case NVSEMessagingInterface::kMessage_MainGameLoop:
-		/*
-		if (s_UpdateCursor) {
-			if (g_interfaceManager->hasMouseMoved)
-			{
-				POINT p;
-				GetCursorPos(&p);
-				g_interfaceManager->cursor->node->Update();
-				Console_Print("Running Update");
-				g_interfaceManager->cursorX = p.x;
-				g_interfaceManager->cursorY = p.y;
-				float converter = *(float*)0x11D8A48;
-				g_cursorNode->LocalTranslate().x = ((p.x) * converter) - g_screenWidth;
-				g_cursorNode->LocalTranslate().z = g_screenHeight - ((p.y) * converter);
+
+		if (!IsGamePaused() && !BGSSaveLoadGame::GetSingleton()->IsLoading()) {
+
+			if (!queueToSkipGroup.empty()) {
+
+				for (auto it = queueToSkipGroup.begin(); it != queueToSkipGroup.end(); ) {
+
+					if (it->wait == 0 && (it->minFrames -= 1) <= 0 && (it->timer -= g_timeGlobal->secondsPassed) <= 1e-5) {
+						//Console_Print("Timer died %f on group: %d", g_timeGlobal->secondsPassed, it->groupId);
+						it = queueToSkipGroup.erase(it);
+					}
+					else {
+						++it;
+					}
+				}
+
 			}
+
+			if (!SaveSystem::queueToSpawn.empty()) {
+
+				auto& queueToSpawn = SaveSystem::queueToSpawn;
+				auto* devKitDummyMarker = DevKitDummyMarker;
+
+				for (auto it = queueToSpawn.begin(); it != queueToSpawn.end(); ) {
+					SaveSystem::SpawnQueue& spawn = *it;
+
+					TESObjectREFR* placedRef = spawn.baseForm->PlaceAtCell(spawn.location, spawn.x, spawn.y, spawn.z, spawn.xR, spawn.yR, spawn.zR);
+					if (placedRef) {
+						placedRef->extraDataList = *spawn.xData;
+						it = queueToSpawn.erase(it);
+					}
+					else {
+						++it;
+					}
+				}
+
+			}
+
 		}
 
-
-		if (g_SkipAnimation) {
-
-			for (int i = 0; i < g_aSkipCurrentAnimation.size(); ) {
-				Actor* actor = g_aSkipCurrentAnimation[i];
-				//Console_Print("Refresh Anim Data on %s", actor->GetTheName());
-				actor->RefreshAnimData();
-				g_aSkipCurrentAnimation.erase(g_aSkipCurrentAnimation.begin() + i);
-
-			}
-			if (g_aSkipCurrentAnimation.empty()) {
-				g_SkipAnimation = false;
-			}
-		}
-				*/
 		break;
 
 	case NVSEMessagingInterface::kMessage_ScriptCompile: break;
@@ -229,16 +261,7 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	if (!nvse->isEditor)
 	{
-		PluginHandle const nvsePluginHandle = nvse->GetPluginHandle();  //from JiPLN
-
-		auto const nvseData = (NVSEDataInterface*)nvse->QueryInterface(kInterface_Data);
-
-		InventoryRefGetForID = (_InventoryRefGetForID)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetForRefID);
-		InventoryRefCreate = (_InventoryRefCreate)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreate);
-		InventoryRefCreateEntry = (TESObjectREFR * (__stdcall*)(TESObjectREFR * container, TESForm * itemForm, SInt32 countDelta, ExtraDataList * xData))nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreateEntry);
-
-		// From JiPLN (jip_nvse.cpp) 
-		auto const serialization = (NVSESerializationInterface*)nvse->QueryInterface(kInterface_Serialization);
+		//PluginHandle const nvsePluginHandle = nvse->GetPluginHandle();  //from JiPLN
 
 		g_scriptInterface = (NVSEScriptInterface*)nvse->QueryInterface(kInterface_Script);
 		ExtractArgsEx = g_scriptInterface->ExtractArgsEx;
@@ -249,9 +272,9 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		g_commandInterface = (NVSECommandTableInterface*)nvse->QueryInterface(kInterface_CommandTable);
 		GetCmdByName = g_commandInterface->GetByName;
 
-		g_strInterface = (NVSEStringVarInterface*)nvse->QueryInterface(kInterface_StringVar);
-		GetStringVar = g_strInterface->GetString;
-		AssignString = g_strInterface->Assign;
+		g_strInterface = *(NVSEStringVarInterface*)nvse->QueryInterface(kInterface_StringVar);
+		GetStringVar = g_strInterface.GetString;
+		AssignString = g_strInterface.Assign;
 
 		g_arrInterface = (NVSEArrayVarInterface*)nvse->QueryInterface(kInterface_ArrayVar);
 		CreateArray = g_arrInterface->CreateArray;
@@ -269,13 +292,6 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 		g_eventInterface = (NVSEEventManagerInterface*)nvse->QueryInterface(kInterface_EventManager);
 
-		#if WantInventoryRefFunctions
-				InventoryReferenceCreate = (_InventoryReferenceCreate)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreate);
-				InventoryRefGetForID = (_InventoryReferenceGetForRefID)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetForRefID);
-				InventoryReferenceGetRefBySelf = (_InventoryReferenceGetRefBySelf)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceGetRefBySelf);
-				InventoryReferenceCreateEntry = (_InventoryReferenceCreateEntry)nvseData->GetFunc(NVSEDataInterface::kNVSEData_InventoryReferenceCreateEntry);
-		#endif
-
 		#if WantLambdaFunctions
 				LambdaDeleteAllForScript = (_LambdaDeleteAllForScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaDeleteAllForScript);
 				LambdaSaveVariableList = (_LambdaSaveVariableList)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaSaveVariableList);
@@ -289,8 +305,16 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		#endif
 
 		PluginHandle pluginHandle = nvse->GetPluginHandle();
-		//SaveSystem::SaveWeaponInst(nvse, pluginHandle);
+		
+		SaveSystem::SaveWeaponInst(nvse, pluginHandle);
 		Hooks::initHooks();
+		//kNVSE::initkNVSE();
+
+		InventoryRef::InitInventoryRefFunct(nvse);
+
+
+		DevKitDummyMarker = ThisCall<TESObjectREFR*>(0x55A2F0, Game_HeapAlloc<TESObjectREFR>());
+		ThisCall(0x484490, DevKitDummyMarker);
 
 	}
 
@@ -319,22 +343,31 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	//Weapon Modifiers
 
-	//REG_CMD(RegWSWeapon)
-	//REG_CMD_FORM(NewWeaponModifier)
+	REG_CMD(MarkAsStaticForm)
+	REG_CMD_FORM(CreateWeaponInstance)
 
-	//REG_CMD(SetWeaponAttachment)
-	//REG_CMD_ARR(GetWeaponAttachments)
-	//REG_CMD_ARR(GetWeaponSlots)
+	REG_CMD(SetWeaponMod)
+	REG_CMD_ARR(GetAllEquippedWeaponMods)
+	REG_CMD_FORM(GetWeaponMod)
 
-	//REG_CMD_FORM(GetWeaponModifier)
-	//REG_CMD(IsWeaponModifier)
-	//REG_CMD_FORM(GetBaseWeapon)
+	REG_CMD(IsWeaponInstance)
+	REG_CMD_FORM(GetBaseWeapon)
 
-	//REG_CMD(GetWeaponModifierID)
-	//REG_CMD(HasWeaponModifier)
-	//REG_CMD(SetWeaponBaseAttachment)
+	REG_CMD(GetWeaponInstanceID)
+	REG_CMD(IsStaticForm)
+	REG_CMD_ARR(GetAllWeaponInstances)
 
-	//REG_CMD(ReplaceItemInInventory)
+	REG_CMD(ReplaceItemInInventory)
+
+	REG_CMD(SetOnInstanceReconstruct)
+	REG_CMD(SetOnAttachWeaponMod)
+	REG_CMD(SetOnDetachWeaponMod)
+		
+	REG_CMD_STR(GetWeaponInstanceKey)
+
+	REG_CMD_FORM(GetWeaponInstance)
+
+	REG_CMD(SetOnInstanceDeconstruct)
 
 	return true;
 }

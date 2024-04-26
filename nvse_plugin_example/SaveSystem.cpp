@@ -4,47 +4,48 @@
 namespace SaveSystem {
 
 	std::vector<SaveData*> aSaveData;
+	std::vector<SpawnQueue> queueToSpawn;
 
-	UInt8(*ReadRecord8)();
-	UInt32(*ReadRecord32)();
+	UInt8(*SaveData::ReadRecord8)();
+	UInt32(*SaveData::ReadRecord32)();
 
-	float ReadRecordFloat() {
+	float SaveData::ReadRecordFloat() {
 		int intValue = ReadRecord32();
 		return *reinterpret_cast<float*>(&intValue);
 	}
 
-	bool (*ResolveRefID)(UInt32 refID, UInt32* outRefID);
-	UInt32(*ReadRecordData)(void* buf, UInt32 length);
-	bool (*GetNextRecordInfo)(UInt32* type, UInt32* version, UInt32* length);
-	void (*SkipNBytes)(UInt32 byteNum);
+	bool (*SaveData::ResolveRefID)(UInt32 refID, UInt32* outRefID);
+	UInt32(*SaveData::ReadRecordData)(void* buf, UInt32 length);
+	bool (*SaveData::GetNextRecordInfo)(UInt32* type, UInt32* version, UInt32* length);
+	void (*SaveData::SkipNBytes)(UInt32 byteNum);
 
-	void (*WriteRecord8)(UInt8 inData);
-	void (*WriteRecord32)(UInt32 inData);
+	void (*SaveData::WriteRecord8)(UInt8 inData);
+	void (*SaveData::WriteRecord32)(UInt32 inData);
 
-	extern void WriteRecordFloat(float value)
+	void SaveData::WriteRecordFloat(float value)
 	{
 		WriteRecord32(*reinterpret_cast<int*>(&value));
 	}
 
-	bool (*WriteRecordData)(const void* buf, UInt32 length);
-	bool (*OpenRecord)(UInt32 type, UInt32 version);
+	bool (*SaveData::WriteRecordData)(const void* buf, UInt32 length);
+	bool (*SaveData::OpenRecord)(UInt32 type, UInt32 version);
 
 	void SaveWeaponInst(const NVSEInterface* nvse, PluginHandle& pluginHandle)
 	{
 
 		NVSESerializationInterface* serialization = (NVSESerializationInterface*)nvse->QueryInterface(kInterface_Serialization);
 
-		WriteRecordData = serialization->WriteRecordData;
-		WriteRecord32 = serialization->WriteRecord32;
-		WriteRecord8 = serialization->WriteRecord8;
-		ResolveRefID = serialization->ResolveRefID;
+		SaveData::WriteRecordData = serialization->WriteRecordData;
+		SaveData::WriteRecord32 = serialization->WriteRecord32;
+		SaveData::WriteRecord8 = serialization->WriteRecord8;
+		SaveData::ResolveRefID = serialization->ResolveRefID;
 
-		ReadRecordData = serialization->ReadRecordData;
-		ReadRecord32 = serialization->ReadRecord32;
-		ReadRecord8 = serialization->ReadRecord8;
-		GetNextRecordInfo = serialization->GetNextRecordInfo;
-		SkipNBytes = serialization->SkipNBytes;
-		OpenRecord = serialization->OpenRecord;
+		SaveData::ReadRecordData = serialization->ReadRecordData;
+		SaveData::ReadRecord32 = serialization->ReadRecord32;
+		SaveData::ReadRecord8 = serialization->ReadRecord8;
+		SaveData::GetNextRecordInfo = serialization->GetNextRecordInfo;
+		SaveData::SkipNBytes = serialization->SkipNBytes;
+		SaveData::OpenRecord = serialization->OpenRecord;
 
 		serialization->SetLoadCallback(pluginHandle, LoadGameCallback);
 		serialization->SetSaveCallback(pluginHandle, SaveGameCallback);

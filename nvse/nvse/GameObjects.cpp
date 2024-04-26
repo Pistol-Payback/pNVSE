@@ -7,6 +7,8 @@
 #include "SafeWrite.h"
 #include "NiObjects.h"
 
+#define CALL_EAX(addr) __asm mov eax, addr __asm call eax
+
 static const UInt32 s_TESObject_REFR_init	= 0x0055A2F0;	// TESObject_REFR initialization routine (first reference to s_TESObject_REFR_vtbl)
 static const UInt32	s_Actor_EquipItem		= 0x0088C650;	// maybe, also, would be: 007198E0 for FOSE	4th call from the end of TESObjectREFR::RemoveItem (func5F)
 static const UInt32	s_Actor_UnequipItem		= 0x0088C790;	// maybe, also, would be: 007133E0 for FOSE next sub after EquipItem
@@ -186,10 +188,8 @@ bool TESObjectREFR::Update3D()
 
 TESObjectREFR* TESObjectREFR::Create(bool bTemp)
 {
-	TESObjectREFR* refr = (TESObjectREFR*)FormHeap_Allocate(sizeof(TESObjectREFR));
-	ThisStdCall(s_TESObject_REFR_init, refr);
-	if (bTemp)
-		CALL_MEMBER_FN(refr, MarkAsTemporary)();
+	TESObjectREFR* refr = ThisCall<TESObjectREFR*>(0x55A2F0, Game_HeapAlloc<TESObjectREFR>());
+	if (bTemp) ThisCall(0x484490, refr);
 	return refr;
 }
 
@@ -252,6 +252,38 @@ __declspec(naked) float __vectorcall GetDistance3D(const TESObjectREFR* ref1, co
 		addss	xmm1, xmm0
 		sqrtss	xmm0, xmm1
 		retn
+	}
+}
+
+__declspec(naked) void TESObjectREFR::DeleteReference()
+{
+	__asm
+	{
+		push	ebp
+		mov		ebp, esp
+		push	ecx
+		push	1
+		mov		eax, [ecx]
+		call	dword ptr[eax + 0xC4]
+		push	1
+		mov		ecx, [ebp - 4]
+		mov		eax, [ecx]
+		call	dword ptr[eax + 0xC8]
+		push	0
+		push	0
+		mov		ecx, [ebp - 4]
+		mov		eax, [ecx]
+		call	dword ptr[eax + 0x1CC]
+		mov		ecx, [ebp - 4]
+		cmp		byte ptr[ecx + 0xF], 0xFF
+		jnz		done
+		lea		eax, [ebp - 4]
+		push	eax
+		mov		ecx, 0x11CACB8
+		CALL_EAX(0x5AE3D0)
+		done:
+		leave
+			retn
 	}
 }
 
@@ -406,8 +438,6 @@ __declspec(naked) void __fastcall SetContainerItemsHealthHook(TESContainer* cont
 		__asm _emit 0x77 __asm _emit 0xBE __asm _emit 0x7F __asm _emit 0x3F
 	}
 }
-
-#define CALL_EAX(addr) __asm mov eax, addr __asm call eax
 
 __declspec(naked) void __fastcall ShowItemMessage(TESForm* item, const char* msgStr)
 {
@@ -628,7 +658,37 @@ __declspec(naked) ContChangesEntryList* TESObjectREFR::GetContainerChangesList()
 		retn
 	}
 }
-
+__declspec(naked) ContChangesEntry* TESObjectREFR::GetContainerChangesEntry(TESForm * itemForm) const
+{
+	__asm
+	{
+		push	kXData_ExtraContainerChanges
+		add		ecx, 0x44
+		call	BaseExtraList::GetByType
+		test	eax, eax
+		jz		done
+		mov		eax, [eax + 0xC]
+		test	eax, eax
+		jz		done
+		mov		ecx, [eax]
+		mov		edx, [esp + 4]
+		ALIGN 16
+		itemIter:
+		test	ecx, ecx
+		jz		retnNULL
+		mov		eax, [ecx]
+		mov		ecx, [ecx + 4]
+		test	eax, eax
+		jz		itemIter
+		cmp[eax + 8], edx
+		jnz		itemIter
+		retn	4
+		retnNULL:
+		xor eax, eax
+		done :
+		retn	4
+	}
+}
 bool TESObjectREFR::GetInventoryItems(InventoryItemsMap &invItems)
 {
 	TESContainer *container = GetContainer();

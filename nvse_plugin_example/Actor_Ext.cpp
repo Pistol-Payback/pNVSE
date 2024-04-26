@@ -4,32 +4,30 @@
 
 //Animation canceling
 
-bool g_SkipAnimation;
-std::vector<Actor*> g_aSkipCurrentAnimation;
-
 //std::vector<BSAnimGroupSequence*> aAnimToSkip; if I ever figure out how to specify an animation path, and not just by group.
 
-std::unordered_map<UInt16, std::vector<Actor*>> animGroupToActorsMap;
-
-bool Actor::QueueToSkipAnimation()
-{
-	g_aSkipCurrentAnimation.push_back(this);
-	g_SkipAnimation = true;
-	return true;
-}
+std::vector<QueueAnim> queueToSkipGroup;
 
 bool Actor::QueueToSkipGroup(UInt16 GroupID)
 {
-	animGroupToActorsMap[GroupID].push_back(this);
+	QueueAnim stopGroup;
+
+	if (this->IsPlayer() && !((PlayerCharacter*)this)->bThirdPerson) {
+		stopGroup = { GroupID, this, 0.1, 6, 4, 1 };	//stop 4 anim groups
+	}
+	else {
+		stopGroup = { GroupID, this, 0.1, 6, 2, 1 };	//stop 2 anim groups
+	}
+
+	queueToSkipGroup.push_back(stopGroup);
+
 	return true;
 }
 
 bool Actor::SilentUnequip(TESForm* item, ExtraDataList* xData) {
 
-	this->UnequipItem(item, 1, xData, 1, 0, 0);
-	if (!this->baseProcess->processLevel) {
-		this->QueueToSkipGroup(kAnimGroup_Holster);
-	}
+	this->QueueToSkipGroup(kAnimGroup_Holster);
+	this->UnequipItem(item, 1, xData, 1, false, 0);
 
 	return true;
 
@@ -37,17 +35,17 @@ bool Actor::SilentUnequip(TESForm* item, ExtraDataList* xData) {
 
 bool Actor::SilentEquip(TESForm* item, ExtraDataList* xData) {
 
-	this->EquipItem(item, 1, xData, 1, 0, 0);
-	if (!this->baseProcess->processLevel) {
-		this->QueueToSkipGroup(kAnimGroup_Equip);
-	}
+	this->QueueToSkipGroup(kAnimGroup_Equip);
+	this->EquipItem(item, 1, xData, 1, false, 0);
 
 	return true;
 
 }
 
+
 bool Actor::ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count, bool copy) {
 
+	//Console_Print("ReplaceInvObject");
 	ExtraDataList* xData = replace->data.xData;
 	ExtraDataList* xDataCopy = nullptr;
 	bool doEquip = 0;
@@ -57,24 +55,34 @@ bool Actor::ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count,
 
 		BaseProcess* baseprocess = this->baseProcess;
 		if (baseprocess) {
-			this->baseProcess->RemoveAllItemsFromQueue();
 			weaponOut = baseprocess->IsWeaponOut();
-			this->SilentUnequip(replace->data.type, xData);
+
+			//if (xData->HasType(kExtraData_CannotWear))
+				//xData->RemoveByType(kExtraData_CannotWear);
+
+			//SilentUnequip(form, xData);
+			//this->UnequipItem(replace->data.type, 1, xData, 1, 0, 0);
+
 		}
-		else {
-			this->UnequipItem(replace->data.type, 1, xData, 1, 0, 0);
-		}
+		//else{
+			//this->UnequipItem(replace->data.type, 1, xData, 1, 0, 0);
+		//}
 		doEquip = 1;
 
 	}
+
 	if (copy) {
 		xDataCopy = xData->CreateCopy();
 	}
 
-	this->RemoveItem(replace->data.type, xData, count, 0, 0, nullptr, 0, 0, 1, 0);
-	this->AddItem(form, xDataCopy, count);
-
 	if (doEquip) {
+
+		if (xDataCopy && xDataCopy->HasType(kExtraData_Worn))
+			xDataCopy->RemoveByType(kExtraData_Worn);
+
+		//Console_Print("Additem...........................1");
+		this->AddItem(form, xDataCopy, count);
+
 		if (weaponOut) {
 			this->SilentEquip(form, xDataCopy);
 		}
@@ -83,6 +91,12 @@ bool Actor::ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count,
 		}
 
 	}
+	else {
+		//Console_Print("Additem...........................2");
+		this->AddItem(form, xDataCopy, count);
+	}
+
+	this->RemoveItem(replace->data.type, xData, count, 0, 0, nullptr, 0, 0, 1, 0);
 
 	return true;
 
@@ -91,12 +105,47 @@ bool Actor::ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count,
 namespace Hooks
 {
 
-	int __fastcall StopAnimationType(AnimData* animData, void*, BSAnimGroupSequence* destAnim, UInt16 animGroupId, eAnimSequence animSequence)
+	int __fastcall StopAnimationType(AnimData* animData, void* edx, UInt16 GroupID, int a3, float a4, int a5)
 	{
 
-		const auto baseAnimGroup = static_cast<AnimGroupID>(animGroupId);
+		if (queueToSkipGroup.empty()) {
+			return ThisStdCall<int>(0x0494740, animData, GroupID, a3, a4, a5);
+		}
 
-		if (!animGroupToActorsMap.empty()) {
+		const auto baseAnimGroup = static_cast<AnimGroupID>(GroupID);
+
+		for (auto it = queueToSkipGroup.begin(); it != queueToSkipGroup.end(); ) {
+
+			if (it->groupId == baseAnimGroup && it->actor == animData->actor) {
+
+				int iReturn = ThisStdCall<int>(0x0494740, animData, GroupID, a3, a4, a5);
+				animData->actor->RefreshAnimData();
+				//Console_Print("Stopping animation %d", baseAnimGroup);
+
+				it->wait = 0;
+				if (--it->iter <= 0) {
+					//Console_Print("Erased animation %d", baseAnimGroup);
+					it = queueToSkipGroup.erase(it);
+				}
+
+				return iReturn;
+
+			}
+			else {
+				++it;
+			}
+		}
+
+		return ThisStdCall<int>(0x0494740, animData, GroupID, a3, a4, a5);
+
+	}
+
+	//int __fastcall StopAnimationType(AnimData* animData, void*, BSAnimGroupSequence* destAnim, UInt16 animGroupId, eAnimSequence animSequence)
+	//{
+
+		//const auto baseAnimGroup = static_cast<AnimGroupID>(animGroupId);
+
+		/*if (!animGroupToActorsMap.empty()) {
 			//Console_Print("Ran HookDetourTemp, Not Empty");
 			Actor* actor = animData->actor;
 			auto it = animGroupToActorsMap.find(baseAnimGroup);
@@ -120,11 +169,13 @@ namespace Hooks
 
 				}
 
-			}
-		}
+			}*/
+		//}
 
-		return ThisStdCall<int>(0x04949A0, animData, destAnim, animGroupId, animSequence);
+		//return ThisStdCall<int>(0x04949A0, animData, destAnim, animGroupId, animSequence);
 
-	}
+	//}
+
+	//WriteRelCall(0x494989, (UInt32)StopAnimationType); //Play Animation Group Hook
 
 }

@@ -722,19 +722,19 @@ public:
 		RefIDArray *arr004; // 004
 	};
 
-	struct Struct010
+	struct BGSSaveLoadReferencesMap
 	{
-		NiTPointerMap<UInt32> *map000;					   // 000
-		BGSCellNumericIDArrayMap *map010;				   // 010
-		NiTPointerMap<BGSCellNumericIDArrayMap *> *map020; // 020
+		NiTPointerMap<UInt32>						*map000;	// 000
+		BGSCellNumericIDArrayMap				*map010;	// 010
+		NiTPointerMap<BGSCellNumericIDArrayMap*>	*map020;	// 020
 	};
 
 	BGSSaveLoadChangesMap *changesMap;					 // 000
 	BGSSaveLoadChangesMap *previousChangeMap;			 // 004
 	RefIDIndexMapping *refIDmapping;					 // 008
 	RefIDIndexMapping *visitedWorldspaces;				 // 00C
-	Struct010 *sct010;									 // 010
-	NiTMap<TESForm *, BGSLoadGameSubBuffer> *maps014[3]; // 014	0 = changed Animations, 2 = changed Havok Move
+	BGSSaveLoadReferencesMap *referencesMap;			 // 010
+	NiTMap<TESForm *, BGSLoadGameSubBuffer> *maps014; // 014	0 = changed Animations, 2 = changed Havok Move
 	NiTMap<UInt32, UInt32> *map018;						 // 018
 	BSSimpleArray<char *> *strings;						 // 01C
 	BGSReconstructFormsInAllFilesMap *rfiafMap;			 // 020
@@ -747,6 +747,14 @@ public:
 	UInt32 flg244;	   // 244 bit 6 block updating player position/rotation from save, bit 2 set during save
 	UInt8 formVersion; // 248
 	UInt8 pad249[3];   // 249
+
+	__forceinline static BGSSaveLoadGame* GetSingleton() { return *(BGSSaveLoadGame**)0x11DDF38; }
+
+	inline bool IsLoading() const { return (flg244 & 2) != 0; }
+
+	UInt32 __fastcall EncodeRefID(UInt32* pRefID);
+	UInt32 __fastcall DecodeRefID(UInt32* pRefID);
+
 };
 
 #if RUNTIME

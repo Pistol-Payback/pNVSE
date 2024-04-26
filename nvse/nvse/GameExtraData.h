@@ -733,6 +733,7 @@ public:
 
 	UInt8	flags; // 00C
 
+	static ExtraWeaponModFlags* Create(UInt32 _flags);
 	static ExtraWeaponModFlags* Create();
 };
 

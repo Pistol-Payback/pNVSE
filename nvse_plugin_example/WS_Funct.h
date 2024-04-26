@@ -1,20 +1,11 @@
 #pragma once
-//#include <InventoryRef.h>
-//#include "SafeWrite.h"
-//#include "WeaponSmith.h"
-/*
+#include "WeaponSmith.h"
+
 static ParamInfo kParamsSetWeapAttachments[3] =
 {
 	{"form", kParamType_AnyForm, 0},
 	{"string", kParamType_String, 0},
-	{"form", kParamType_AnyForm, 0}
-};
-
-static ParamInfo kParamsSetWeapBaseAttachments[3] =
-{
-	{"form", kParamType_AnyForm, 0},
-	{"string", kParamType_String, 0},
-	{"form", kParamType_AnyForm, 0}
+	{"form", kParamType_AnyForm, 1}
 };
 
 static ParamInfo kParams_OneFormOneOptionalString[2] =
@@ -30,6 +21,14 @@ static ParamInfo kParams_ReplaceItem[3] =
 	{"int", kParamType_Integer, 1}
 };
 
+static ParamInfo kParams_SetOnAttachWeaponMod[3] =
+{
+	{"form", kParamType_AnyForm, 0},
+	{"int", kParamType_Integer, 1},
+	{"int", kParamType_Integer, 1},
+};
+
+
 DEFINE_COMMAND_ALT_PLUGIN(ReplaceItemInInventory, ReplaceItem, "Replaces an inventory object", true, kParams_ReplaceItem);
 bool Cmd_ReplaceItemInInventory_Execute(COMMAND_ARGS)
 {
@@ -40,8 +39,14 @@ bool Cmd_ReplaceItemInInventory_Execute(COMMAND_ARGS)
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &copy, &count)) {
 
-		InventoryRef* invRef = InventoryRefGetForID(thisObj->refID);
-		if (!invRef || (form->typeID != invRef->data.type->typeID)) {
+		//Console_Print("Cmd_ReplaceItemInInventory_Execute");
+
+		InventoryRef* invRef = InventoryRef::InventoryRefGetForID(thisObj->refID);
+
+		if (!invRef) {
+			return true;
+		}
+		if ((form->typeID != invRef->data.type->typeID)) {
 			return true;
 		}
 
@@ -52,15 +57,14 @@ bool Cmd_ReplaceItemInInventory_Execute(COMMAND_ARGS)
 		else {
 			count = min(count, maxCount);
 		}
-
 		((Actor*)invRef->containerRef)->ReplaceInvObject(form, invRef, count, copy);
 
 	}
 	return true;
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(RegWSWeapon, ExtWeaponData, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_OneForm);
-bool Cmd_RegWSWeapon_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_PLUGIN(MarkAsStaticForm, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_OneForm);
+bool Cmd_MarkAsStaticForm_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	TESForm* form = NULL;
@@ -76,43 +80,50 @@ bool Cmd_RegWSWeapon_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(NewWeaponModifier, NewWeapModifier, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_OneForm);
-bool Cmd_NewWeaponModifier_Execute(COMMAND_ARGS)
+static ParamInfo kParams_CreateWeaponInstance[4] =
+{
+	{	"form",	kParamType_AnyForm,	0	},
+	{	"string",	kParamType_String,	0	},
+	{	"form",	kParamType_AnyForm,	1	},
+	{	"form",	kParamType_AnyForm,	1	}
+};
+
+DEFINE_COMMAND_ALT_PLUGIN(CreateWeaponInstance, CreateWeapInst, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_CreateWeaponInstance);
+bool Cmd_CreateWeaponInstance_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
 	UInt32* refResult = (UInt32*)result;
 	UInt32 CloneRefID = 0;
+
+	Script* reconstruct = nullptr;
+	Script* deconstruct = nullptr;
+
 	TESForm* form = NULL;
-	TESObjectREFR* formRef = NULL;
+	char key[0x50];
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form)) {
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &key, &reconstruct, &deconstruct)) {
 
-		if (form->IsReference()) {	//Check if form is a ref.
+			if (key[0] != '\0') {
 
-			formRef = static_cast<TESObjectREFR*>(form);
-			form = formRef->baseForm;
-
-			if (form && formRef) {
-
-				CloneRefID = formRef->CreateInst();
+				CloneRefID = form->CreateInst(key);
 				*refResult = CloneRefID;
 
-				Script* PistolSetModifierID = ((Script * (__cdecl*)(const char*))(0x483A00))("PistolSetModifierID");
-				ArrayElementL idkWhatThisIs;
-				g_scriptInterface->CallFunction(PistolSetModifierID, formRef, nullptr, &idkWhatThisIs, 1, WeapInstList[CloneRefID]->refID);
+				std::vector<void*> filter = Event::EvaluateEventArg(1, '1', &key);
 
-				Console_Print("Created cloned form");
+				if (reconstruct) {
+					Console_Print("reconstructer set");
+					Event eEvent('1', reconstruct, filter);
+					onInstanceReconstructEvent.AddEvent(eEvent);
+				}
+
+				if (deconstruct) {
+					Console_Print("deconstruct set");
+					Event eEvent('1', deconstruct, filter);
+					onInstanceDeconstructEvent.AddEvent(eEvent);
+				}
 
 			}
-		}
-		else if (BaseExtraData[form->refID]->aInstances.empty()){
-
-			Console_Print("Created cloned 0");
-			CloneRefID = form->CreateInst();
-			*refResult = CloneRefID;
-
-		}
 
 	}
 
@@ -120,181 +131,199 @@ bool Cmd_NewWeaponModifier_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(SetWeaponAttachment, SetWeapMod, "Set a attachment in a slot", false, kParamsSetWeapAttachments);
-bool Cmd_SetWeaponAttachment_Execute(COMMAND_ARGS)
-{
-
+DEFINE_COMMAND_ALT_PLUGIN(SetWeaponMod, AttachWeaponMod, "Set a attachment in a slot", false, kParamsSetWeapAttachments);
+bool Cmd_SetWeaponMod_Execute(COMMAND_ARGS) {
 	*result = 0;
 	TESForm* form = NULL;
 	UInt32 InstID = 0;
 	TESForm* rAttachment = NULL;
+	TESForm* parent = nullptr; //Used for event handler
 	char sSlot[MAX_PATH];
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &sSlot, &rAttachment)) {
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form, &sSlot, &rAttachment)) {
+		return true;
+	}
 
-		Console_Print("Storing attachment via ppNVSE");
+	TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
 
-		if (!form->IsBaseForm()) {
-			form = ((TESObjectREFR*)form)->baseForm;
+	std::unordered_map<std::string, UInt32>* attachments = nullptr;
+
+	if (baseForm->IsStaticForm()) { // If passed a baseform parent
+		attachments = &StaticInstance_WEAP::Linker[baseForm->refID]->aBaseAttachments;
+		parent = baseForm;
+	}
+	else if (baseForm->IsInstancedForm()) { // If passed a modifier clone
+		attachments = &Instance_WEAP::Linker[baseForm->refID]->aAttachments;
+		parent = baseForm->GetStaticParent();
+	}
+	else if (form->IsReference()) {
+
+		int slotIndex = std::stoi(sSlot);
+		if (slotIndex < 0) {
+			UInt8 currentFlags = static_cast<TESObjectREFR*>(form)->GetWeaponModFlags();
+			UInt8 flagToRemove = 1 << (abs(slotIndex) - 1);
+			UInt8 updatedFlags = currentFlags & ~flagToRemove;
+			static_cast<TESObjectREFR*>(form)->SetWeaponModFlags(updatedFlags);
 		}
-
-		if (form->IsStaticForm()) {	//If passed a baseform parent...................................
-
-			InstID = form->GetModifierID();
-			auto* attachmentMap = &(form->LookupModifierByID(InstID)->aAttachments);
-
-
-			(*attachmentMap)[sSlot] = rAttachment->refID;
-			Console_Print("Appended to attachment map");
-			return true;
-
-		}
-		else if (form->IsModifierForm()) { // If passed a modifier clone......................................
-
-			WeapInst* xData = WeapInstList[form->refID];
-
-			xData->aAttachments[sSlot] = rAttachment->refID;;
-			Console_Print("Appended to attachment map via modifier");
-
-			return true;
+		else if (slotIndex == 0) {
+			static_cast<TESObjectREFR*>(form)->SetWeaponModFlags(0);
 		}
 		else {
-			Console_Print("Faild to attach to map");
+			UInt8 currentFlags = static_cast<TESObjectREFR*>(form)->GetWeaponModFlags();
+			UInt8 updatedFlags = currentFlags | (1 << (slotIndex - 1));
+			static_cast<TESObjectREFR*>(form)->SetWeaponModFlags(updatedFlags);
 		}
+		return true;
 
+	}
+
+	if (!attachments) {
+		return true;
+	}
+
+	auto it = attachments->find(sSlot);
+	bool attachmentExists = it != attachments->end();
+
+	if (rAttachment) {
+		// Attach
+		if (attachmentExists) {
+			onDetachWeapModEvent.DispatchEvent(LookupFormByRefID(it->second), parent);
+		}
+		onAttachWeapModEvent.DispatchEvent(rAttachment, parent);
+		(*attachments)[sSlot] = rAttachment->refID;
+	}
+	else {
+		// Detach
+		if (attachmentExists) {
+			onDetachWeapModEvent.DispatchEvent(LookupFormByRefID(it->second), parent);
+			attachments->erase(it);
+		}
 	}
 
 	return true;
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(GetWeaponAttachments, GetWeapMod, "Gets the attachment array", false, kParams_OneFormOneOptionalString);
-bool Cmd_GetWeaponAttachments_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_PLUGIN(GetAllEquippedWeaponMods, "Gets the attachment array", false, kParams_OneForm);
+bool Cmd_GetAllEquippedWeaponMods_Execute(COMMAND_ARGS)
 {
-
 	*result = 0;
-	TESForm* form = NULL;
-	UInt32 InstID = 0;
-	char sSlot[MAX_PATH] = "";
+	TESForm* ref = NULL;
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &sSlot)) {
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &ref)) {
+		return true;
+	}
 
-		if (!form->IsBaseForm()) {
-			form = ((TESObjectREFR*)form)->baseForm;
-		}
+	if (!ref)
+		return true;
 
-		auto aAttachments = g_arrInterface->CreateArray(nullptr, 0, scriptObj);
-		
-		if (form->IsStaticForm()) {	//If passed a baseform parent...................................
+	TESForm* baseForm = ref->IsBaseForm() ? ref : ((TESObjectREFR*)ref)->baseForm;
 
-			InstID = form->GetModifierID();
+	std::unordered_map<std::string, UInt32>* attachmentMap = nullptr;
+	if (baseForm->IsStaticForm()) { // If passed a baseform parent
+		attachmentMap = &(StaticInstance_WEAP::Linker[baseForm->refID]->aBaseAttachments);
+	}
+	else if (baseForm->IsInstancedForm()) { // If passed a modifier clone
+		attachmentMap = &(Instance_WEAP::Linker[baseForm->refID]->aAttachments);
+	}
+	else if (!ref->IsBaseForm()) {	// Vanilla attachments
 
-			auto* attachmentMap = &(form->LookupModifierByID(InstID)->aAttachments);
+		UInt8 iSlot = 1;
+		UInt8 iFlags = static_cast<TESObjectREFR*>(ref)->GetWeaponModFlags();
+		auto aAttachments = g_arrInterface->CreateStringMap(nullptr, nullptr, 0, scriptObj);
 
-			if (sSlot[0] == '\0') { // Return all attachments
-
-				for (const auto& pair : *attachmentMap) {
-					UInt32 attachmentId = pair.second;
-					ArrayElementR rElem = LookupFormByRefID(attachmentId);
-					g_arrInterface->AppendElement(aAttachments, rElem);
-				}
-
-				g_arrInterface->AssignCommandResult(aAttachments, result);
-			}
-			else if (attachmentMap->find(sSlot) != attachmentMap->end()) { // Return slot attachment
-
-				ArrayElementR rElem = LookupFormByRefID((*attachmentMap)[sSlot]);
-				g_arrInterface->AppendElement(aAttachments, rElem);
-
-			}
-			else {
-				Console_Print("Error could not find slot");
-			}
-
-		}
-		else if (form->IsModifierForm()) { // If passed a modifier clone......................................
-
-			auto* attachmentMap = &WeapInstList[form->refID]->aAttachments;
-
-			if (sSlot[0] == '\0') { // Return all attachments
-				for (const auto& pair : *attachmentMap) {
-					UInt32 attachmentId = pair.second;
-					ArrayElementR rElem = LookupFormByRefID(attachmentId);
-					g_arrInterface->AppendElement(aAttachments, rElem);
+		while (iSlot <= 3) {
+			if (iFlags & iSlot) {
+				TESObjectIMOD* pItemMod = static_cast<TESObjectWEAP*>(baseForm)->GetItemMod(iSlot);
+				if (pItemMod) {
+					std::string key = std::to_string(iSlot);
+					g_arrInterface->SetElement(aAttachments, ArrayElementL(key.c_str()), ArrayElementL(pItemMod));
 				}
 			}
-			else {
-				if (attachmentMap->find(sSlot) != attachmentMap->end()) {
-					ArrayElementR rElem = LookupFormByRefID((*attachmentMap)[sSlot]);
-					g_arrInterface->AppendElement(aAttachments, rElem);
-				}
-			}
+			iSlot++;
 		}
 
 		g_arrInterface->AssignCommandResult(aAttachments, result);
-
-		//Free something with the ArrayElementR, idk I'll do it later.
-
+		return true;
 	}
 
+	if (!attachmentMap)
+		return true;
+
+	auto aAttachments = g_arrInterface->CreateStringMap(nullptr, nullptr, 0, scriptObj);
+
+	for (const auto& pair : *attachmentMap) {
+		g_arrInterface->SetElement(aAttachments, ArrayElementL(pair.first.c_str()), ArrayElementL(LookupFormByRefID(pair.second)));
+	}
+
+	g_arrInterface->AssignCommandResult(aAttachments, result);
 	return true;
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(GetWeaponSlots, GetWeapSlots, "Gets the slot array for a ref", false, kParams_OneForm);
-bool Cmd_GetWeaponSlots_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_PLUGIN(GetWeaponMod, "Gets the mod in a specific slot", false, kParams_OneFormOneOptionalString);
+bool Cmd_GetWeaponMod_Execute(COMMAND_ARGS)
 {
-
 	*result = 0;
-	TESForm* form = NULL;
-	UInt32 InstID = 0;
-	std::string sSlot = "NULL";
+	TESForm* ref = NULL;
+	UInt32* refResult = (UInt32*)result;
+	char sSlot[MAX_PATH] = "";
 
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &ref, &sSlot)) {
+		return true;
+	}
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form)) {
+	if (!ref)
+		return true;
 
-		if (!form->IsBaseForm()) {
-			form = ((TESObjectREFR*)form)->baseForm;
-		}
+	TESForm* baseForm = ref->IsBaseForm() ? ref : ((TESObjectREFR*)ref)->baseForm;
 
-		auto aSlots = g_arrInterface->CreateArray(nullptr, 0, scriptObj);
-
-		if (form->IsModifierForm()) {
-
-			auto* attachmentMap = &WeapInstList[form->refID]->aAttachments;
-
-			for (const auto& pair : *attachmentMap) {
-				sSlot = pair.first;
-				ArrayElementL rElem = sSlot.c_str();
-				g_arrInterface->AppendElement(aSlots, rElem);
-			}
-
-			g_arrInterface->AssignCommandResult(aSlots, result);
-
-		}
-		else {
-
-			InstID = form->GetModifierID();
-
-			if (BaseExtraData.find(form->refID) != BaseExtraData.end()) {	//Find link data
-
-				auto* attachmentMap = &(form->LookupModifierByID(InstID)->aAttachments);
-
-				for (const auto& pair : *attachmentMap) {
-					sSlot = pair.first;
-					ArrayElementL rElem = sSlot.c_str();
-					g_arrInterface->AppendElement(aSlots, rElem);
-				}
-
-			}
-
-			g_arrInterface->AssignCommandResult(aSlots, result);
-
+	// If passed a baseform parent
+	if (baseForm->IsStaticForm()) {
+		auto it = StaticInstance_WEAP::Linker[baseForm->refID]->aBaseAttachments.find(sSlot);
+		if (it != StaticInstance_WEAP::Linker[baseForm->refID]->aBaseAttachments.end()) {
+			*refResult = it->second;
+			return true;
 		}
 	}
+	// If passed a modifier clone
+	else if (baseForm->IsInstancedForm()) {
+		auto it = Instance_WEAP::Linker[baseForm->refID]->aAttachments.find(sSlot);
+		if (it != Instance_WEAP::Linker[baseForm->refID]->aAttachments.end()) {
+			*refResult = it->second;
+			return true;
+		}
+	}
+	else {	// If passed vanilla
+
+		int iSlot;
+		try {
+			iSlot = std::stoi(sSlot);
+		}
+		catch (...) {
+			return true;
+		}
+
+		if (iSlot < 1 || iSlot > 3) {
+			return true;
+		}
+
+		if (!ref->IsBaseForm()) {
+			UInt8 weaponModFlags = static_cast<TESObjectREFR*>(ref)->GetWeaponModFlags();
+			if (weaponModFlags & (1 << (iSlot - 1))) {
+				TESObjectIMOD* pItemMod = static_cast<TESObjectWEAP*>(baseForm)->GetItemMod(iSlot);
+				if (pItemMod) {
+					*refResult = pItemMod->refID;
+					return true;
+				}
+			}
+		}
+
+	}
+
 	return true;
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(IsWeaponModifier, IsModifier, "Gets the weapon instance when passed a ref", false, kParams_OneForm);
-bool Cmd_IsWeaponModifier_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_ALT_PLUGIN(IsWeaponInstance, IsInstance, "Gets the weapon instance when passed a ref", false, kParams_OneForm);
+bool Cmd_IsWeaponInstance_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	TESForm* form = NULL;
@@ -307,7 +336,7 @@ bool Cmd_IsWeaponModifier_Execute(COMMAND_ARGS)
 
 		if (form) {
 
-			*result = form->IsModifierForm();
+			*result = form->IsInstancedForm();
 
 		}
 
@@ -328,15 +357,16 @@ bool Cmd_GetBaseWeapon_Execute(COMMAND_ARGS)
 			form = ((TESObjectREFR*)form)->baseForm;
 		}
 
-		if (form && form->IsModifierForm()) {
+		if (form && form->IsInstancedForm()) {
 
-			form = form->GetModifierParent();
+			form = form->GetStaticParent();
 			if (form) {
 				*refResult = form->refID;
 			}
 
 		}
 		else {
+
 			*refResult = form->refID;
 		}
 
@@ -345,48 +375,20 @@ bool Cmd_GetBaseWeapon_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(GetWeaponModifier, GetWeapModifier, "Gets the weapon instance when passed a ref", false, kParams_OneForm);
-bool Cmd_GetWeaponModifier_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_ALT_PLUGIN(GetWeaponInstanceID, GetWeapInstID, "Gets the ID for a Modifier when passed its clone", false, kParams_OneForm);
+bool Cmd_GetWeaponInstanceID_Execute(COMMAND_ARGS)
 {
-	*result = 0;
-	TESForm* form = NULL;
-	UInt32 InstID = 0;
-	UInt32* refResult = (UInt32*)result;
-
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form)) {
-
-		if (!form->IsBaseForm()) {
-			InstID = form->GetModifierID();
-			form = ((TESObjectREFR*)form)->baseForm;
-		}
-
-		if (form) {
-			form = form->LookupModifierByID(InstID)->Clone;
-			if (form)
-				*refResult = form->refID;
-		}
-
-	}
-	return true;
-}
-
-DEFINE_COMMAND_ALT_PLUGIN(GetWeaponModifierID, GetWeapModifierID, "Gets the ID for a Modifier when passed its clone", false, kParams_OneForm);
-bool Cmd_GetWeaponModifierID_Execute(COMMAND_ARGS)
-{
-	*result = 0;
+	*result = -1;
 	TESForm* clone = NULL;
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &clone)) {
 
-		if (!clone->IsBaseForm()) {
+		if (clone->IsReference()) {
 			clone = ((TESObjectREFR*)clone)->baseForm;
 		}
 
-		if (WeapInstList.find(clone->refID) != WeapInstList.end()) {
-			*result = WeapInstList[clone->refID]->refID;
-		}
-		else {
-			*result = -1;
+		if (clone->IsInstancedForm()) {
+			*result = Instance_WEAP::Linker[clone->refID]->InstID;
 		}
 
 	}
@@ -394,15 +396,49 @@ bool Cmd_GetWeaponModifierID_Execute(COMMAND_ARGS)
 	return true;
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(HasWeaponModifier, HasRefModifier, "Checks if a ref is registered.", true, 0);
-bool Cmd_HasWeaponModifier_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_ALT_PLUGIN(GetAllWeaponInstances, GetAllWeapInsts, "Gets Instances for a static form.", false, kParams_OneForm_OneOptionalInt);
+bool Cmd_GetAllWeaponInstances_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	TESForm* form = NULL;
+	UInt32 index = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &index)) {
+
+		if (!form->IsBaseForm()) {
+			form = ((TESObjectREFR*)form)->baseForm;
+		}
+
+		if (form->IsStaticForm()) {
+
+			auto aResult = g_arrInterface->CreateArray(nullptr, 0, scriptObj);	//Create an empty array
+			auto* instanceVector = &form->LookupStaticInstance()->aInstances;
+
+			for (auto it = instanceVector->begin(); it != instanceVector->end(); ++it) {
+				Instance_WEAP* weap = *it;
+				ArrayElementL rElem = LookupFormByRefID(weap->clone->refID);
+				g_arrInterface->AppendElement(aResult, rElem);
+			}
+
+		}
+
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(IsStaticForm, "Checks if a ref is registered.", false, kParams_OneForm);
+bool Cmd_IsStaticForm_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	TESForm* form = NULL;
 
-	form = thisObj->baseForm;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form)) {
 
-	if (form) {
+		if (!form->IsBaseForm()) {
+			form = ((TESObjectREFR*)form)->baseForm;
+		}
 
 		if (form->IsStaticForm()) {
 			*result = 1;
@@ -414,30 +450,200 @@ bool Cmd_HasWeaponModifier_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_PLUGIN(SetWeaponBaseAttachment, "Set a attachment in a base slot", false, kParamsSetWeapBaseAttachments);
-bool Cmd_SetWeaponBaseAttachment_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_PLUGIN(SetOnInstanceReconstruct, "When instances is loaded in", false, kParams_Event_OneStringF);
+bool Cmd_SetOnInstanceReconstruct_Execute(COMMAND_ARGS)
 {
+	SInt32 priority = 1;
+	Script* script = nullptr;
+	char key[0x50];
 
-	*result = 0;
-	TESForm* rAttachment = NULL;
-	char sSlot[MAX_PATH];
-	TESForm* form = NULL;
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &priority, &script, &key))
+	{
+		return true;
+	}
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &sSlot, &rAttachment)) {
-		Console_Print("Storing attachment via ppNVSE");
-
-		if (form && BaseExtraData.find(form->refID) != BaseExtraData.end()) { // If passed a baseform parent...
-
-			BaseExtraData[form->refID]->aBaseAttachments[sSlot] = rAttachment->refID;
-			Console_Print("Updating base attachments %s", sSlot);
-
-			return true;
+	if (priority != 0)
+	{
+		std::vector<void*> filter;
+		if (key[0] != '\0') {
+			filter = Event::EvaluateEventArg(1, '1', &key);
 		}
 		else {
-			Console_Print("Weapon is not registered with WS to attach to map");
+			filter = Event::EvaluateEventArg(1, '1', nullptr);
 		}
+
+		Event eEvent(priority, script, filter);
+		onInstanceReconstructEvent.AddEvent(eEvent);
+	}
+	else
+	{
+		onInstanceReconstructEvent.RemoveEvent(script);
 	}
 
 	return true;
 }
-*/
+
+DEFINE_COMMAND_PLUGIN(SetOnInstanceDeconstruct, "When instances is loaded in", false, kParams_Event_OneStringF);
+bool Cmd_SetOnInstanceDeconstruct_Execute(COMMAND_ARGS)
+{
+	SInt32 priority = 1;
+	Script* script = nullptr;
+	char key[0x50];
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &priority, &script, &key))
+	{
+		return true;
+	}
+
+	if (priority != 0)
+	{
+		std::vector<void*> filter;
+		if (key[0] != '\0') {
+			filter = Event::EvaluateEventArg(1, '1', &key);
+		}
+		else {
+			filter = Event::EvaluateEventArg(1, '1', nullptr);
+		}
+
+		Event eEvent(priority, script, filter);
+		onInstanceDeconstructEvent.AddEvent(eEvent);
+	}
+	else
+	{
+		onInstanceDeconstructEvent.RemoveEvent(script);
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_PLUGIN(SetOnAttachWeaponMod, "Dispatch when a weapon mod is attached", false, kParams_Event_OneForm_TwoFormsF);
+bool Cmd_SetOnAttachWeaponMod_Execute(COMMAND_ARGS)
+{
+	SInt32 priority = 1;
+	Script* script = nullptr;
+
+	TESForm* arg1 = nullptr;	//Attachment
+	TESForm* arg2 = nullptr;	//Baseform
+	char order1 = '0';
+	char order2 = '0';
+
+	bool runOnReconstruct = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &priority, &script, &runOnReconstruct, &order1, &arg1, &order2, &arg2))
+	{
+
+		if (priority != 0)
+		{
+
+			std::vector<void*> filter = Event::EvaluateEventArg(2, order1, arg1, order2, arg2);
+
+			Event eEvent(priority, script, filter);
+			onAttachWeapModEvent.AddEvent(eEvent);
+			if (runOnReconstruct) {
+				Event eEvent(priority, script, filter);
+				onAttachWeapModReconstructEvent.AddEvent(eEvent);
+			}
+		}
+		else
+		{
+			onAttachWeapModEvent.RemoveEvent(script);
+			onAttachWeapModReconstructEvent.RemoveEvent(script);
+		}
+
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_PLUGIN(SetOnDetachWeaponMod, "When instances is loaded in", false, kParams_Event_OneForm_TwoFormsF);
+bool Cmd_SetOnDetachWeaponMod_Execute(COMMAND_ARGS)
+{
+	SInt32 priority;
+	Script* script;
+
+	TESForm* arg1 = nullptr;
+	TESForm* arg2 = nullptr;
+	char order1;
+	char order2;
+
+	bool runOnDeconstruct = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &priority, &script, &runOnDeconstruct, &order1, &arg1, &order2, &arg2))
+	{
+
+		if (priority != 0)
+		{
+
+			std::vector<void*> filter = Event::EvaluateEventArg(2, order1, arg1, order2, arg2);
+
+			Event eEvent(priority, script, filter);
+			onDetachWeapModEvent.AddEvent(eEvent);
+			if (runOnDeconstruct) {
+				Event eEvent(priority, script, filter);
+				onDetachWeapModDeconstructEvent.AddEvent(eEvent);
+			}
+
+		}
+		else
+		{
+			onDetachWeapModEvent.RemoveEvent(script);
+			onDetachWeapModDeconstructEvent.RemoveEvent(script);
+		}
+
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(GetWeaponInstanceKey, GetWeapInstKey, "Gets the true baseform of a weapon", false, kParams_OneForm);
+bool Cmd_GetWeaponInstanceKey_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	TESForm* form = NULL;
+	const char* sResult = nullptr;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form)) {
+
+		if (!form->IsBaseForm()) {
+			form = ((TESObjectREFR*)form)->baseForm;
+		}
+
+		if (form && form->IsInstancedForm()) {
+
+			sResult = Instance_WEAP::Linker[form->refID]->key.c_str();
+
+		}
+
+		AssignString(PASS_COMMAND_ARGS, sResult);
+
+	}
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(GetWeaponInstance, GetWeapInst, "Gets the true baseform of a weapon", false, kParams_OneForm_OneInt);
+bool Cmd_GetWeaponInstance_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	TESForm* form = NULL;
+	UInt32* refResult = (UInt32*)result;
+
+	UInt32 instID = 0;
+	Instance_WEAP* weap;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &instID)) {
+
+		if (!form->IsBaseForm()) {
+			form = ((TESObjectREFR*)form)->baseForm;
+		}
+
+		if (form && form->IsStaticForm()) {
+
+			weap = form->LookupInstanceByID(instID);
+
+		}
+
+		*refResult = weap->clone->refID;
+
+	}
+	return true;
+}

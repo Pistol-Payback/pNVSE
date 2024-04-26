@@ -733,6 +733,11 @@ ExtraCount* ExtraCount::Create(UInt32 count)
 	return xCount;
 }
 
+ExtraCount* ExtraDataList::AddExtraCount(SInt32 count)
+{
+	return (ExtraCount*)AddExtra(ExtraCount::Create(count));
+}
+
 ExtraTeleport* ExtraTeleport::Create()
 {
 	ExtraTeleport* tele = (ExtraTeleport*)BSExtraData::Create(kExtraData_Teleport, sizeof(ExtraTeleport), s_ExtraTeleportVtbl);
@@ -749,6 +754,15 @@ ExtraTeleport* ExtraTeleport::Create()
 
 	tele->data = data;
 	return tele;
+}
+
+ExtraWeaponModFlags* ExtraWeaponModFlags::Create(UInt32 _flags)
+{
+	ExtraWeaponModFlags* xWeaponModFlags = (ExtraWeaponModFlags*)BSExtraData::Create(kExtraData_WeaponModFlags, sizeof(ExtraWeaponModFlags), s_ExtraWeaponModFlagsVtbl);
+
+	xWeaponModFlags->flags = (UInt8)_flags;
+
+	return xWeaponModFlags;
 }
 
 ExtraWeaponModFlags* ExtraWeaponModFlags::Create()

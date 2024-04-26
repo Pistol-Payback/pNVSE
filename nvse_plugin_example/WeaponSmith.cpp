@@ -1,14 +1,30 @@
 #pragma once
 #include "WeaponSmith.h"
 
-std::vector<UInt32> aCloneRebuild; //For loading
-std::unordered_map<UInt32, WeapInstBase*> BaseExtraData;		//This links the baseform to its extra data.
-std::unordered_map<UInt32, WeapInst*> WeapInstList;			//This links cloned baseforms to its WeapInst that contains attachment data.
+std::unordered_map<UInt32, StaticInstance_WEAP*> StaticInstance_WEAP::Linker;		//This links the baseform to its extra data.
+std::unordered_map<UInt32, Instance_WEAP*> Instance_WEAP::Linker;					//This links cloned baseforms to its WeapInst that contains attachment data.
 
-std::vector<UInt32> aUsedClones;
-std::vector<UInt32> aClones;		//Deleting the created clones would be better, but I'm not sure what issues deleting a baseform would cause.
+//std::unordered_map<UInt32, StaticInstance*> StaticInstance::Linker;					//This links the baseform to its extra data.
+//std::unordered_map<UInt32, Instance*> Instance::Linker;								//This links cloned baseforms to its WeapInst that contains attachment data.
+
+//std::vector<UInt32> Instance_WEAP::aCloneRecycle;						//Deleting the created clones would be better, but I'm not sure what issues deleting a baseform would cause.
+
+EventHandler onInstanceReconstructEvent;
+EventHandler onInstanceDeconstructEvent;
+
+EventHandler onAttachWeapModEvent;
+EventHandler onAttachWeapModReconstructEvent;
+
+EventHandler onDetachWeapModEvent;
+EventHandler onDetachWeapModDeconstructEvent;
+
+UInt32 InstanceInterface::cloneCount = 0;
+
+//std::vector<UInt32> aUsedClones;
+//std::vector<UInt32> aClones;		//Deleting the created clones would be better, but I'm not sure what issues deleting a baseform would cause.
 
 UInt32 GetFirstFormIDForModIndex(UInt32 modIndex) {
+
 	// Check for valid mod index range (0x00 to 0xFF)
 	if (modIndex > 0xFF) {
 		//Console_Print("Invalid mod index %02X", modIndex);
@@ -21,30 +37,30 @@ UInt32 GetFirstFormIDForModIndex(UInt32 modIndex) {
 
 }
 
-TESForm* TESForm::GetModifierParent() {
+TESForm* TESForm::GetStaticParent() {
 
-	if (WeapInstList.find(this->refID) != WeapInstList.end()) {
-		return WeapInstList[this->refID]->Parent;
+	if (Instance_WEAP::Linker.find(this->refID) != Instance_WEAP::Linker.end()) {
+		//Console_Print("Is Static Parent");
+		return Instance_WEAP::Linker[this->refID]->baseInstance->parent;
 	}
 }
 
-bool TESForm::IsModifierForm() {
-	if (WeapInstList.find(this->refID) != WeapInstList.end()) {
+bool TESForm::IsInstancedForm() {
+	if (Instance_WEAP::Linker.find(this->refID) != Instance_WEAP::Linker.end()) {
 			return true;
 	}
 }
 
-UInt32 TESForm::GetModifierID() {
+UInt32 TESForm::GetInstanceID() {
 
-	if (this->IsModifierForm()) {
-		return WeapInstList[this->refID]->refID;
+	if (this->IsInstancedForm()) {
+		return Instance_WEAP::Linker[this->refID]->InstID;
 	}
 
-	TESObjectREFR* ref = dynamic_cast<TESObjectREFR*>(this);
-	if (ref) {
+	if (this->IsReference()) {
 		Script* PistolGetModifierID = ((Script * (__cdecl*)(const char*))(0x483A00))("PistolGetModifierID");
 		ArrayElementL scriptReturn;
-		g_scriptInterface->CallFunction(PistolGetModifierID, ref, nullptr, &scriptReturn, 0);
+		g_scriptInterface->CallFunction(PistolGetModifierID, (TESObjectREFR*)this, nullptr, &scriptReturn, 0);
 		return static_cast<UInt32>(scriptReturn.Number());
 	}
 	return 0;
@@ -54,9 +70,9 @@ UInt32 TESForm::GetModifierID() {
 bool TESForm::MarkAsStaticForm() {
 
 	UInt32 refID = this->refID;
-	if (BaseExtraData.find(refID) == BaseExtraData.end()) {
-		BaseExtraData[refID] = new WeapInstBase;
-		BaseExtraData[refID]->Parent = this;
+	if (StaticInstance_WEAP::Linker.find(refID) == StaticInstance_WEAP::Linker.end()) {
+
+		new StaticInstance_WEAP(this);
 		return true;
 	}
 	return false;
@@ -64,16 +80,16 @@ bool TESForm::MarkAsStaticForm() {
 
 bool TESForm::IsStaticForm() {
 
-	if (BaseExtraData.find(this->refID) != BaseExtraData.end()) {
+	if (StaticInstance_WEAP::Linker.find(this->refID) != StaticInstance_WEAP::Linker.end()) {
 		return true;
 	}
 	return false;
 }
 
-WeapInst* TESForm::LookupModifierByID(UInt32 InstID) {
+Instance_WEAP* TESForm::LookupInstanceByID(UInt32 InstID) {
 
-	if (BaseExtraData.find(this->refID) != BaseExtraData.end() && InstID < BaseExtraData[refID]->aInstances.size()) {
-		return BaseExtraData[refID]->aInstances[InstID];
+	if (StaticInstance_WEAP::Linker.find(this->refID) != StaticInstance_WEAP::Linker.end() && InstID < StaticInstance_WEAP::Linker[this->refID]->aInstances.size()) {
+		return StaticInstance_WEAP::Linker[this->refID]->aInstances[InstID];
 	}
 	else {
 		return nullptr;
@@ -81,100 +97,101 @@ WeapInst* TESForm::LookupModifierByID(UInt32 InstID) {
 
 }
 
-UInt32 TESForm::CreateInst() {
+StaticInstance_WEAP* TESForm::LookupStaticInstance() {
+
+	if (StaticInstance_WEAP::Linker.find(this->refID) != StaticInstance_WEAP::Linker.end()) {
+		return StaticInstance_WEAP::Linker[this->refID];
+	}
+	else {
+		return nullptr;
+	}
+
+}
+
+UInt32 TESForm::CreateInst(std::string key) {
 
 	TESForm* form = this;
-	TESObjectREFR* formRef = reinterpret_cast<TESObjectREFR*>(this);
+	TESObjectREFR* formRef = nullptr;
+	if (form->IsReference()) {
+		formRef = (TESObjectREFR*)this;
+	}
 
-	TESForm* clonedForm = nullptr;
 	UInt32 cloneRefID = 0;
 
 	if (formRef) {
 
 		form = formRef->baseForm;
 
-		cloneRefID = formRef->GetModifierID();
+		cloneRefID = formRef->GetInstanceID();
 		if (cloneRefID > 0) {
-			return form->LookupModifierByID(cloneRefID)->Clone->refID;
+			return form->LookupInstanceByID(cloneRefID)->clone->refID;
 		}
 
-		if (BaseExtraData.find(form->refID) == BaseExtraData.end()) {	//Make parent static, if it's not static already.
+		if (!form->IsStaticForm()) {	//Make parent static, if it's not static already.
 			form->MarkAsStaticForm();
 		}
 
 	}
 
-	if (form == nullptr || form->IsModifierForm()) { //Do not create modifiers of other modifiers. 
+	if (!form->IsStaticForm() || form->IsInstancedForm()) { //Do not create modifiers of other modifiers. 
 		return 0;
 	}
 
-	UInt32 modIndex = 13;
+	//UInt32 modIndex = 13;
 
-	if (!aClones.empty()) {
-
-		//Use an old unused clone sitting in memory
-
-		cloneRefID = aClones.back();
-		clonedForm = LookupFormByRefID(cloneRefID);
-		clonedForm->CopyFrom(form);
-
-		aClones.pop_back();
-
-		aUsedClones.push_back(cloneRefID);
-		WeapInst* NewInst = new WeapInst(
-			form,
-			BaseExtraData[form->refID]->aInstances.size(),  // refID can be used to determine the size
-			clonedForm,
-			BaseExtraData[form->refID]->aBaseAttachments    // Copy the map
-		);
-
-		BaseExtraData[form->refID]->aInstances.push_back(NewInst);
-		WeapInstList[cloneRefID] = NewInst;
-
-		aCloneRebuild.push_back(cloneRefID);
-
-	}
-	else {
-
-		//Create new clone.
-
-		clonedForm = form->CloneForm(0);
-		if (clonedForm)
-		{
-
-			cloneRefID = GetFirstFormIDForModIndex(modIndex);
-
-			if (cloneRefID) {
-				if (cloneRefID >> 24 == modIndex)
-				{
-					clonedForm->SetRefID(cloneRefID, true);
-					std::string editorID = "D" + std::to_string(aUsedClones.size()); // Convert number to string and append to the original string
-					clonedForm->SetEditorID(editorID.c_str());
-
-					aUsedClones.push_back(clonedForm->refID);
-
-					WeapInst* NewInst = new WeapInst(
-						form,
-						BaseExtraData[form->refID]->aInstances.size(),  // refID can be used to determine the size
-						clonedForm,
-						BaseExtraData[form->refID]->aBaseAttachments    // Copy the map
-					);
-
-					BaseExtraData[form->refID]->aInstances.push_back(NewInst);
-					WeapInstList[cloneRefID] = NewInst;
-
-				}
-				//else
-				//{
-					//Console_Print("ERROR Weapon Instance Failed to create. ESP/ESM is full");
-				//}
-
-			}
-
-		}
-
-	}
+	Instance_WEAP* NewInst = Instance_WEAP::create(StaticInstance_WEAP::Linker[form->refID], key);
+	cloneRefID = NewInst->clone->refID;
 
 	return cloneRefID;
 
 }
+
+void Instance_WEAP::destroy() {
+	if (this->baseInstance) {
+		auto it = std::find(this->baseInstance->aInstances.begin(), this->baseInstance->aInstances.end(), this);
+		if (it != this->baseInstance->aInstances.end()) {
+			this->baseInstance->aInstances.erase(it);
+		}
+	}
+	delete this;
+}
+
+Instance_WEAP* Instance_WEAP::create(StaticInstance_WEAP* staticForm, std::string key) {
+
+	TESForm* clone = nullptr;
+	UInt32 modIndex = 13;
+	UInt32 cloneRefID = 0;
+
+	if (!staticForm) {
+		throw std::runtime_error("Instance constructor failed.");
+	}
+
+	//if (!Instance_WEAP::aCloneRecycle.empty()) {
+		//cloneRefID = Instance_WEAP::aCloneRecycle.back();
+		//clone = LookupFormByRefID(cloneRefID);
+		///clone->CopyFromAlt(staticForm->parent);
+		//Instance_WEAP::aCloneRecycle.pop_back();
+	//}
+	//if {
+		clone = staticForm->parent->CloneForm(0);
+		if (clone) {
+			cloneRefID = GetNextFreeFormID(GetFirstFormIDForModIndex(modIndex));
+			if (cloneRefID && cloneRefID >> 24 == modIndex) {
+				clone->SetRefID(cloneRefID, true);
+				std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
+				clone->SetEditorID(editorID.c_str());
+			}
+			else {
+				throw std::runtime_error("Instance constructor failed.");
+			}
+		}
+	//}
+	if (clone) {
+		Console_Print("Making new instance with: %s", key.c_str());
+		return new Instance_WEAP(staticForm, clone, staticForm->aInstances.size(), key, staticForm->aBaseAttachments);
+	}
+	else {
+		throw std::runtime_error("Instance constructor failed.");
+	}
+}
+

@@ -5,7 +5,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include <InventoryRef.h>
 #include "StringVar.h"
 
 #define PI 3.14159265
@@ -245,7 +244,7 @@ bool Cmd_GetTopicPrompt_Execute(COMMAND_ARGS)
 			sReturn = ((&topicRef->fullName)->name).CStr();
 		}
 
-		g_strInterface->Assign(PASS_COMMAND_ARGS, sReturn);
+		g_strInterface.Assign(PASS_COMMAND_ARGS, sReturn);
 
 	}
 	return true;
@@ -292,37 +291,19 @@ bool Cmd_TopicHasPromptType_Execute(COMMAND_ARGS)
 	return true;
 }
 
-static ParamInfo kParamsGetWeaponModFlags[1] =
+static ParamInfo kParamsSetWeaponModFlags[1] =
 {
-	{"Object Ref", kParamType_ObjectRef, 0}
-};
-
-static ParamInfo kParamsSetWeaponModFlags[2] =
-{
-	{"Object Ref", kParamType_ObjectRef, 0},
 	{"int", kParamType_Integer, 0}
 };
 
-DEFINE_COMMAND_PLUGIN(GetWeaponModFlags, "Allows you to get both world and inv ref mod flags", false, kParamsGetWeaponModFlags);
+DEFINE_COMMAND_PLUGIN(GetWeaponModFlags, "Allows you to get both world and inv ref mod flags", true, 0);
 bool Cmd_GetWeaponModFlags_Execute(COMMAND_ARGS)
 {
-	*result = 0;
-
-	TESObjectREFR* Weapon;
-
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &Weapon)) {
-
-		ExtraWeaponModFlags* xWeaponModFlags = static_cast<ExtraWeaponModFlags*>(Weapon->extraDataList.GetByType(kExtraData_WeaponModFlags));
-		if (xWeaponModFlags)
-			*result = xWeaponModFlags->flags;
-
-	}
-
+	*result = thisObj->GetWeaponModFlags();
 	return true;
-
 }
 
-DEFINE_COMMAND_PLUGIN(SetWeaponModFlags, "Allows you to set both world and inv ref mod flags", false, kParamsSetWeaponModFlags);
+DEFINE_COMMAND_PLUGIN(SetWeaponModFlags, "Allows you to set both world and inv ref mod flags", true, kParamsSetWeaponModFlags);
 bool Cmd_SetWeaponModFlags_Execute(COMMAND_ARGS)
 {
 	*result = 0;
@@ -330,50 +311,8 @@ bool Cmd_SetWeaponModFlags_Execute(COMMAND_ARGS)
 	TESObjectREFR* Weapon;
 	UInt32 flags = 0;
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &Weapon, &flags)) {
-
-		ExtraWeaponModFlags* xWeaponModFlags = static_cast<ExtraWeaponModFlags*>(Weapon->extraDataList.GetByType(kExtraData_WeaponModFlags));
-
-		// Modify existing flags
-		if (xWeaponModFlags) {
-
-			if (flags) {
-				xWeaponModFlags->flags = (UInt8)flags;
-			}
-			else{
-
-				Weapon->extraDataList.Remove(xWeaponModFlags, true);
-			}
-
-		} // Create new extra data
-		else if (flags) {
-			Console_Print("Create");
-			xWeaponModFlags = ExtraWeaponModFlags::Create();
-			if (xWeaponModFlags) {
-
-				InventoryRef* invRef; //= InventoryReferenceGetForRefID(Weapon->refID);
-				if (invRef) {
-
-					Console_Print("Is Inv Ref");
-					//xWeaponModFlags = invRef->CreateExtraData();
-					xWeaponModFlags->flags = (UInt8)flags;
-					if (invRef->GetCount() > 1){
-						//invRef = invRef->SplitFromStack();
-					}
-
-					Weapon->extraDataList.Add(xWeaponModFlags);
-
-				}
-				else {
-					Console_Print("Is Not Inv Ref");
-					xWeaponModFlags->flags = (UInt8)flags;
-					Weapon->extraDataList.Add(xWeaponModFlags);
-				}
-
-			}
-
-		}
-
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &flags)) {
+		thisObj->SetWeaponModFlags(flags);
 	}
 
 	return true;

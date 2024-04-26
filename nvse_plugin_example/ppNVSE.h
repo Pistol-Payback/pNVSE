@@ -5,6 +5,7 @@
 #include "ParamInfos.h"
 
 #include "PluginAPI.h"
+#include "InventoryRef.h"
 #include "GameUI.h" 
 #include "common/ICriticalSection.h"
 #include "GameData.h"
@@ -28,7 +29,7 @@ extern UInt32(*GetArraySize)(NVSEArrayVar* arr);
 extern NVSEArrayVar* (*LookupArrayByID)(UInt32 id);
 extern bool (*GetElement)(NVSEArrayVar* arr, const NVSEArrayElement& key, NVSEArrayElement& outElement);
 extern bool (*GetArrayElements)(NVSEArrayVar* arr, NVSEArrayElement* elements, NVSEArrayElement* keys);
-extern NVSEStringVarInterface* g_strInterface;
+extern NVSEStringVarInterface g_strInterface;
 extern bool (*AssignString)(COMMAND_ARGS, const char* newValue);
 extern const char* (*GetStringVar)(UInt32 stringID);
 extern NVSEMessagingInterface* g_msg;
@@ -37,13 +38,6 @@ extern NVSECommandTableInterface* g_commandInterface;
 extern const CommandInfo* (*GetCmdByName)(const char* name);
 extern bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 extern bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
-
-extern TESObjectREFR* (__stdcall* InventoryRefCreateEntry)(TESObjectREFR* container, TESForm* itemForm, SInt32 countDelta, ExtraDataList* xData);
-typedef InventoryRef* (*_InventoryRefCreate)(TESObjectREFR* container, const InventoryRef::Data& data, bool bValidate);
-extern _InventoryRefCreate InventoryRefCreate;
-
-typedef InventoryRef* (*_InventoryRefGetForID)(UInt32 refID);
-extern _InventoryRefGetForID InventoryRefGetForID;
 
 extern NVSEEventManagerInterface* g_eventInterface;
 
@@ -89,3 +83,41 @@ template <typename T, typename U>
 struct decay_equiv :
 	std::is_same<typename std::decay<T>::type, U>::type
 {};
+
+extern TESObjectREFR* DevKitDummyMarker;
+extern void DumpInfoToLog(const std::string& info);
+
+namespace kNVSE {
+
+	//typedef std::unordered_map<std::uint32_t, std::uint32_t>* (*GetSharedMapFunc)();
+	//extern GetSharedMapFunc getSharedMapFunc;
+	//extern std::unordered_map<std::uint32_t, std::uint32_t>* sharedMap;
+
+}
+
+struct AuxVarInfo
+{
+	UInt32		ownerID;
+	UInt32		modIndex;
+	char*		varName;
+	bool		isPerm;
+};
+
+namespace PluginFunctions {
+
+	extern int (*AuxVarGetSize)(AuxVarInfo* varInfo);
+	extern int (*AuxVarGetType)(AuxVarInfo* varInfo, SInt32 idx);
+
+	extern double (*AuxVarGetFloat)(AuxVarInfo* varInfo, SInt32 idx);
+	extern void (*AuxVarSetFloat)(double fltVal, AuxVarInfo* varInfo, SInt32 idx);
+
+	extern UInt32 (*AuxVarGetRef)(AuxVarInfo* varInfo, SInt32 idx);
+	extern void (*AuxVarSetRef)(TESForm* refVal, AuxVarInfo* varInfo, SInt32 idx);
+
+	extern char* (*AuxVarGetString)(AuxVarInfo* varInfo, SInt32 idx);
+	extern void (*AuxVarSetString)(const char* buffer, AuxVarInfo* varInfo, SInt32 idx);
+
+	extern AuxVarInfo (*CreateAuxVarInfo)(TESForm* form, TESObjectREFR* thisObj, UInt32 modIndex, char* pVarName);
+	extern void (*AuxVarErase)(AuxVarInfo* varInfo, SInt32 idx);
+
+}

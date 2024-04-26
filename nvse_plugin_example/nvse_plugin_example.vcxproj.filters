@@ -31,6 +31,9 @@
     <Filter Include="ppNVSE\Initializers">
       <UniqueIdentifier>{ef8d6125-bf4d-459c-8f82-ec760bdc3b29}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ppNVSE\InventoryRefs">
+      <UniqueIdentifier>{bf5f6eee-2f10-4e22-be69-8e36cf1451d9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\nvse\nvse\GameAPI.cpp">
@@ -122,6 +125,21 @@
     <ClCompile Include="ScrappedFunctions.cpp">
       <Filter>RecycleBin</Filter>
     </ClCompile>
+    <ClCompile Include="InitHooks.cpp">
+      <Filter>ppNVSE\Initializers</Filter>
+    </ClCompile>
+    <ClCompile Include="TESObjectREFR_Ext.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClCompile>
+    <ClCompile Include="InventoryRef.cpp">
+      <Filter>ppNVSE\InventoryRefs</Filter>
+    </ClCompile>
+    <ClCompile Include="EventHandlers.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClCompile>
+    <ClCompile Include="Link_kNVSE.cpp">
+      <Filter>ppNVSE\Initializers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\GameAPI.h">
@@ -209,9 +227,6 @@
     <ClInclude Include="class_vtbls.h">
       <Filter>nvse</Filter>
     </ClInclude>
-    <ClInclude Include="initHooks.cpp">
-      <Filter>ppNVSE\Initializers</Filter>
-    </ClInclude>
     <ClInclude Include="SaveSystem.h">
       <Filter>ppNVSE\SaveSystem</Filter>
     </ClInclude>
@@ -226,6 +241,18 @@
     </ClInclude>
     <ClInclude Include="TestHooks.h">
       <Filter>RecycleBin</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\NVSE\nvse\nvse\ParamInfos.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="Base_Ext.h">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClInclude>
+    <ClInclude Include="InventoryRef.h">
+      <Filter>ppNVSE\InventoryRefs</Filter>
+    </ClInclude>
+    <ClInclude Include="EventHandlers.h">
+      <Filter>ppNVSE\DataExtensions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

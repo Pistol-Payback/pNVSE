@@ -193,6 +193,11 @@ struct BaseExtraList
 {
 	bool HasType(UInt32 type) const;
 
+	__forceinline BSExtraData* AddExtra(BSExtraData* toAdd)
+	{
+		return ThisCall<BSExtraData*>(0x40FF60, this, toAdd); //0x40FF60 ADDR_AddExtraData
+	}
+
 	__forceinline BSExtraData *GetByType(UInt8 type) const
 	{
 		return ThisStdCall<BSExtraData*>(0x410220, this, type);
@@ -238,10 +243,13 @@ struct BaseExtraList
 	UInt8		pad1D[3];					// 01D
 };
 
+class ExtraCount;
+
 struct ExtraDataList : public BaseExtraList
 {
 	ExtraDataList* CreateCopy(bool bCopyAndRemove = false);
 	static ExtraDataList * Create(BSExtraData* xBSData = NULL);
+	ExtraCount* AddExtraCount(SInt32 count);
 };
 
 STATIC_ASSERT(offsetof(BaseExtraList, m_presenceBitfield) == 0x008);

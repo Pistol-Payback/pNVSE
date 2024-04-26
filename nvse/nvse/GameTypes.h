@@ -307,6 +307,15 @@ public:
 		return index;
 	}
 
+	void Prepend(Item* item)
+	{
+		if (item)
+		{
+			if (m_listHead.data) m_listHead.Insert(item);
+			else m_listHead.data = item;
+		}
+	}
+
 	void Insert(Item *item)
 	{
 		if (item)

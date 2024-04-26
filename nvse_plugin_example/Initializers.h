@@ -1,7 +1,5 @@
 #pragma once
 
-//#include "commands_animation.h"
-
 namespace Hooks
 {
 	void initHooks();
@@ -9,4 +7,11 @@ namespace Hooks
 
 namespace SaveSystem {
 	void SaveWeaponInst(const NVSEInterface* nvse, PluginHandle& pluginHandle);
+}
+
+namespace PluginFunctions {
+
+	//void initkNVSE();
+	//void initJIP();
+
 }

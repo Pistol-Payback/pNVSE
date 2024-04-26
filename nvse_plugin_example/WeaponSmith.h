@@ -1,50 +1,74 @@
 #pragma once
 #include "ppNVSE.h"
+#include "EventHandlers.h"
+#include <stdexcept>
 
-extern std::vector<UInt32> aCloneRebuild; //For loading
-extern std::unordered_map<UInt32, WeapInstBase*> BaseExtraData;
-extern std::unordered_map<UInt32, WeapInst*> WeapInstList;
+extern EventHandler onInstanceDeconstructEvent;
+extern EventHandler onInstanceReconstructEvent;
 
-extern std::vector<UInt32> aUsedClones;
-extern std::vector<UInt32> aClones;
+extern EventHandler onAttachWeapModEvent;
+extern EventHandler onAttachWeapModReconstructEvent;
 
-class WeapInst {
-public:
+extern EventHandler onDetachWeapModEvent;
+extern EventHandler onDetachWeapModDeconstructEvent;
 
-	WeapInst(
-		TESForm* Parent = nullptr,
-		UInt8 refID = 0,
-		TESForm* Clone = nullptr,
-		const std::unordered_map<std::string, UInt32>& aAttachments = std::unordered_map<std::string, UInt32>())
-		: Parent(Parent),
-		refID(refID),
-		Clone(Clone),
-		aAttachments(aAttachments) {
-	}
-
-	TESForm* Parent;						//The true baseform
-	UInt8 refID;	//== the number of Weapon Instances for a specific baseform. Created via the ParentInstCounter.
-	TESForm* Clone;							//Dynamic baseform
-	std::unordered_map<std::string, UInt32> aAttachments;
-
+struct InstanceInterface {
+    static UInt32 cloneCount;
 };
 
-class WeapInstBase {
+class StaticInstance_WEAP {
 public:
 
-	WeapInstBase(
-		TESForm* Parent = nullptr,
-		const std::vector<WeapInst*>& aInstances = std::vector<WeapInst*>(),
-		const std::unordered_map<std::string, UInt32>& aBaseAttachments = std::unordered_map<std::string, UInt32>())
-		: Parent(Parent),
-		aInstances(aInstances),
-		aBaseAttachments(aBaseAttachments) {
-	}
+    StaticInstance_WEAP(
+        TESForm* parent = nullptr,
+        const std::vector<Instance_WEAP*>& aInstances = {},
+        const std::unordered_map<std::string, UInt32>& aBaseAttachments = {}
+    ) : parent(parent), aInstances(aInstances), aBaseAttachments(aBaseAttachments) {
+        this->Linker[this->parent->refID] = this;
+    }
 
-	TESForm* Parent;						//The true baseform
-	std::vector<WeapInst*> aInstances;		//Save dependent
+    ~StaticInstance_WEAP() {
+    
+    }
 
-	std::unordered_map<std::string, UInt32> aBaseAttachments;
-	//bool IsAkimbo;
+    TESForm* parent;
+    static std::unordered_map<UInt32, StaticInstance_WEAP*> Linker;
+    std::vector<Instance_WEAP*> aInstances;
+    std::unordered_map<std::string, UInt32> aBaseAttachments;
+};
 
+class Instance_WEAP {
+public:
+
+    Instance_WEAP(
+        StaticInstance_WEAP* baseInstance,
+        TESForm* clone,
+        UInt8 InstID,
+        std::string key,
+        const std::unordered_map<std::string, UInt32>& aAttachments = {}
+    ) : baseInstance(baseInstance), clone(clone), InstID(InstID), key(key), aAttachments(aAttachments) {
+
+        baseInstance->aInstances.push_back(this);
+        this->Linker[this->clone->refID] = this;
+        InstanceInterface::cloneCount++;
+
+    }
+
+    ~Instance_WEAP() {
+
+        this->Linker.erase(this->clone->refID);
+        --InstanceInterface::cloneCount;
+
+    }
+
+    void destroy();
+
+    static Instance_WEAP* create(StaticInstance_WEAP* staticForm, std::string key);
+
+    UInt8 InstID;
+    TESForm* clone;
+    std::string key;
+    static std::unordered_map<UInt32, Instance_WEAP*> Linker;
+    StaticInstance_WEAP* baseInstance;
+    std::unordered_map<std::string, UInt32> aAttachments;
 };

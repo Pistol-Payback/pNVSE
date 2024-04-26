@@ -114,13 +114,12 @@ public:
 
 	struct RenderState
 	{
-		UInt32	unk00;
-		UInt32	unk04;
-		float	unk08;		// waterLevel
-		float	unk0C;
-		UInt32	unk10;		// flags most likely
-		NiNode	* niNode;	// same in FOSE
-		// possibly more, need to find alloc
+		TESObjectREFR* currWaterRef;		// 00
+		UInt32			underwaterCount;	// 04	0-0x13 when fully-underwater; exterior only
+		float			waterLevel;			// 08
+		float			revealDistance;		// 0C
+		UInt32			flags;				// 10
+		NiNode*			rootNode;			// 14
 	};
 
 	struct EditorData {
@@ -149,16 +148,48 @@ public:
 	ExtraScript* GetExtraScript() const;
 	ScriptEventList *	GetEventList() const;
 
+	//ppNVSE
+	//void SetAngleOnReference(float afX, float afY, float afZ);	//Thank you wall.
+	//void SetLocationOnReference(NiPoint3* pos);
+
+	__forceinline void SetAngleOnReference(float afX, float afY, float afZ)
+	{
+		ThisStdCall(0x0575700, this, afX, afY, afZ);
+	}
+
+	__forceinline void SetLocationOnReference(NiPoint3* pos)
+	{
+		ThisStdCall(0x0575830, this, pos);
+	}
+
+	__forceinline void MoveTo(NiPoint3* pos)
+	{
+		ThisStdCall(0x0575830, this, pos);
+	}
+	__forceinline TESObjectREFR* PlaceAtMe(TESForm* form, UInt32 count, UInt32 distance, UInt32 direction, float health)
+	{
+		return CdeclCall<TESObjectREFR*>(0x5C4B30, this, form, count, distance, direction, health);
+	}
+
+	Instance_WEAP* GetWeaponBase();
+	UInt8 GetWeaponModFlags();
+	void SetWeaponModFlags(UInt8);
+
+	//TESObjectREFR* PlaceAtMe(TESObjectREFR* refr, TESForm* form, UInt32 count, UInt32 distance, UInt32 direction, float health);
+
 	bool IsTaken() const { return (flags & kFlags_Taken) != 0; }
 	bool IsPersistent() const { return (flags & kFlags_Persistent) != 0; }
 	bool IsTemporary() { return (flags & kFlags_Temporary) ? true : false; }
 	bool IsDeleted() const { return (flags & kFlags_Deleted) ? true : false; }
+
+	__forceinline NiNode* GetRefNiNode() const { return renderState ? renderState->rootNode : nullptr; }
 
 	bool Update3D();
 	bool Update3D_v1c();	// Less worse version as used by some modders
 	TESContainer* GetContainer();
 	bool IsMapMarker();
 
+	void DeleteReference();
 	bool GetDisabled() const;
 	ContChangesEntryList* GetContainerChangesList() const;
 	ContChangesEntry* GetContainerChangesEntry(TESForm* itemForm) const;
@@ -171,7 +202,7 @@ public:
 	bool __fastcall GetInSameCellOrWorld(TESObjectREFR* target) const;
 	float __vectorcall GetDistance(TESObjectREFR* target) const;
 
-	static TESObjectREFR* Create(bool bTemp = false);
+	static TESObjectREFR* __stdcall Create(bool bTemp = false);
 
 	NiNode* __fastcall GetNode(const char* nodeName) const;
 
@@ -529,8 +560,8 @@ public:
 	// OBSE: unk1 looks like quantity, usu. 1; ignored for ammo (equips entire stack). In NVSE, pretty much always forced internally to 1 
 	// OBSE: itemExtraList is NULL as the container changes entry is not resolved before the call
 	// NVSE: Default values are those used by the vanilla script functions.
-	void EquipItem(TESForm * objType, UInt32 equipCount = 1, ExtraDataList* itemExtraList = NULL, UInt32 unk3 = 1, bool lockEquip = false, UInt32 unk5 = 1);	// unk3 apply enchantment on player differently
-	void UnequipItem(TESForm* objType, UInt32 unequipCount = 1, ExtraDataList* itemExtraList = NULL, UInt32 unk3 = 1, bool lockEquip = false, UInt32 unk5 = 1);
+	void EquipItem(TESForm * objType, UInt32 equipCount = 1, ExtraDataList* itemExtraList = NULL, UInt32 unk3 = 1, bool lockEquip = false, UInt32 playSound = 1);	// unk3 apply enchantment on player differently
+	void UnequipItem(TESForm* objType, UInt32 unequipCount = 1, ExtraDataList* itemExtraList = NULL, UInt32 unk3 = 1, bool lockEquip = false, UInt32 playSound = 1);
 
 	EquippedItemsList	GetEquippedItems();
 	void EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip = 0, UInt32 noMessage = 1);
