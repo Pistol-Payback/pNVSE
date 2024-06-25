@@ -34,6 +34,18 @@
     <Filter Include="ppNVSE\InventoryRefs">
       <UniqueIdentifier>{bf5f6eee-2f10-4e22-be69-8e36cf1451d9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ppNVSE\KitLoader">
+      <UniqueIdentifier>{0c7eff26-8f58-4daf-b361-0ad53480202c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\DataExtensions\AuxVars">
+      <UniqueIdentifier>{32be23d1-8290-4a01-9541-9b6041cb19ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\KitLoader\MainFunctions">
+      <UniqueIdentifier>{e27578cd-027a-462c-abfd-14fa36a4d923}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\KitLoader\ScriptConverter">
+      <UniqueIdentifier>{185fa757-be05-4c47-b5ca-5be34ca098bc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\nvse\nvse\GameAPI.cpp">
@@ -139,6 +151,39 @@
     </ClCompile>
     <ClCompile Include="Link_kNVSE.cpp">
       <Filter>ppNVSE\Initializers</Filter>
+    </ClCompile>
+    <ClCompile Include="Base_Ext.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
+    </ClCompile>
+    <ClCompile Include="AuxVars.cpp">
+      <Filter>ppNVSE\DataExtensions\AuxVars</Filter>
+    </ClCompile>
+    <ClCompile Include="KitLoader.cpp">
+      <Filter>ppNVSE\KitLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="WeaponModFunctions.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
+    </ClCompile>
+    <ClCompile Include="WeaponFunctions.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
+    </ClCompile>
+    <ClCompile Include="General.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
+    </ClCompile>
+    <ClCompile Include="DevkitCompiler.cpp">
+      <Filter>ppNVSE\KitLoader</Filter>
+    </ClCompile>
+    <ClCompile Include="ScriptFunctions.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
+    </ClCompile>
+    <ClCompile Include="ScriptConverter.cpp">
+      <Filter>ppNVSE\KitLoader\ScriptConverter</Filter>
+    </ClCompile>
+    <ClCompile Include="DevkitListFunctions.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
+    </ClCompile>
+    <ClCompile Include="KitInfoFunctions.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -253,6 +298,24 @@
     </ClInclude>
     <ClInclude Include="EventHandlers.h">
       <Filter>ppNVSE\DataExtensions</Filter>
+    </ClInclude>
+    <ClInclude Include="KitLoader.h">
+      <Filter>ppNVSE\KitLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\Commands_Script.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\ParamInfosNVSE.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="AuxVars.h">
+      <Filter>ppNVSE\DataExtensions\AuxVars</Filter>
+    </ClInclude>
+    <ClInclude Include="DevkitCompiler.h">
+      <Filter>ppNVSE\KitLoader</Filter>
+    </ClInclude>
+    <ClInclude Include="ScriptConverter.h">
+      <Filter>ppNVSE\KitLoader\ScriptConverter</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

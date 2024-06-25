@@ -45,6 +45,12 @@ public:
 	struct RefList : tList<RefVariable>
 	{
 		UInt32 GetIndex(Script::RefVariable *refVar);
+
+		void Replace(RefList* other)
+		{
+			DeleteAll();
+			CdeclCall(0x5AB7F0, other, this); // copy to this;
+		}
 	};
 
 	enum VariableType : UInt8
@@ -63,6 +69,13 @@ public:
 	struct VarInfoList : tList<VariableInfo>
 	{
 		VariableInfo *GetVariableByName(const char *name);
+
+		void Replace(VarInfoList* other)
+		{
+			DeleteAll();
+			CdeclCall(0x5AB930, other, this); // copy to this;
+		}
+
 	};
 	typedef Visitor<VarInfoList, VariableInfo> VarListVisitor;
 
@@ -109,6 +122,9 @@ public:
 	VariableInfo *GetVariableInfo(UInt32 idx);
 
 	UInt32 AddVariable(TESForm *form);
+	UInt32 AddVariable(TESForm* form, const char* name);
+	VariableInfo* AddVariable(const char* name, UInt8 type);
+
 	void CleanupVariables(void);
 
 	UInt32 Type() const { return info.type; }

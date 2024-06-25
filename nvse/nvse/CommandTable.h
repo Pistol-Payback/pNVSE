@@ -115,7 +115,7 @@ struct ParamInfo
 
 #define USE_EXTRACT_ARGS_EX NVSE_CORE
 
-#define COMMAND_ARGS		ParamInfo * paramInfo, void * scriptData, TESObjectREFR * thisObj, TESObjectREFR * containingObj, Script * scriptObj, ScriptEventList * eventList, double * result, UInt32 * opcodeOffsetPtr
+#define COMMAND_ARGS		ParamInfo *paramInfo, void *scriptData, TESObjectREFR *thisObj, TESObjectREFR *containingObj, Script *scriptObj, ScriptEventList *eventList, double *result, UInt32 *opcodeOffsetPtr
 #define COMMAND_ARGS_EX		ParamInfo *paramInfo, void *scriptData, UInt32 *opcodeOffsetPtr, Script *scriptObj, ScriptEventList *eventList
 #define PASS_COMMAND_ARGS	paramInfo, scriptData, thisObj, containingObj, scriptObj, eventList, result, opcodeOffsetPtr
 #define COMMAND_ARGS_EVAL	TESObjectREFR * thisObj, void * arg1, void * arg2, double * result
@@ -173,10 +173,10 @@ struct ParamInfo
 	DEFINE_CMD_FULL(name, altName, description, refRequired, (paramInfo) ? (sizeof(paramInfo) / sizeof(ParamInfo)) : 0, paramInfo, NULL)
 
 #define DEFINE_COMMAND_PLUGIN_EXP(name, description, refRequired, paramInfo) \
-	DEFINE_CMD_FULL(name, , description, refRequired, (paramInfo) ? (sizeof(paramInfo) / sizeof(ParamInfo)) : 0, paramInfo, Cmd_Expression_Plugin_Parse)
+	DEFINE_CMD_FULL(name, , description, refRequired, (sizeof(paramInfo) / sizeof(ParamInfo)), reinterpret_cast<const ParamInfo*>(paramInfo), Cmd_Expression_Plugin_Parse)
 
 #define DEFINE_COMMAND_ALT_PLUGIN_EXP(name, altName, description, refRequired, paramInfo) \
-	DEFINE_CMD_FULL(name, altName, description, refRequired, (paramInfo) ? (sizeof(paramInfo) / sizeof(ParamInfo)) : 0, paramInfo, Cmd_Expression_Plugin_Parse)
+	DEFINE_CMD_FULL(name, altName, description, refRequired, (sizeof(paramInfo) / sizeof(ParamInfo)), reinterpret_cast<const ParamInfo*>(paramInfo), Cmd_Expression_Plugin_Parse)
 
 // for commands which can be used as conditionals
 #define DEFINE_CMD_ALT_COND_ANY(name, altName, description, refRequired, paramInfo, parser) \
@@ -229,13 +229,13 @@ bool Cmd_Default_Eval(COMMAND_ARGS_EVAL);
 
 struct CommandInfo
 {
-	const char	* longName;		// 00
-	const char	* shortName;	// 04
+	const char* longName;		// 00
+	const char* shortName;	// 04
 	UInt32		opcode;			// 08
-	const char	* helpText;		// 0C
+	const char* helpText;		// 0C
 	UInt16		needsParent;	// 10
 	UInt16		numParams;		// 12
-	ParamInfo	* params;		// 14
+	const ParamInfo* params;	// 14
 
 	// handlers
 	Cmd_Execute	execute;		// 18

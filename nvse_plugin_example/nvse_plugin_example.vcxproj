@@ -185,7 +185,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ForcedIncludeFiles>nvse/prefix.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <ModuleDefinitionFile>exports.def</ModuleDefinitionFile>
@@ -330,6 +330,12 @@
     <ClCompile Include="..\nvse\nvse\Utilities.cpp" />
     <ClCompile Include="..\nvse\nvse\utility.cpp" />
     <ClCompile Include="Actor_Ext.cpp" />
+    <ClCompile Include="AuxVars.cpp" />
+    <ClCompile Include="Base_Ext.cpp" />
+    <ClCompile Include="DevkitListFunctions.cpp" />
+    <ClCompile Include="KitInfoFunctions.cpp" />
+    <ClCompile Include="ScriptConverter.cpp" />
+    <ClCompile Include="General.cpp" />
     <ClCompile Include="dllmain.c">
       <ForcedIncludeFiles Condition="'$(Configuration)|$(Platform)'=='Debug ng|Win32'">
       </ForcedIncludeFiles>
@@ -347,6 +353,10 @@
     <ClCompile Include="EventHandlers.cpp" />
     <ClCompile Include="game_types.cpp" />
     <ClCompile Include="InventoryRef.cpp" />
+    <ClCompile Include="DevkitCompiler.cpp" />
+    <ClCompile Include="ScriptFunctions.cpp" />
+    <ClCompile Include="WeaponModFunctions.cpp" />
+    <ClCompile Include="KitLoader.cpp" />
     <ClCompile Include="Link_kNVSE.cpp" />
     <ClCompile Include="L1_Load.cpp" />
     <ClCompile Include="L3_SaveHooks.cpp" />
@@ -357,10 +367,12 @@
     <ClCompile Include="ScrappedFunctions.cpp" />
     <ClCompile Include="TESForm_Ext.cpp" />
     <ClCompile Include="TESObjectREFR_Ext.cpp" />
+    <ClCompile Include="WeaponFunctions.cpp" />
     <ClCompile Include="WeaponSmith.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\NVSE\nvse\nvse\ParamInfos.h" />
+    <ClInclude Include="..\nvse\nvse\Commands_Script.h" />
     <ClInclude Include="..\nvse\nvse\CommandTable.h" />
     <ClInclude Include="..\nvse\nvse\containers.h" />
     <ClInclude Include="..\nvse\nvse\GameAPI.h" />
@@ -380,11 +392,13 @@
     <ClInclude Include="..\nvse\nvse\GameTypes.h" />
     <ClInclude Include="..\nvse\nvse\GameUI.h" />
     <ClInclude Include="..\nvse\nvse\InventoryReference.h" />
+    <ClInclude Include="..\nvse\nvse\ParamInfosNVSE.h" />
     <ClInclude Include="..\nvse\nvse\PluginAPI.h" />
     <ClInclude Include="..\nvse\nvse\SafeWrite.h" />
     <ClInclude Include="..\nvse\nvse\Utilities.h" />
     <ClInclude Include="..\nvse\nvse\utility.h" />
     <ClInclude Include="Actor_Ext.h" />
+    <ClInclude Include="AuxVars.h" />
     <ClInclude Include="Base_Ext.h" />
     <ClInclude Include="class_vtbls.h" />
     <ClInclude Include="commands_animation.h" />
@@ -392,9 +406,12 @@
     <ClInclude Include="game_types.h" />
     <ClInclude Include="Initializers.h" />
     <ClInclude Include="InventoryRef.h" />
+    <ClInclude Include="DevkitCompiler.h" />
+    <ClInclude Include="KitLoader.h" />
     <ClInclude Include="ppNVSE.h" />
     <ClInclude Include="ppNVSE_Functions.h" />
     <ClInclude Include="SaveSystem.h" />
+    <ClInclude Include="ScriptConverter.h" />
     <ClInclude Include="TestHooks.h" />
     <ClInclude Include="WS_Funct.h" />
     <ClInclude Include="WeaponSmith.h" />

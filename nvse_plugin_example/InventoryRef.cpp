@@ -50,3 +50,45 @@
 
 
 	}
+
+	ContChangesEntry* __fastcall InventoryRef::GetHotkeyItemEntry(UInt8 index, ExtraDataList * *outXData)
+	{
+		if (ContChangesEntryList* entryList = (*g_thePlayer)->GetContainerChangesList())
+		{
+			auto entryIter = entryList->Head();
+			do
+			{
+				if (ContChangesEntry* entry = entryIter->data; entry && entry->extendData && ((entry->type->typeID == kFormType_TESObjectARMO) ||
+					(entry->type->typeID == kFormType_TESObjectWEAP) || (entry->type->typeID == kFormType_AlchemyItem)))
+				{
+					auto xdlIter = entry->extendData->Head();
+					do
+					{
+						if (xdlIter->data)
+							if (ExtraHotkey* xHotkey = GetExtraType(xdlIter->data, ExtraHotkey); xHotkey && (xHotkey->index == index))
+							{
+								*outXData = xdlIter->data;
+								return entry;
+							}
+					} while (xdlIter = xdlIter->next);
+				}
+			} while (entryIter = entryIter->next);
+		}
+		return nullptr;
+	}
+
+	bool __fastcall InventoryRef::ClearHotkey(UInt8 index)
+	{
+		ExtraDataList* xData;
+		if (ContChangesEntry* entry = GetHotkeyItemEntry(index, &xData))
+		{
+			xData->RemoveByType(kXData_ExtraHotkey);
+			if (!xData->m_data)
+			{
+				entry->extendData->Remove(xData);
+				Game_HeapFree(xData);
+			}
+			return true;
+		}
+		return false;
+	}

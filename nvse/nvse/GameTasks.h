@@ -453,4 +453,7 @@ public:
 	static ModelLoader* GetSingleton();
 
 	void QueueReference(TESObjectREFR* refr, UInt32 arg1, bool ifInMainThread);
+
+	NiNode* LoadFile(const char* apPath, UInt32 aeLODFadeMult, bool abAssignShaders, int unused, bool abKeepUV, bool abNoRefCountIncrease);
+
 };

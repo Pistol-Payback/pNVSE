@@ -553,6 +553,42 @@ UInt32 Script::AddVariable(TESForm *form)
 	return info.numRefs;
 }
 
+UInt32 Script::AddVariable(TESForm* form, const char* name)
+{
+	RefVariable* var = static_cast<RefVariable*>(FormHeap_Allocate(sizeof(RefVariable)));	//This might not be alocating correctly.
+
+	var->name.m_data = 0;
+	var->name.m_bufLen = 0;
+	var->name.m_dataLen = 0;
+
+	var->name.Set(name);
+	var->form = form;
+
+	++info.numRefs;
+	var->varIdx = 0;
+
+	refList.Append(var);
+	return info.numRefs;
+}
+
+VariableInfo* Script::AddVariable(const char* name, UInt8 type)
+{
+	auto* var = static_cast<VariableInfo*>(FormHeap_Allocate(sizeof(VariableInfo)));
+
+	var->name.m_data = 0;
+	var->name.m_bufLen = 0;
+	var->name.m_dataLen = 0;
+
+	var->name.Set(name);
+	var->type = type;
+
+	++info.varCount;
+	var->idx = info.varCount;
+
+	varList.Append(var);
+	return var;
+}
+
 void Script::CleanupVariables(void)
 {
 	refList.DeleteAll();

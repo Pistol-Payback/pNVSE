@@ -222,11 +222,26 @@ public:
 	virtual bool	CompareKey(UInt32 lhs, UInt32 rhs);
 	virtual void	Fn_03(UInt32 arg0, UInt32 arg1, UInt32 arg2);	// assign to entry
 	virtual void	Fn_04(UInt32 arg);
-	virtual void	Fn_05(void);	// locked operations
-	virtual void	Fn_06(void);	// locked operations
+	virtual Entry*	AllocNewEntry(void);	// locked operations
+	virtual void	FreeEntry(Entry*);	// locked operations
 
 	T_Data *	Lookup(UInt32 key);
 	bool		Insert(Entry* nuEntry);
+	const Iterator Begin() const { return Iterator((NiTPointerMap<T_Data>*)this); }
+
+	// use the vtable method for getting next bucket
+	Entry* GetNextFreeEntryAlt(Entry* entry)
+	{
+		if (entry->next) return entry->next;
+		for (UInt32 i = this->CalculateBucket(entry->key) + 1; i < m_numBuckets; ++i)
+		{
+			if (m_buckets[i])
+			{
+				return m_buckets[i];
+			}
+		}
+		return nullptr;
+	}
 
 //	void	** _vtbl;		// 0
 	UInt32	m_numBuckets;	// 4
@@ -350,7 +365,8 @@ public:
 	virtual UInt32						Hash(T_Key key);								// 001
 	virtual void						Equal(T_Key key1, T_Key key2);					// 002
 	virtual void						FillEntry(Entry entry, T_Key key, T_Data data);	// 003
-	virtual	void						Unk_004(void * arg0);							// 004
+	//virtual	void						Unk_004(void * arg0);							// 004
+	virtual void						FreeEntry(Entry*);	// locked operations
 	virtual	void						Unk_005(void);									// 005
 	virtual	void						Unk_006();										// 006
 
@@ -358,6 +374,47 @@ public:
 	UInt32	numBuckets;	// 4
 	Entry	** buckets;	// 8
 	UInt32	numItems;	// C
+
+	T_Data Lookup(UInt32 key) const
+	{
+		for (Entry* traverse = buckets[key % numBuckets]; traverse; traverse = traverse->next)
+			if (traverse->key == key) return traverse->data;
+		return NULL;
+	}
+
+	class Iterator
+	{
+		NiTMapBase* table;
+		Entry** bucket;
+		Entry* entry;
+
+		void FindNonEmpty()
+		{
+			for (Entry** end = &table->buckets[table->numBuckets]; bucket != end; bucket++)
+				if (entry = *bucket) break;
+		}
+
+	public:
+		Iterator(NiTMapBase& _table) : table(&_table), bucket(table->buckets), entry(nullptr) { FindNonEmpty(); }
+
+		explicit operator bool() const { return entry != nullptr; }
+		void operator++()
+		{
+			entry = entry->next;
+			if (!entry)
+			{
+				bucket++;
+				FindNonEmpty();
+			}
+		}
+		T_Data Get() const { return entry->data; }
+		T_Key Key() const { return entry->key; }
+	};
+
+	Iterator Begin() { return Iterator(*this); }
+
+	Entry* Get(T_Key key);
+
 #if RUNTIME
 	DEFINE_MEMBER_FN_LONG(NiTMapBase, Lookup, bool, _NiTMap_Lookup, T_Key key, T_Data * dataOut);
 #endif

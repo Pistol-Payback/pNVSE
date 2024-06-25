@@ -171,7 +171,7 @@ public:
 		return CdeclCall<TESObjectREFR*>(0x5C4B30, this, form, count, distance, direction, health);
 	}
 
-	Instance_WEAP* GetWeaponBase();
+	Instance* GetWeaponBase();
 	UInt8 GetWeaponModFlags();
 	void SetWeaponModFlags(UInt8);
 
@@ -564,7 +564,7 @@ public:
 	void UnequipItem(TESForm* objType, UInt32 unequipCount = 1, ExtraDataList* itemExtraList = NULL, UInt32 unk3 = 1, bool lockEquip = false, UInt32 playSound = 1);
 
 	EquippedItemsList	GetEquippedItems();
-	void EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip = 0, UInt32 noMessage = 1);
+	void EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip = 0, UInt32 noMessage = 1, bool playsound = 0);
 	ExtraContainerDataArray	GetEquippedEntryDataList();
 	ExtraContainerExtendDataArray GetEquippedExtendDataList();
 
@@ -572,11 +572,12 @@ public:
 
 	bool SilentUnequip(TESForm* item, ExtraDataList* xData);
 	bool SilentEquip(TESForm* item, ExtraDataList* xData);
-
+	bool SilentEquip(ContChangesEntry* entry);
+	
 	bool QueueToSkipGroup(UInt16 AnimGroupID);	//Skips the next animation matching the AnimGroupID.
-	bool QueueToSkipAnimation();				//Skips the animation that's currently running in gamemode.
+	//bool QueueToSkipAnimation();				//Skips the animation that's currently running in gamemode.
 
-	bool ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count, bool copy);
+	TESObjectREFR* ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count, bool copy);
 
 	// Copied from JIP.
 	TESObjectWEAP* GetEquippedWeapon() const;

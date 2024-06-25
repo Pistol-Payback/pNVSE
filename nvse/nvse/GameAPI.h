@@ -152,6 +152,7 @@ struct ScriptEventList
 		kEvent_OnActorEquip = kEvent_OnEquip, // presumably the game checks the type of the object
 								              // 0x88C8A5, 0x88C8BC, 0x88CF32, 0x88D25B, 0x88D272, 0x88D10A
 											  // 0x8C1E5F, 0x8C1E76
+
 		kEvent_OnDrop = 0x00000004,			  // 0x57510E, 0x4C41DC, 0x4C42B2
 		kEvent_OnUnequip = 0x00000008,		  // 0x88E162, 0x88E179, 0x5753C9
 		kEvent_OnActorUnequip = kEvent_OnUnequip,
@@ -572,6 +573,12 @@ class BGSLoadGameBuffer
 	char *chunk;		  // 004
 	UInt32 chunkSize;	  // 008
 	UInt32 chunkConsumed; // 00C
+
+	__forceinline static void DecodeRefID(UInt32* pRefID)
+	{
+		*pRefID = ThisCall<UInt32>(0x853500, pRefID);
+	}
+
 };
 
 struct BGSFormChange
@@ -582,12 +589,15 @@ struct BGSFormChange
 
 struct BGSSaveLoadChangesMap
 {
-	NiTPointerMap<BGSFormChange> BGSFormChangeMap;
+	//NiTPointerMap<BGSFormChange> BGSFormChangeMap;
+	NiTMapBase<UInt32, BGSFormChange*> BGSFormChangeMap;
+	NiTMapBase<UInt32, BGSFormChange*> BGSFormChangeMap10;
+	NiTMapBase<UInt32, BGSFormChange*> BGSFormChangeMap20;
 	// most likely more
 };
 
 // 030
-class BGSLoadFormBuffer : public BGSLoadGameBuffer
+struct BGSLoadFormBuffer : public BGSLoadGameBuffer
 {
 	BGSLoadFormBuffer();
 	~BGSLoadFormBuffer();
@@ -671,8 +681,9 @@ public:
 
 	MEMBER_FN_PREFIX(TESSaveLoadGame);
 #if RUNTIME
-	DEFINE_MEMBER_FN(AddCreatedForm, UInt32, 0x00861780, TESForm *pForm);
+	DEFINE_MEMBER_FN(AddCreatedForm, UInt32, 0x00861780, TESForm *pForm); //AddCreatedForm
 #endif
+
 };
 
 #if RUNTIME
@@ -705,9 +716,9 @@ public:
 	typedef UInt32 IndexRefID;
 	struct RefIDIndexMapping // reversible map between refID and loaded form index
 	{
-		NiTMap<RefID, IndexRefID> *map000; // 000
-		NiTMap<IndexRefID, RefID> *map010; // 010
-		UInt32 countRefID;				   // 020
+		NiTMapBase<RefID, IndexRefID>	refIDToIndex;	// 000
+		NiTMapBase<IndexRefID, RefID>	indexToRefID;	// 010
+		UInt32			            countRefID;	// 020
 	};
 
 	struct SaveChapters // 06E	chapter table in save
@@ -734,23 +745,26 @@ public:
 	RefIDIndexMapping *refIDmapping;					 // 008
 	RefIDIndexMapping *visitedWorldspaces;				 // 00C
 	BGSSaveLoadReferencesMap *referencesMap;			 // 010
-	NiTMap<TESForm *, BGSLoadGameSubBuffer> *maps014; // 014	0 = changed Animations, 2 = changed Havok Move
-	NiTMap<UInt32, UInt32> *map018;						 // 018
-	BSSimpleArray<char *> *strings;						 // 01C
-	BGSReconstructFormsInAllFilesMap *rfiafMap;			 // 020
-	BSSimpleArray<BGSLoadFormBuffer *> changedForms;	 // 024
-	NiTPointerMap<Actor *> map0034;						 // 034 Either dead or not dead actors
+
+	NiTMap<TESForm *, BGSLoadGameSubBuffer> * QueuedSubBuffersMap; // 014	0 = changed Animations, 2 = changed Havok Move
+	NiTMap<UInt32, UInt32> * ChangedFormIDMap;			// 018
+	BSSimpleArray<char *> * saveGameHistory;			// 01C
+
+	BGSReconstructFormsInAllFilesMap *rfiafMap;			// 020
+	BSSimpleArray<BGSLoadFormBuffer*> changedForms;		// 024
+	NiTPointerMap<Actor *> PackageQueue;				// 034 Either dead or not dead actors
+
 	UInt8 saveMods[255];								 // 044
 	UInt8 loadedMods[255];								 // 143
 
-	UInt16 pad242;	   // 242
-	UInt32 flg244;	   // 244 bit 6 block updating player position/rotation from save, bit 2 set during save
-	UInt8 formVersion; // 248
-	UInt8 pad249[3];   // 249
+	UInt16 pad242;			// 242
+	UInt32 iGlobalFlags;	// 244 bit 6 block updating player position/rotation from save, bit 2 set during save
+	UInt8 formVersion;		// 248
+	UInt8 pad249[3];		// 249
 
 	__forceinline static BGSSaveLoadGame* GetSingleton() { return *(BGSSaveLoadGame**)0x11DDF38; }
 
-	inline bool IsLoading() const { return (flg244 & 2) != 0; }
+	inline bool IsLoading() const { return (iGlobalFlags & 2) != 0; }
 
 	UInt32 __fastcall EncodeRefID(UInt32* pRefID);
 	UInt32 __fastcall DecodeRefID(UInt32* pRefID);

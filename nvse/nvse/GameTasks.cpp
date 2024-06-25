@@ -62,6 +62,10 @@ void ModelLoader::QueueReference(TESObjectREFR* refr, UInt32 arg1, bool ifInMain
 	ThisStdCall(kModelLoader_QueueReference, this, refr, arg1, (UInt32)ifInMainThread);	// arg1 is encoded based on the parent cell and arg2 is most likely a boolean
 }
 
+NiNode* ModelLoader::LoadFile(const char* apPath, UInt32 aeLODFadeMult, bool abAssignShaders, int unused, bool abKeepUV, bool abNoRefCountIncrease) {
+	return ThisStdCall<NiNode*>(0x447080, this, apPath, aeLODFadeMult, abAssignShaders, unused, abKeepUV, abNoRefCountIncrease);
+}
+
 UInt32* BSTask::GetCounterSingleton()
 {
 	return kBSTaskCounter;

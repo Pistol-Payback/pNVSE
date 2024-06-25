@@ -309,14 +309,14 @@ __declspec(naked) NiNode* __fastcall TESObjectREFR::GetNode(const char* nodeName
 	}
 }
 
-void Actor::EquipItem(TESForm * objType, UInt32 equipCount, ExtraDataList* itemExtraList, UInt32 unk3, bool lockEquip, UInt32 playsound)
+void Actor::EquipItem(TESForm * objType, UInt32 equipCount, ExtraDataList* itemExtraList, UInt32 noMessage, bool lockEquip, UInt32 playsound)
 {
-	ThisStdCall(s_Actor_EquipItem, this, objType, equipCount, itemExtraList, unk3, lockEquip, playsound);
+	ThisStdCall(s_Actor_EquipItem, this, objType, equipCount, itemExtraList, noMessage, lockEquip, playsound);
 }
 
-void Actor::UnequipItem(TESForm* objType, UInt32 unk1, ExtraDataList* itemExtraList, UInt32 unk3, bool lockUnequip, UInt32 playsound)
+void Actor::UnequipItem(TESForm* objType, UInt32 unk1, ExtraDataList* itemExtraList, UInt32 noMessage, bool lockUnequip, UInt32 playsound)
 {
-	ThisStdCall(s_Actor_UnequipItem, this, objType, unk1, itemExtraList, unk3, lockUnequip, playsound);
+	ThisStdCall(s_Actor_UnequipItem, this, objType, unk1, itemExtraList, noMessage, lockUnequip, playsound);
 }
 
 EquippedItemsList Actor::GetEquippedItems()
@@ -472,59 +472,30 @@ __declspec(naked) void __fastcall ShowItemMessage(TESForm* item, const char* msg
 	}
 }
 
-__declspec(naked) void Actor::EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip, UInt32 noMessage)
-{
-	__asm
-	{
-		push	ebp
-		mov		ebp, esp
-		push	ecx
-		mov		ecx, [ebp + 8]
-		mov		eax, [ecx + 8]
-		push	eax
-		mov		ecx, 1
-		mov		dl, [eax + 4]
-		cmp		dl, kFormType_TESObjectARMO
-		jz		doneType
-		cmp		dl, kFormType_TESObjectBOOK
-		jz		doneType
-		cmp		dl, kFormType_AlchemyItem
-		jz		doneType
-		cmp		dl, kFormType_TESAmmo
-		jz		countMax
-		cmp		dl, kFormType_TESObjectWEAP
-		jnz		done
-		cmp		byte ptr[eax + 0xF4], 0xA
-		jb		doneType
-	countMax :
-		xor ecx, ecx
-	doneType :
-		push	1
-		push	dword ptr[ebp + 0xC]
-		push	1
-		mov		eax, [ebp + 8]
-		mov		edx, [eax]
-		test	edx, edx
-		jz		noExtra
-		mov		edx, [edx]
-		noExtra:
-		push	edx
-		mov		edx, [eax + 4]
-		test	ecx, ecx
-		cmovz	ecx, edx
-		push	ecx
-		push	dword ptr[ebp - 8]
-		mov		ecx, [ebp - 4]
-		CALL_EAX(0x88C650)
-		cmp		byte ptr[ebp + 0x10], 0
-		jnz		done
-		mov		edx, ds:0x11D2A10
-		mov		ecx, [ebp - 8]
-		call	ShowItemMessage
-	done :
-		leave
-		retn	0xC
+void Actor::EquipItemAlt(ContChangesEntry* entry, UInt32 noUnequip, UInt32 noMessage, bool playsound) {
+
+	if (!entry || !entry->type) return;
+
+	TESForm* form = entry->type;
+	SInt32 countDelta = 1;
+	UInt32 typeID = form->typeID;
+
+	ExtraDataList* xData = nullptr;
+
+	if (entry->extendData) {
+
+		xData = entry->extendData->m_listHead.data;
+		countDelta = entry->countDelta;
+
 	}
+
+	this->EquipItem(form, countDelta, xData, 1, noUnequip, playsound);
+
+	if (!noMessage) {
+		const char* messageAddress = reinterpret_cast<const char*>(0x11D2A10);
+		ShowItemMessage(form, messageAddress);
+	}
+
 }
 
 const bool kInventoryType[] =
@@ -533,7 +504,79 @@ const bool kInventoryType[] =
 	1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0
 };
+/*
+// Assuming the function prototypes based on your provided information
+using InitializeContainerFn = void (*)(void* container);
+using ProcessItemFn = void (*)(void* container, TESForm* form, uint32_t count, uint32_t flag);
+using GetLeveledItemFn = TESForm * (*)(TESObjectREFR* refr, bool someFlag);
+using UnknownFunction = int (*)(TESObjectREFR* refr);
+using GetContainerChangesListFn = ExtraContainerChanges::EntryDataList* (*)(TESObjectREFR* refr);
+using ProcessActor = void (*)(Actor* actor, ExtraContainerChanges::EntryData* entryData, uint32_t unknown, uint32_t noMessage);
 
+// Pointers to functions
+InitializeContainerFn InitializeContainer = reinterpret_cast<InitializeContainerFn>(0x481610);
+ProcessItemFn ProcessForm = reinterpret_cast<ProcessItemFn>(0x4818E0);
+GetLeveledItemFn GetLeveledItem = reinterpret_cast<GetLeveledItemFn>(0x567E10);
+UnknownFunction unknown = reinterpret_cast<UnknownFunction>(0x481680);
+GetContainerChangesListFn GetContainerChangesListFns = reinterpret_cast<GetContainerChangesListFn>(0x4821A0);
+ProcessActor ProccessActor = reinterpret_cast<ProcessActor>(0x487F70);
+
+void TESObjectREFR::AddItemAlt(TESForm* form, UInt32 count, float condition, UInt32 doEquip, UInt32 noMessage) {
+
+	char localContainer[16]; // Assuming you need a local buffer similar to the `sub esp, 0x10`
+	InitializeContainer(localContainer);
+
+	UInt8 typeID = form->typeID;
+	if (typeID == kFormType_TESLevItem) {
+
+		TESForm* item = GetLeveledItem(this, false);
+		ProccessActor(static_cast<Actor*>(this), reinterpret_cast<ExtraContainerChanges::EntryData*>(item), count, noMessage);
+
+	}
+	else if (typeID == kFormType_BGSListForm) {
+
+		BGSListForm* bgsListForm = static_cast<BGSListForm*>(form);
+
+		for (auto it = bgsListForm->list.begin(); it != bgsListForm->list.end(); ++it) {
+
+			TESForm* currentItem = *it;
+			if (kInventoryType[currentItem->typeID]) {
+				ProcessForm(localContainer, currentItem, count, 0);
+			}
+
+		}
+
+	}
+	else {
+
+		if (!kInventoryType[typeID]) {
+			return;
+		}
+		ProcessForm(localContainer, form, count, 0);
+
+	}
+
+	SetContainerItemsHealthHook((TESContainer*)form, 0, condition);
+	auto entryList = GetContainerChangesListFns(this);
+
+	if (doEquip) {
+
+		if (entryList) {
+			
+			for (auto iter = entryList->Begin(); !iter.End(); ++iter) {
+
+				auto entry = iter.Get();
+
+				auto entryData = entryList->FindForItem(entry->type);
+				if (entryData) {
+					static_cast<Actor*>(this)->EquipItemAlt(entryData, 0, noMessage);
+				}
+			}
+		}
+	}
+
+}
+*/
 __declspec(naked) void TESObjectREFR::AddItemAlt(TESForm* form, UInt32 count, float condition, UInt32 doEquip, UInt32 noMessage)
 {
 	__asm
@@ -559,85 +602,85 @@ __declspec(naked) void TESObjectREFR::AddItemAlt(TESForm* form, UInt32 count, fl
 		lea		ecx, [ebp - 0x10]
 		CALL_EAX(0x4818E0)
 		jmp		doMove
-	lvlItem :
+		lvlItem :
 		push	0
-		mov		ecx, [ebp - 4]
-		CALL_EAX(0x567E10)
-		push	0
-		lea		ecx, [ebp - 0x10]
-		push	ecx
-		push	dword ptr[ebp + 0xC]
-		push	eax
-		mov		ecx, [ebp + 8]
-		add		ecx, 0x30
-		CALL_EAX(0x487F70)
-		jmp		doMove
-	itemList :
+			mov		ecx, [ebp - 4]
+			CALL_EAX(0x567E10)
+			push	0
+			lea		ecx, [ebp - 0x10]
+			push	ecx
+			push	dword ptr[ebp + 0xC]
+			push	eax
+			mov		ecx, [ebp + 8]
+			add		ecx, 0x30
+			CALL_EAX(0x487F70)
+			jmp		doMove
+			itemList :
 		mov		esi, [ebp + 8]
-		add		esi, 0x18
-		ALIGN 16
-	listIter :
-		test	esi, esi
-		jz		doMove
-		mov		ecx, [esi]
-		mov		esi, [esi + 4]
-		test	ecx, ecx
-		jz		listIter
-		movzx	eax, byte ptr[ecx + 4]
-		cmp		kInventoryType[eax], 0
-		jz		listIter
-		push	0
-		push	dword ptr[ebp + 0xC]
-		push	ecx
-		lea		ecx, [ebp - 0x10]
-		CALL_EAX(0x4818E0)
-		jmp		listIter
-		ALIGN 16
-	doMove:
+			add		esi, 0x18
+			ALIGN 16
+			listIter :
+			test	esi, esi
+			jz		doMove
+			mov		ecx, [esi]
+			mov		esi, [esi + 4]
+			test	ecx, ecx
+			jz		listIter
+			movzx	eax, byte ptr[ecx + 4]
+			cmp		kInventoryType[eax], 0
+			jz		listIter
+			push	0
+			push	dword ptr[ebp + 0xC]
+			push	ecx
+			lea		ecx, [ebp - 0x10]
+			CALL_EAX(0x4818E0)
+			jmp		listIter
+			ALIGN 16
+			doMove:
 		push	dword ptr[ebp + 0x10]
-		lea		ecx, [ebp - 0x10]
-		call	SetContainerItemsHealthHook
-		push	dword ptr[ebp + 0x18]
-		push	dword ptr[ebp - 4]
-		lea		ecx, [ebp - 0x10]
-		CALL_EAX(0x4821A0)
-		cmp		byte ptr[ebp + 0x14], 0
-		jz		done
-		mov		ecx, [ebp - 4]
-		mov		eax, [ecx]
-		cmp		dword ptr[eax + 0x100], 0x8D0360
-		jnz		done
-		call	TESObjectREFR::GetContainerChangesList
-		test	eax, eax
-		jz		done
-		mov[ebp - 0x14], eax
-		lea		esi, [ebp - 0xC]
-		ALIGN 16
-		eqpIter:
+			lea		ecx, [ebp - 0x10]
+			call	SetContainerItemsHealthHook
+			push	dword ptr[ebp + 0x18]
+			push	dword ptr[ebp - 4]
+			lea		ecx, [ebp - 0x10]
+			CALL_EAX(0x4821A0)
+			cmp		byte ptr[ebp + 0x14], 0
+			jz		done
+			mov		ecx, [ebp - 4]
+			mov		eax, [ecx]
+			cmp		dword ptr[eax + 0x100], 0x8D0360
+			jnz		done
+			call	TESObjectREFR::GetContainerChangesList
+			test	eax, eax
+			jz		done
+			mov[ebp - 0x14], eax
+			lea		esi, [ebp - 0xC]
+			ALIGN 16
+			eqpIter:
 		test	esi, esi
-		jz		done
-		mov		eax, [esi]
-		mov		esi, [esi + 4]
-		test	eax, eax
-		jz		eqpIter
-		mov		edx, [eax + 4]
-		mov		ecx, [ebp - 0x14]
-		call	ContChangesEntryList::FindForItem
-		test	eax, eax
-		jz		eqpIter
-		push	dword ptr[ebp + 0x18]
-		push	0
-		push	eax
-		mov		ecx, [ebp - 4]
-		call	Actor::EquipItemAlt
-		jmp		eqpIter
-		ALIGN 16
-	done:
+			jz		done
+			mov		eax, [esi]
+			mov		esi, [esi + 4]
+			test	eax, eax
+			jz		eqpIter
+			mov		edx, [eax + 4]
+			mov		ecx, [ebp - 0x14]
+			call	ContChangesEntryList::EntryDataList::FindForItem
+			test	eax, eax
+			jz		eqpIter
+			push	dword ptr[ebp + 0x18]
+			push	0
+			push	eax
+			mov		ecx, [ebp - 4]
+			call	Actor::EquipItemAlt
+			jmp		eqpIter
+			ALIGN 16
+			done:
 		lea		ecx, [ebp - 0x10]
-		CALL_EAX(0x481680)
-		pop		esi
-		leave
-		retn	0x14
+			CALL_EAX(0x481680)
+			pop		esi
+			leave
+			retn	0x14
 	}
 }
 
@@ -689,6 +732,7 @@ __declspec(naked) ContChangesEntry* TESObjectREFR::GetContainerChangesEntry(TESF
 		retn	4
 	}
 }
+
 bool TESObjectREFR::GetInventoryItems(InventoryItemsMap &invItems)
 {
 	TESContainer *container = GetContainer();

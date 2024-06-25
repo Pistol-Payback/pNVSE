@@ -294,9 +294,9 @@ public:
 	virtual void	Unk_56(void);
 	virtual void	Unk_57(void);
 	/*160*/virtual void		Unk_58(ContChangesEntry* _weapInfo, NiNode* rootNode, bool arg3);
-	virtual void	Unk_59(void);
-	virtual void	UpdateAmmoInfo(AmmoInfo*);
-	virtual void	Unk_5B(void);
+	/*164*/virtual void		Unk_59(void);
+	/*168*/virtual void		SetAmmoInfo(ContChangesEntry* _ammoInfo);
+	/*16C*/virtual void		Unk_5B(void);
 	/*170*/virtual void		HandleQueuedEquipItems(Actor* actor);
 	/*174*/virtual bool		IsItemQueued(TESForm* item, ExtraDataList* xDataList, bool doEquip);
 	/*178*/virtual void		QueueEquipItem(Actor* actor, bool doEquip, TESForm* item, UInt32 count, ExtraDataList* xDataList, bool applyEnchantment, bool noUnequip, bool removeEnchantment, UInt8 arg9, bool playSound);

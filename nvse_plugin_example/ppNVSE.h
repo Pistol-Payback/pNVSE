@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <iostream>
+#include <unordered_set>
 
 #include "ParamInfos.h"
 
@@ -9,11 +11,14 @@
 #include "GameUI.h" 
 #include "common/ICriticalSection.h"
 #include "GameData.h"
+#include "AuxVars.h"
 
 using namespace std::literals;
 
 extern ICriticalSection g_Lock;
 extern std::atomic<bool> g_ShowFuncDebug;
+
+extern std::unordered_set<UInt32> DynamicallyCreatedForms;
 
 //NVSE Globals
 extern bool (*ExtractArgsEx)(COMMAND_ARGS_EX, ...);
@@ -34,10 +39,19 @@ extern bool (*AssignString)(COMMAND_ARGS, const char* newValue);
 extern const char* (*GetStringVar)(UInt32 stringID);
 extern NVSEMessagingInterface* g_msg;
 extern NVSEScriptInterface* g_scriptInterface;
-extern NVSECommandTableInterface* g_commandInterface;
+
+extern NVSECommandTableInterface g_cmdTableInterface;
+
 extern const CommandInfo* (*GetCmdByName)(const char* name);
+
 extern bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 extern bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
+extern Script* (*pCompileScript)(const char* scriptText);
+
+template <class T>
+T LookupEditorID(const char* edid) {
+	return ((T (__cdecl*)(const char*))(0x483A00))(edid); //LookupEditorID
+}
 
 extern NVSEEventManagerInterface* g_eventInterface;
 
@@ -49,11 +63,6 @@ extern ActorValueOwner* g_playerAVOwner;
 extern InterfaceManager* g_interfaceManager;
 extern DataHandler* g_dataHandler;
 extern TESObjectWEAP* g_fistsWeapon;
-
-//UI
-extern InterfaceManager* g_interfaceManager;
-extern UInt32 s_UpdateCursor;
-extern NiNode* s_pc1stPersonNode, * g_cursorNode;
 
 struct ArrayData
 {
@@ -85,6 +94,7 @@ struct decay_equiv :
 {};
 
 extern TESObjectREFR* DevKitDummyMarker;
+extern TESObjectSTAT* g_1stPersonWeapModel;
 extern void DumpInfoToLog(const std::string& info);
 
 namespace kNVSE {
@@ -99,9 +109,18 @@ struct AuxVarInfo
 {
 	UInt32		ownerID;
 	UInt32		modIndex;
-	char*		varName;
+	char* varName;
 	bool		isPerm;
 };
+
+namespace StringUtils {
+
+	std::string toLowerCase(const std::string& str);
+	char* toLowerCase(const char* str);
+
+	constexpr UInt32 ToUInt32(const char* str);
+
+}
 
 namespace PluginFunctions {
 
@@ -117,7 +136,11 @@ namespace PluginFunctions {
 	extern char* (*AuxVarGetString)(AuxVarInfo* varInfo, SInt32 idx);
 	extern void (*AuxVarSetString)(const char* buffer, AuxVarInfo* varInfo, SInt32 idx);
 
-	extern AuxVarInfo (*CreateAuxVarInfo)(TESForm* form, TESObjectREFR* thisObj, UInt32 modIndex, char* pVarName);
+	extern AuxVarInfo (*CreateAuxVarInfo)(TESForm* form, TESObjectREFR* thisObj, char* pVarName);
 	extern void (*AuxVarErase)(AuxVarInfo* varInfo, SInt32 idx);
 
+	extern void (*SetDescriptionJIP)(TESDescription* description, const char* altText);
+
 }
+
+std::istringstream& getQuotedString(std::istringstream& argStream, std::string& argument);

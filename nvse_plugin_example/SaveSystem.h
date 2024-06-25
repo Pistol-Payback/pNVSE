@@ -68,21 +68,21 @@ namespace SaveSystem {
 	struct SaveDataObj : SaveData{
 
 		SaveDataObj(
-			UInt32 baseRefID = 0,
-			UInt8 instID = 0,
+			StaticInstance* staticInst = nullptr,
+			Instance* inst = nullptr,
 			UInt32 location = 0,
 			ExtraDataList* xData = nullptr
 		) :
-			baseRefID(baseRefID),
-			instID(instID),
+			staticInst(staticInst),
+			inst(inst),
 			location(location),
 			xData(xData)
 		{
 		}
 
 		ExtraDataList* xData;
-		UInt32 baseRefID;
-		UInt8 instID;
+		StaticInstance* staticInst;
+		Instance* inst;
 		UInt32 location;
 
 	};
@@ -90,8 +90,8 @@ namespace SaveSystem {
 	struct SaveDataWorldObj : SaveDataObj {
 
 		SaveDataWorldObj(
-			UInt32 baseRefID = 0,
-			UInt8 instID = 0,
+			StaticInstance* staticInst = nullptr,
+			Instance* inst = nullptr,
 			UInt32 location = 0,
 			ExtraDataList* xData = nullptr,
 			float x = 0,
@@ -101,7 +101,7 @@ namespace SaveSystem {
 			float yR = 0,
 			float zR = 0
 		) :
-			SaveDataObj(baseRefID, instID, location, xData),
+			SaveDataObj(staticInst, inst, location, xData),
 			x(x),
 			y(y),
 			z(z),

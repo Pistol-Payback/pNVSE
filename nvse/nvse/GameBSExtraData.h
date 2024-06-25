@@ -186,6 +186,7 @@ public:
 	UInt8		type;		// 004
 	UInt8		pad[3];		// 005
 	BSExtraData	* next;		// 008
+
 };
 
 // 020
@@ -232,6 +233,11 @@ struct BaseExtraList
 		ThisStdCall(0x411EC0, this, from);
 	}
 
+	__forceinline void CopyFrom(const BaseExtraList* sourceList, bool bCopyAndRemove)
+	{
+		ThisCall(0x412490, this, sourceList, bCopyAndRemove);
+	}
+
 	void DebugDump() const;
 
 	bool IsWorn();
@@ -250,6 +256,11 @@ struct ExtraDataList : public BaseExtraList
 	ExtraDataList* CreateCopy(bool bCopyAndRemove = false);
 	static ExtraDataList * Create(BSExtraData* xBSData = NULL);
 	ExtraCount* AddExtraCount(SInt32 count);
+
+	bool ContainsMatch(ExtraDataList* xCompare, bool doFree = false);
+	bool ContainsMatch(BSExtraData* xCompare, bool doFree = false);
+	static ExtraDataList* CopyItemData(ExtraDataList* xCopyFrom, bool doFree, ExtraDataList* xCopyTo = nullptr);
+
 };
 
 STATIC_ASSERT(offsetof(BaseExtraList, m_presenceBitfield) == 0x008);

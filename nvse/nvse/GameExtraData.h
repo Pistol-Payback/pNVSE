@@ -322,7 +322,7 @@ public:
 	ExtraContainerChanges();
 	virtual ~ExtraContainerChanges();
 
-	class ExtendDataList: public tList<ExtraDataList>
+	class ExtendDataList: public tList<ExtraDataList>	//List of extra data
 	{
 	public:
 		SInt32 AddAt(ExtraDataList* item, SInt32 index);
@@ -552,7 +552,8 @@ public:
 	virtual ~ExtraHealth();
 	float health;
 
-	static ExtraHealth* Create();
+	static ExtraHealth* Create(float fHealth);
+
 };
 
 // 00C
@@ -594,7 +595,7 @@ public:
 
 	UInt8	index;		// 00C (is 0-7)
 
-	static ExtraHotkey* Create();
+	static ExtraHotkey* Create(UInt8 iIndex = 0);
 };
 
 // 010
@@ -607,7 +608,8 @@ public:
 	SInt16	count;	// 00C
 	UInt8	pad[2];	// 00E
 
-	static ExtraCount* Create(UInt32 count = 0);	
+	static ExtraCount* Create(UInt32 count = 0);
+
 };
 
 // 010
@@ -699,7 +701,7 @@ public:
 
 	TESForm	* owner;	// maybe this should be a union {TESFaction*; TESNPC*} but it would be more unwieldy to access and modify
 
-	static ExtraOwnership* Create();
+	static ExtraOwnership* Create(TESForm* ref = nullptr);
 };
 
 // 010

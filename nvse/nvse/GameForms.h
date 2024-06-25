@@ -180,11 +180,15 @@ class BGSEncounterZone;
 class BGSExplosion;
 class BGSDebris;
 class BGSRagdoll;
+class TESLeveledList;
+class TESGlobal;
+class TESNPC;
 
-class Instance_WEAP;
-class StaticInstance_WEAP;
-class StaticInstance;
-class Instance;
+struct StaticInstance;
+struct Instance;
+
+struct Instance_WEAP;
+struct StaticInstance_WEAP;
 
 struct Condition;
 
@@ -350,19 +354,31 @@ public:
 
 	//Weapon Smith................................................
 
-	TESForm*				GetStaticParent();
-	bool					IsInstancedForm();
-	UInt32 					GetInstanceID();
-	bool					MarkAsStaticForm();
-	bool					IsStaticForm();
-	Instance_WEAP*			LookupInstanceByID(UInt32 InstID);
-	StaticInstance_WEAP*	LookupStaticInstance();
-	UInt32					CreateInst(std::string key);
+	TESForm*				GetStaticParent() const;
+	bool					IsInstancedForm() const;
+
+	UInt32 					GetInstanceID() const;
+
+	StaticInstance*			MarkAsStaticForm(UInt32 kitIndex);
+	Instance*				LookupInstanceByID(UInt32 InstID) const;
+
+	TESForm*				CreateInst(std::string key);
+
+	StaticInstance*			LookupStaticInstance() const;
+	Instance*				pLookupInstance() const;
+
+	bool					IsStaticForm() const;
+	bool					HasExtendedMods() const;
+	bool					pIsDynamicForm() const;
 
 	//TESForm_Ext
 
-	bool IsReference();
-	bool IsBaseForm();
+	static TESForm* CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0);
+	static TESForm* CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0);
+	bool IsReference() const;
+	bool IsBaseForm() const;
+	UInt32 GetModIndexAlt() const;
+
 	TESObjectREFR* PlaceAtCell(TESForm* form, float x, float y, float z, float xR, float yR, float zR);
 
 	TESForm *		TryGetREFRParent(void);
@@ -385,6 +401,7 @@ public:
 
 	// Credits to Jazzisparis
 	UInt8 GetOverridingModIdx() const;
+	TESLeveledList* GetLvlList() const;
 
 	MEMBER_FN_PREFIX(TESForm);
 #if RUNTIME
@@ -1033,14 +1050,24 @@ public:
 	~TESBoundAnimObject();
 };
 
+// 0C
+
 struct ContainerExtraData
 {
-	UInt32	owner;
-	UInt32	globalOrRequiredRank;
-	double	itemCondition;
+	union						// 00
+	{
+		TESFaction* ownerFaction;
+		TESNPC* ownerNPC;
+	};
+	union						// 04
+	{
+		UInt32		requiredRank;
+		TESGlobal*	globalVar;
+	};
+	float			health;		// 08
 };
 
-// 00C
+// 0C
 class TESContainer : public BaseFormComponent
 {
 public:
@@ -1435,7 +1462,7 @@ public:
 	TESDescription();
 	~TESDescription();
 
-	virtual char *	Get(TESForm * overrideForm, UInt32 chunkID);
+	virtual const char*		GetDescription(TESForm* overrideForm, UInt32 chunkID);
 
 	UInt32	formDiskOffset;	// 4 - how does this work for descriptions in mods?
 	// maybe extracts the mod ID then uses that to find the src file?
@@ -2849,24 +2876,10 @@ public:
 	UInt32				unk218;				// 218
 	TESSound			* sounds[12];		// 21C
 	BGSImpactDataSet	* impactDataSet;	// 24C
-	TESObjectSTAT		* worldStatic;		// 250
-	TESObjectSTAT		* mod1Static;		// 254
-	TESObjectSTAT		* mod2Static;		// 258
-	TESObjectSTAT		* mod3Static;		// 25C
-	TESObjectSTAT		* mod12Static;		// 260
-	TESObjectSTAT		* mod13Static;		// 264
-	TESObjectSTAT		* mod23Static;		// 268
-	TESObjectSTAT		* mod123Static;		// 26C
-	TESModelTextureSwap	textureMod1;		// 270 Mod 1
-	TESModelTextureSwap	textureMod2;		// 290 Mod 2
-	TESModelTextureSwap	textureMod3;		// 2B0 Mod 3
-	TESModelTextureSwap	textureMod12;		// 2D0 Mod 1-2
-	TESModelTextureSwap	textureMod13;		// 2F0 Model 1-3
-	TESModelTextureSwap	textureMod23;		// 310 Model 2-3
-	TESModelTextureSwap	textureMod123;		// 330 Model 1-2-3
-	TESObjectIMOD		* itemMod1;			// 350
-	TESObjectIMOD		* itemMod2;			// 354
-	TESObjectIMOD		* itemMod3;			// 358
+	TESObjectSTAT*		worldStatic;		// 250
+	TESObjectSTAT*		modStatics[7];		// 254
+	TESModelTextureSwap	modModels[7];		// 270
+	TESObjectIMOD*		itemMod[3];			// 350
 	UInt32				unk35C;				// 35C
 	UInt32				unk360;				// 360
 	UInt32				soundLevel;			// 364
@@ -3134,6 +3147,11 @@ STATIC_ASSERT(offsetof(TESCreature, creatureTemplate) == 0x128);
 class TESLeveledList : public BaseFormComponent
 {
 public:
+
+	virtual UInt8	GetChanceNone();		// 10
+	virtual bool	GetCalcEachInCount();	// 14
+	virtual UInt32	GetLevelDifferenceMax();// 18
+
 	struct LoadBaseData	// as used by LoadForm
 	{
 		SInt16			level;		// 000
@@ -3145,18 +3163,26 @@ public:
 
 	struct BaseData
 	{
-		TESObjectREFR		*refr;		// 000
-		SInt16				count;		// 004
-		SInt16				level;		// 006
-		ContainerExtraData	*coed;		// 008
+		TESForm				*form;	// 00
+		SInt16				count;	// 04
+		SInt16				level;	// 06
+		ContainerExtraData	*extra;	// 008
 	};	// 00C
+
+	enum
+	{
+		kFlags_CalcAllLevels = 1 << 0,
+		kFlags_CalcEachInCount = 1 << 1,
+		kFlags_UseAll = 1 << 2,
+	};
 
 	tList<BaseData>	datas;			// 004
 	UInt8			chanceNone;		// 00C
 	UInt8			flags;			// 00D
-	UInt8			fill00E[2];		// 00E
-	UInt32			unk010;			// 010	LVLG
+	UInt16			pad00E;			// 0E
+	TESGlobal*		global;		// 10 use global value for chance none?
 	ExtraDataList	extraDatas;		// 014
+
 };	// 01C
 
 // TESLevCreature (68)
@@ -3309,7 +3335,12 @@ public:
 };
 
 // TESLevItem (44)
-class TESLevItem;
+class TESLevItem : public TESBoundObject
+{
+public:
+	TESLeveledList		list;
+};
+
 class TESImageSpaceModifier;
 
 // 2F4
@@ -3550,6 +3581,7 @@ public:
 
 	bool IsInterior() { return worldSpace == NULL; }
 };
+
 STATIC_ASSERT(offsetof(TESObjectCELL, NavMeshArray) == 0x060);
 STATIC_ASSERT(offsetof(TESObjectCELL, objectList) == 0x0AC);
 STATIC_ASSERT(sizeof(TESObjectCELL) == 0xE0);

@@ -307,7 +307,7 @@ __declspec(naked) float __vectorcall ContChangesEntry::GetWeaponModEffectValue(U
 	}
 }
 
-__declspec(naked) ContChangesEntry* __fastcall ContChangesEntryList::FindForItem(TESForm* item) const
+__declspec(naked) ContChangesEntry* __fastcall ContChangesEntryList::EntryDataList::FindForItem(TESForm* item) const
 {
 	__asm
 	{
@@ -693,9 +693,10 @@ BSExtraData* BSExtraData::Create(UInt8 xType, UInt32 size, UInt32 vtbl)
 	return xData;
 }
 
-ExtraHealth* ExtraHealth::Create() 
+ExtraHealth* ExtraHealth::Create(float fHealth)
 {
 	ExtraHealth* xHealth = (ExtraHealth*)BSExtraData::Create(kExtraData_Health, sizeof(ExtraHealth), s_ExtraHealthVtbl);
+	xHealth->health = fHealth;
 	return xHealth;
 }
 
@@ -783,9 +784,10 @@ SInt32 GetCountForExtraDataList(ExtraDataList* list)
 	return xCount ? xCount->count : 1;
 }
 
-ExtraOwnership* ExtraOwnership::Create() 
+ExtraOwnership* ExtraOwnership::Create(TESForm* ref) 
 {
 	ExtraOwnership* xOwner = (ExtraOwnership*)BSExtraData::Create(kExtraData_Ownership, sizeof(ExtraOwnership), s_ExtraOwnershipVtbl);
+	xOwner->owner = ref;
 	return xOwner;
 }
 
@@ -1020,10 +1022,120 @@ void SetExtraFactionRank(BaseExtraList& xDataList, TESFaction * faction, SInt8 r
 	}
 }
 
-ExtraHotkey* ExtraHotkey::Create()
+ExtraHotkey* ExtraHotkey::Create(UInt8 iIndex)
 {
 	ExtraHotkey* xHotkey = (ExtraHotkey*)BSExtraData::Create(kExtraData_Hotkey, sizeof(ExtraHotkey), s_ExtraHotkeyVtbl);
-	xHotkey->index  = 0;
+	xHotkey->index  = iIndex;
 	return xHotkey;
+}
+
+inline bool Compare(const ExtraOwnership* xData, const ExtraOwnership* xCompare) {
+	return xData && xCompare && xData->owner->refID == xCompare->owner->refID;
+}
+
+inline bool Compare(const ExtraCount* xData, const ExtraCount* xCompare) {
+	return xData && xCompare && xData->count == xCompare->count;
+}
+
+inline bool Compare(const ExtraHealth* xData, const ExtraHealth* xCompare) {
+	return xData && xCompare && std::abs(xData->health - xCompare->health) < 0.001f;
+}
+
+inline bool Compare(const ExtraHotkey* xData, const ExtraHotkey* xCompare) {
+	return xData && xCompare && xData->index == xCompare->index;
+}
+
+bool Compare(const BSExtraData* xData, const BSExtraData* xCompare) {
+	if (!xData || !xCompare || xData->type != xCompare->type) return false;
+
+	switch (xData->type) {
+	case kXData_ExtraOwnership:
+		return Compare(static_cast<const ExtraOwnership*>(xData), static_cast<const ExtraOwnership*>(xCompare));
+	case kXData_ExtraCount:
+		return Compare(static_cast<const ExtraCount*>(xData), static_cast<const ExtraCount*>(xCompare));
+	case kXData_ExtraHealth:
+		return Compare(static_cast<const ExtraHealth*>(xData), static_cast<const ExtraHealth*>(xCompare));
+	case kXData_ExtraHotkey:
+		return Compare(static_cast<const ExtraHotkey*>(xData), static_cast<const ExtraHotkey*>(xCompare));
+	default:
+		return true;
+	}
+}
+
+bool CopyBSExtra(ExtraDataList* xCopyTo, const BSExtraData* xCopyFrom) {
+
+	if (!xCopyTo || !xCopyFrom) return false;
+
+	switch (xCopyFrom->type) {
+	case kXData_ExtraOwnership:
+		xCopyTo->AddExtra(ExtraOwnership::Create(static_cast<const ExtraOwnership*>(xCopyFrom)->owner));
+		break;
+	case kXData_ExtraCount:
+		xCopyTo->AddExtra(ExtraCount::Create(static_cast<const ExtraCount*>(xCopyFrom)->count));
+		break;
+	case kXData_ExtraHealth:
+		xCopyTo->AddExtra(ExtraHealth::Create(static_cast<const ExtraHealth*>(xCopyFrom)->health));
+		break;
+	case kXData_ExtraHotkey:
+		xCopyTo->AddExtra(ExtraHotkey::Create(static_cast<const ExtraHotkey*>(xCopyFrom)->index));
+		break;
+	default:
+		return false;
+	}
+
+}
+//Returns newly created xData, or overwrites existing.
+ExtraDataList* ExtraDataList::CopyItemData(ExtraDataList* xCopyFrom, bool doFree, ExtraDataList* xCopyTo) {
+
+	if (xCopyFrom) {
+
+		if (!xCopyTo) {
+			xCopyTo = ExtraDataList::Create();
+		}
+		else {
+			xCopyTo->RemoveAll(0);
+		}
+
+		BSExtraData* xCopyFromData = xCopyFrom->m_data;
+		while (xCopyFromData) {
+
+			CopyBSExtra(xCopyTo, xCopyFromData);
+			xCopyFromData = xCopyFromData->next;
+
+		}
+
+	}
+	if (doFree) Game_HeapFree(xCopyFrom);
+
+	return xCopyTo;
+
+}
+
+bool ExtraDataList::ContainsMatch(ExtraDataList* xCompare, bool doFree) {
+	if (this && xCompare) {
+		BSExtraData* xCompareData = xCompare->m_data;
+		while (xCompareData) {
+			BSExtraData* xData = this->GetByType(xCompareData->type);
+			if (!Compare(xData, xCompareData)) {
+				if (doFree) Game_HeapFree(xCompare);
+				return false;
+			}
+			xCompareData = xCompareData->next;
+		}
+	}
+	if (doFree && xCompare) Game_HeapFree(xCompare);
+	return this && xCompare;
+}
+
+bool ExtraDataList::ContainsMatch(BSExtraData* xCompare, bool doFree) {
+	if (this && xCompare) {
+		BSExtraData* xData = this->GetByType(xCompare->type);
+		if (!Compare(xData, xCompare)) {
+			if (doFree) Game_HeapFree(xCompare);
+			return false;
+		}
+	}
+	if (doFree && xCompare) Game_HeapFree(xCompare);
+	return this && xCompare;
 }
 

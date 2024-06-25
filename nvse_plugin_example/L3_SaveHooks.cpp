@@ -24,35 +24,49 @@ namespace Hooks
 
 					entry = iter.Get();
 
-					if (entry && entry->type->typeID == 40 && entry->type->IsInstancedForm()) {
+					if (entry && (entry->type->IsInstancedForm() || entry->type->pIsDynamicForm())) {
 
 						UInt32 objectsToRemove = entry->countDelta;
 						while (objectsToRemove > 0) {
-							/*
-							TESForm* form = entry->type->GetStaticParent();
-							ContChangesEntry* newEntry = entry->Create(form->refID, 1, entry->extendData);
-							newEntry->Cleanup();
-							//entryList->Replace(entry, newEntry);
 
-							ExtraDataList* xData = entry->extendData->GetFirstItem();
-							bool IsEquipped = xData->HasType(kExtraData_Worn);
+							StaticInstance* staticInst = entry->type->LookupStaticInstance();
+							Instance* inst = entry->type->pLookupInstance();
 
-							SaveSystem::aSaveData.emplace_back(new SaveSystem::SaveDataObj(
-								form->refID,
-								entry->type->GetInstanceID(),
-								object->refID,
-								xData->CreateCopy()
-							));
-
-							if (IsEquipped) {
-
-								((Actor*)object)->SilentUnequip(entry->type, xData);
-
+							ExtraDataList* xData = nullptr;
+							if (entry->extendData) {
+								xData = entry->extendData->GetFirstItem();
 							}
 
-							entry->Remove(entry->extendData->GetFirstItem(), 1);
-																		*/
+							if (xData) {
+
+								bool IsEquipped = xData->HasType(kExtraData_Worn);
+
+								SaveSystem::aSaveData.emplace_back(new SaveSystem::SaveDataObj(
+									staticInst,
+									inst,
+									object->refID,
+									xData->CreateCopy()
+								));
+
+								if (IsEquipped) {
+
+									((Actor*)object)->SilentUnequip(entry->type, xData);
+
+								}
+
+							}
+							else {
+								SaveSystem::aSaveData.emplace_back(new SaveSystem::SaveDataObj(
+									staticInst,
+									inst,
+									object->refID,
+									xData
+								));
+							}
+
+							entry->Remove(xData, 1);
 							objectsToRemove--;
+
 						}
 
 					}
@@ -60,24 +74,29 @@ namespace Hooks
 
 				}
 	
-			} else if (object->baseForm->typeID == 40 && object->baseForm->IsInstancedForm()) {
+			} else if (object->baseForm->IsInstancedForm() || object->baseForm->pIsDynamicForm()) {
 
 				ExtraDataList* xData = &object->extraDataList;
-				TESForm* form = object->baseForm->GetStaticParent();
-				if (form) {
 
-					if (object->parentCell) {
+				Instance* inst = object->baseForm->pLookupInstance();
+				StaticInstance* staticInst = object->baseForm->LookupStaticInstance();
+
+				if (object->parentCell) {
 
 						TESObjectCELL* cell = object->parentCell;
 						TESWorldSpace* worldSpace = cell->worldSpace;
 
 						UInt32 cellRefID = worldSpace ? worldSpace->refID : cell->refID;
 
+						if (xData) {
+							xData = xData->CreateCopy();
+						}
+
 						SaveSystem::aSaveData.emplace_back(new SaveSystem::SaveDataWorldObj(
-							form->refID,
-							object->baseForm->GetInstanceID(),
+							staticInst,
+							inst,
 							cellRefID,
-							xData->CreateCopy(),
+							xData,
 							object->posX,
 							object->posY,
 							object->posZ,
@@ -86,10 +105,10 @@ namespace Hooks
 							object->rotZ
 						));
 
-					}
 
 				}
-				object->DeleteReference();
+
+				object->DeleteReference(); //I don't think you need to delete the reference bruh. It's just for clearing the cell buffer.
 				object = nullptr;
 
 			}

@@ -355,6 +355,26 @@ UInt8 TESObjectWEAP::AttackAnimation() const
 	}
 }
 
+//From JIP
+__declspec(naked) TESLeveledList* TESForm::GetLvlList() const
+{
+	__asm
+	{
+		mov		al, [ecx + 4]
+		cmp		al, kFormType_TESLevCreature
+		jz		getList
+		cmp		al, kFormType_TESLevCharacter
+		jz		getList
+		cmp		al, kFormType_TESLevItem
+		jz		getList
+		xor eax, eax
+		retn
+		getList :
+		lea		eax, [ecx + 0x30]
+			retn
+	}
+}
+
 const UInt8 kAttackAnims[] = {255, 38, 44, 50, 56, 62, 68, 26, 74, 32, 80, 86, 114, 120, 126, 132, 138, 102, 108, 144, 150, 156, 162};
 
 void TESObjectWEAP::SetAttackAnimation(UInt8 _attackAnim)
@@ -368,13 +388,13 @@ TESObjectIMOD *TESObjectWEAP::GetItemMod(UInt8 which)
 	switch (which)
 	{
 	case 1:
-		pMod = itemMod1;
+		pMod = itemMod[0];
 		break;
 	case 2:
-		pMod = itemMod2;
+		pMod = itemMod[1];
 		break;
 	case 3:
-		pMod = itemMod3;
+		pMod = itemMod[2];
 		break;
 	}
 	return pMod;

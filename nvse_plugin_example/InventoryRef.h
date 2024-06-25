@@ -29,4 +29,7 @@
 
 		static void InitInventoryRefFunct(const NVSEInterface* nvse);
 
+		static ContChangesEntry* __fastcall GetHotkeyItemEntry(UInt8 index, ExtraDataList** outXData);
+		static bool __fastcall ClearHotkey(UInt8 index);
+
 	};

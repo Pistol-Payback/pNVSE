@@ -2929,3 +2929,59 @@ Script *GetReferencedQuestScript(UInt32 refIdx, ScriptEventList *baseEventList)
 }
 
 #endif
+
+//Added from JIP
+UInt32 __fastcall BGSSaveLoadGame::DecodeRefID(UInt32* pRefID)
+{
+
+	UInt32 result = *pRefID;
+	if (result & 0x80000000)
+	{
+		return result;
+	}
+	else
+	{
+		//NiTPointerMap<UInt32>* map = this->referencesMap->map000;
+		//return *map->Lookup(result);
+	}
+
+}
+/*
+__declspec(naked) UInt32 __fastcall BGSSaveLoadGame::EncodeRefID(UInt32* pRefID)
+{
+	__asm
+	{
+		mov		eax, [edx]
+		cmp		eax, 0xFF000000
+		jnb		isCreated
+		mov		ecx, [ecx + 8]
+		push	esi
+		push	edi
+		mov		esi, ecx
+		mov		edi, edx
+		push	eax
+		call	NiTPointerMap<UInt32>::Lookup
+		test	eax, eax
+		jnz		found
+		mov		eax, [esi + 0x20]
+		inc		dword ptr[esi + 0x20]
+		mov		edx, [edi]
+		push	eax
+		push	edx
+		push	eax
+		push	eax
+		push	edx
+		mov		ecx, esi
+		call	NiTPointerMap<UInt32>::Insert
+		lea		ecx, [esi + 0x10]
+		call	NiTPointerMap<UInt32>::Insert
+		pop		eax
+		found :
+		mov[edi], eax
+			pop		edi
+			pop		esi
+			isCreated :
+		retn
+	}
+}
+*/

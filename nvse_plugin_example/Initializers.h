@@ -3,6 +3,8 @@
 namespace Hooks
 {
 	void initHooks();
+	void CMDPatchHooks();
+
 }
 
 namespace SaveSystem {
@@ -11,7 +13,7 @@ namespace SaveSystem {
 
 namespace PluginFunctions {
 
-	//void initkNVSE();
-	//void initJIP();
+	void initkNVSE();
+	void initJIP();
 
 }

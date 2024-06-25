@@ -1,17 +1,18 @@
 #pragma once
-#include <stdarg.h>
 #include "ppNVSE.h"
 
 struct Event {
     SInt32 priority;
     Script* script;
-    std::vector<void*> filters;
+    AuxVector filters;
 
     Event(SInt32 priority, Script* script);
-    Event(SInt32 priority, Script* script, std::vector<void*> filters);
+    Event(SInt32 priority, Script* script, AuxVector filters);
 
-    bool CompareFilters(const std::vector<void*>& otherFilters) const;      //Use when dispatching
-    static std::vector<void*> EvaluateEventArg(int num_args, ...);
+    bool CompareFilters(const AuxVector& otherFilters) const;      //Use when dispatching
+    static AuxVector EvaluateEventArg(int num_args, ...);
+    static AuxVector EvaluateEventArgAux(int num_args, ...);
+    
 };
 
 struct EventHandler {
@@ -19,7 +20,7 @@ struct EventHandler {
     std::vector<Event> handlers;
 
     void AddEvent(const Event& event);
-    void RemoveEvent(Script* script);
+    void RemoveEvent(const Event& event);
 
     //template<typename... Args>
     //void DispatchEvent(Args&&... args);
@@ -28,7 +29,7 @@ struct EventHandler {
     template<typename... Args>
     void DispatchEvent(Args&&... args) {
 
-        std::vector<void*> filter{ std::forward<Args>(args)... };
+        AuxVector filter{ std::forward<Args>(args)... };
         for (auto& eventHandler : handlers) {
             if (eventHandler.CompareFilters(filter)) {
                 g_scriptInterface->CallFunction(eventHandler.script, nullptr, nullptr, nullptr, filter.size(), args...);
@@ -37,3 +38,14 @@ struct EventHandler {
 
     }
 };
+
+extern EventHandler onEquipAltEvent;
+
+extern EventHandler onInstanceDeconstructEvent;
+extern EventHandler onInstanceReconstructEvent;
+
+extern EventHandler onAttachWeapModEvent;
+extern EventHandler onAttachWeapModReconstructEvent;
+
+extern EventHandler onDetachWeapModEvent;
+extern EventHandler onDetachWeapModDeconstructEvent;

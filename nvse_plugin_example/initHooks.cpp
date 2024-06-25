@@ -7,12 +7,17 @@ namespace Hooks
 
 	TESObjectREFR* __cdecl SaveData(void* objectPtr);
 	int __fastcall StopAnimationType(AnimData* animData, void* edx, UInt16 GroupID, int a3, float a4, int a5);
+	int __fastcall OnEquipAlt(TESObjectREFR* equipper, void* edx, TESForm* item, SInt32 count, ExtraDataList* xData, int noMessage, bool lockEquipment, bool playsound);
+
+	//int __fastcall OnActorEquipAlt(TESObjectREFR* a1);
+	//int __cdecl OnActorEquipAlt2(TESForm* a1, TESForm* a2, TESForm* a3);
+	//int __fastcall GetType(ExtraDataList* a1);
 
 	//int __fastcall HookTest(AnimData* animData, void* edx, UInt16 GroupID, int a3, float a4, int a5);
 
-
 	void initHooks()
 	{
+
 		//WriteRelCall(0x0562240, (UInt32)HookActorInventorySave);	//Save Inv Data
 
 		//WriteRelCall(0x08AAF50, (UInt32)SaveData);					//Save Inv Data Actors.........
@@ -39,9 +44,30 @@ namespace Hooks
 		//WriteRelCall(0x09C5000, (UInt32)SaveData3);		//Save container entry data
 
 		//WriteRelCall(0x084EE72, (UInt32)SaveData2);		//
-		////WriteRelCall(0x0847A20, (UInt32)SaveData);		//
 		
+		//WriteRelCall(0x088C8A5, (UInt32)OnActorEquipAlt2);	//Nothing
+
+		//WriteRelCall(0x88C8BC, (UInt32)OnActorEquipAlt2);	//Nothing
+		//WriteRelCall(0x88CF32, (UInt32)OnActorEquipAlt2);	//Nothing
+		//WriteRelCall(0x88D25B, (UInt32)OnActorEquipAlt2);	//OnEquip Player
+
+		//WriteRelCall(0x088C87A, (UInt32)GetType);
 		
+		WriteRelCall(0x04C3ED3, (UInt32)OnEquipAlt);
+		WriteRelCall(0x05752D4, (UInt32)OnEquipAlt);
+		WriteRelCall(0x0604AD2, (UInt32)OnEquipAlt);
+		WriteRelCall(0x07ADBC1, (UInt32)OnEquipAlt);
+		WriteRelCall(0x088C6E8, (UInt32)OnEquipAlt);
+		WriteRelCall(0x088C74E, (UInt32)OnEquipAlt);
+		WriteRelCall(0x08927AE, (UInt32)OnEquipAlt);
+		WriteRelCall(0x08F023F, (UInt32)OnEquipAlt);
+		WriteRelCall(0x08F0345, (UInt32)OnEquipAlt);
+		WriteRelCall(0x091559D, (UInt32)OnEquipAlt);
+		WriteRelCall(0x0915631, (UInt32)OnEquipAlt);
+		WriteRelCall(0x0943E20, (UInt32)OnEquipAlt);
+		WriteRelCall(0x097F13B, (UInt32)OnEquipAlt);
+
+		WriteRelCall(0x0847A20, (UInt32)SaveData);		//
 		
 		WriteRelCall(0x089738D, (UInt32)StopAnimationType); //Third Person
 		WriteRelCall(0x09521C0, (UInt32)StopAnimationType); //First Person anim

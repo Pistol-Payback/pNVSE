@@ -1,9 +1,9 @@
 #include "WeaponSmith.h"
 
-Instance_WEAP* TESObjectREFR::GetWeaponBase() {
+Instance* TESObjectREFR::GetWeaponBase() {
 
-	if (Instance_WEAP::Linker.find(this->baseForm->refID) != Instance_WEAP::Linker.end()) {
-		return Instance_WEAP::Linker[this->baseForm->refID];
+	if (InstanceLinker[this->baseForm->typeID].find(this->baseForm->refID) != InstanceLinker[this->baseForm->typeID].end()) {
+		return InstanceLinker[this->baseForm->typeID][this->baseForm->refID];
 	}
 	return nullptr;
 }

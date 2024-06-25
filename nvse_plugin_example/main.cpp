@@ -3,9 +3,12 @@
 #include "nvse/CommandTable.h"
 #include "nvse/GameAPI.h"
 #include "nvse/ParamInfos.h"
+#include "nvse/ParamInfosNVSE.h"
 #include "nvse/GameObjects.h"
 #include <string>
 #include "ppNVSE.h"
+#include "EventHandlers.h"
+
 #include "GameUI.h"
 
 #include "ppNVSE_functions.h"
@@ -17,6 +20,8 @@
 #include "SaveSystem.h"
 
 #include "SafeWrite.h"
+#include "DevkitCompiler.h"
+#include "ScriptConverter.h"
 
 //NoGore is unsupported in xNVSE
 
@@ -27,12 +32,10 @@ PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
 
 NVSEMessagingInterface* g_messagingInterface{};
 NVSEInterface* g_nvseInterface{};
-NVSECommandTableInterface* g_cmdTableInterface{};
+NVSECommandTableInterface g_cmdTableInterface;
 
 //UI 11-15-2023
-UInt32 s_UpdateCursor = 0;
 InterfaceManager* g_interfaceManager;
-NiNode* s_pc1stPersonNode = nullptr, * g_cursorNode;
 
 // RUNTIME = Is not being compiled as a GECK plugin.
 
@@ -75,16 +78,43 @@ NVSEArrayVar* (*LookupArrayByID)(UInt32 id);
 bool (*GetElement)(NVSEArrayVar* arr, const NVSEArrayElement& key, NVSEArrayElement& outElement);
 bool (*GetArrayElements)(NVSEArrayVar* arr, NVSEArrayElement* elements, NVSEArrayElement* keys);
 
+const CommandInfo* (*GetCmdByName)(const char* name);
+
 NVSEStringVarInterface g_strInterface;
 bool (*AssignString)(COMMAND_ARGS, const char* newValue);
 const char* (*GetStringVar)(UInt32 stringID);
 NVSEMessagingInterface* g_msg = nullptr;
 NVSEScriptInterface* g_scriptInterface = nullptr;
-NVSECommandTableInterface* g_commandInterface = nullptr;
-const CommandInfo* (*GetCmdByName)(const char* name);
+
 bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
-ExpressionEvaluatorUtils g_expEvalUtils;
+Script* (*pCompileScript)(const char* scriptText);
+
+ExpressionEvaluatorUtils s_expEvalUtils;
+
+std::istringstream& getQuotedString(std::istringstream& argStream, std::string& argument) {
+
+	char ch;
+	if (!(argStream >> ch) || ch != '"') {
+		return argStream;
+	}
+
+	argument.clear();
+	while (argStream.get(ch)) {
+		if (ch == '\\') { // Check for escape character
+			argument += ch;
+			if (!argStream.get(ch)) {
+				break; // Break if escape character is the last character
+			}
+		}
+		else if (ch == '"') {
+			break; // Exit loop when closing quotation mark is found
+		}
+		argument += ch;
+	}
+
+	return argStream;
+}
 
 void DumpInfoToLog(const std::string& info) {
 	std::string sFile = GetFalloutDirectory() + "ppNVSE.log1";
@@ -126,6 +156,7 @@ ActorValueOwner* g_playerAVOwner = nullptr;
 DataHandler* g_dataHandler = nullptr;
 TESObjectWEAP* g_fistsWeapon = nullptr;
 TESObjectREFR* DevKitDummyMarker = nullptr;
+TESObjectSTAT* g_1stPersonWeapModel = nullptr;
 
 /****************
  * Here we include the code + definitions for our script functions,
@@ -171,7 +202,22 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 	case NVSEMessagingInterface::kMessage_DeleteGameName: break;
 	case NVSEMessagingInterface::kMessage_RenameGameName: break;
 	case NVSEMessagingInterface::kMessage_RenameNewGameName: break;
-	case NVSEMessagingInterface::kMessage_DeferredInit: break;
+	case NVSEMessagingInterface::kMessage_DeferredInit: {
+
+		g_interfaceManager = InterfaceManager::GetSingleton();
+		g_1stPersonWeapModel = (TESObjectSTAT*)TESObjectSTAT::CreateNewForm(32, "pNVSE1stPersonDummy", 0, 0, 0);
+		Hooks::CMDPatchHooks();
+
+		ScriptConverter* converter = new ScriptConverter();
+		converter->Convert();
+		delete converter;
+
+		Kit::DevkitCompiler* LoadKitFiles = new Kit::DevkitCompiler();
+		delete LoadKitFiles;
+
+
+	}
+		break;
 	case NVSEMessagingInterface::kMessage_ClearScriptDataCache: break;
 	case NVSEMessagingInterface::kMessage_MainGameLoop:
 
@@ -195,14 +241,15 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 			if (!SaveSystem::queueToSpawn.empty()) {
 
 				auto& queueToSpawn = SaveSystem::queueToSpawn;
-				auto* devKitDummyMarker = DevKitDummyMarker;
 
 				for (auto it = queueToSpawn.begin(); it != queueToSpawn.end(); ) {
 					SaveSystem::SpawnQueue& spawn = *it;
 
 					TESObjectREFR* placedRef = spawn.baseForm->PlaceAtCell(spawn.location, spawn.x, spawn.y, spawn.z, spawn.xR, spawn.yR, spawn.zR);
 					if (placedRef) {
-						placedRef->extraDataList = *spawn.xData;
+						if (spawn.xData) {
+							placedRef->extraDataList.CopyFrom(spawn.xData, 1);
+						}
 						it = queueToSpawn.erase(it);
 					}
 					else {
@@ -214,6 +261,42 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 
 		}
 
+		if (obsCallLoopBoth.size()) {
+
+			std::vector<Script*> keysToErase;
+
+			for (auto& it : obsCallLoopBoth) {
+
+				Script* script = it.first;
+				CallLoopInfo& auxVector = it.second;
+
+				if (auxVector.timer <= 0) {
+
+					double result = auxVector.CallLoopFunction(it.first, auxVector.callingObj, auxVector.callingObj);
+
+					if (result == -1) {
+						keysToErase.push_back(script);
+					}
+
+					auxVector.timer = auxVector.delay;
+
+				}
+				else {
+
+					--auxVector.timer;
+
+				}
+
+
+
+			}
+
+			for (Script* key : keysToErase) {
+				obsCallLoopBoth.erase(key);
+			}
+
+		}
+		
 		break;
 
 	case NVSEMessagingInterface::kMessage_ScriptCompile: break;
@@ -268,9 +351,10 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		ExtractFormatStringArgs = g_scriptInterface->ExtractFormatStringArgs;
 		FunctionCallScript = g_scriptInterface->CallFunction;
 		FunctionCallScriptAlt = g_scriptInterface->CallFunctionAlt;
+		pCompileScript = g_scriptInterface->CompileScript;
 
-		g_commandInterface = (NVSECommandTableInterface*)nvse->QueryInterface(kInterface_CommandTable);
-		GetCmdByName = g_commandInterface->GetByName;
+		g_cmdTableInterface = *(NVSECommandTableInterface*)nvse->QueryInterface(kInterface_CommandTable);
+		GetCmdByName = g_cmdTableInterface.GetByName;
 
 		g_strInterface = *(NVSEStringVarInterface*)nvse->QueryInterface(kInterface_StringVar);
 		GetStringVar = g_strInterface.GetString;
@@ -288,7 +372,7 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		GetElement = g_arrInterface->GetElement;
 		GetArrayElements = g_arrInterface->GetElements;
 
-		nvse->InitExpressionEvaluatorUtils(&g_expEvalUtils);
+		nvse->InitExpressionEvaluatorUtils(&s_expEvalUtils);
 
 		g_eventInterface = (NVSEEventManagerInterface*)nvse->QueryInterface(kInterface_EventManager);
 
@@ -309,12 +393,11 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		SaveSystem::SaveWeaponInst(nvse, pluginHandle);
 		Hooks::initHooks();
 		//kNVSE::initkNVSE();
+		PluginFunctions::initJIP();
 
 		InventoryRef::InitInventoryRefFunct(nvse);
-
-
-		DevKitDummyMarker = ThisCall<TESObjectREFR*>(0x55A2F0, Game_HeapAlloc<TESObjectREFR>());
-		ThisCall(0x484490, DevKitDummyMarker);
+		DevKitDummyMarker = TESObjectREFR::Create(1);
+		//g_1stPersonWeapModel = (TESObjectSTAT *)TESObjectREFR::Create(1);
 
 	}
 
@@ -344,18 +427,18 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	//Weapon Modifiers
 
 	REG_CMD(MarkAsStaticForm)
-	REG_CMD_FORM(CreateWeaponInstance)
+	REG_CMD_FORM(CreateFormInstance)
 
 	REG_CMD(SetWeaponMod)
-	REG_CMD_ARR(GetAllEquippedWeaponMods)
+	REG_CMD_ARR(GetAllAttachedWeaponMods)
 	REG_CMD_FORM(GetWeaponMod)
 
-	REG_CMD(IsWeaponInstance)
-	REG_CMD_FORM(GetBaseWeapon)
+	REG_CMD(IsFormInstance)
+	REG_CMD_FORM(GetStaticForm)
 
-	REG_CMD(GetWeaponInstanceID)
+	REG_CMD(GetFormInstanceID)
 	REG_CMD(IsStaticForm)
-	REG_CMD_ARR(GetAllWeaponInstances)
+	REG_CMD_ARR(GetAllFormInstances)
 
 	REG_CMD(ReplaceItemInInventory)
 
@@ -363,11 +446,77 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD(SetOnAttachWeaponMod)
 	REG_CMD(SetOnDetachWeaponMod)
 		
-	REG_CMD_STR(GetWeaponInstanceKey)
+	REG_CMD_STR(GetFormInstanceKey)
 
-	REG_CMD_FORM(GetWeaponInstance)
+	REG_CMD_FORM(GetFormInstance)
 
 	REG_CMD(SetOnInstanceDeconstruct)
 
+	REG_CMD(SetFormTrait)
+	REG_CMD_AMB(GetFormTrait)
+
+	REG_CMD(GetFormTraitListSize)
+
+	REG_CMD_ARR(GetAllWeaponMods)
+
+	REG_CMD(GetFormTraitType)
+
+	REG_CMD(HasExtendedWeaponMods)
+
+	REG_CMD(CallLoop)
+
+	REG_CMD(SetOnEquipAlt)
+
+	REG_CMD_FORM(GetBaseInstance)
+
+	REG_CMD(DeleteFormInstance)
+		
 	return true;
 }
+
+namespace StringUtils {
+
+	std::string toLowerCase(const std::string& str) {
+		std::string lowerStr;
+		lowerStr.reserve(str.size());  // Reserve memory upfront to avoid reallocations
+		std::transform(str.begin(), str.end(), std::back_inserter(lowerStr), [](unsigned char c) { return std::tolower(c); });
+		return lowerStr;
+	}
+
+	char* toLowerCase(const char* str) {
+		if (!str) return nullptr;
+		size_t length = std::strlen(str);
+		char* lowerStr = new char[length + 1];
+		std::transform(str, str + length, lowerStr, [](unsigned char c) { return std::tolower(c); });
+		lowerStr[length] = '\0';
+		return lowerStr;
+	}
+
+	constexpr UInt32 ToUInt32(const char* str) {
+		if (!str) throw std::invalid_argument("Null string");
+
+		UInt32 result = 0;
+		bool is_valid = true;
+		const char* p = str;
+
+		while (*p) {
+			if (*p < '0' || *p > '9') {
+				is_valid = false;
+				break;
+			}
+			result = result * 10 + (*p - '0');
+			if (result < 0) {
+				throw std::overflow_error("Integer overflow");
+			}
+			++p;
+		}
+
+		if (!is_valid) {
+			throw std::invalid_argument("Invalid integer string");
+		}
+
+		return result;
+	}
+
+}
+

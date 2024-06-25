@@ -201,3 +201,28 @@ extern const UInt32 kPackedValues[];
 #define Flt180dPI	57.29578018F
 #define DblPId180	0.017453292519943295
 #define Dbl180dPI	57.29577951308232
+
+// From JIP
+template <typename T_HashMap> class HashMapUtils
+{
+	using Entry = T_HashMap::Entry;
+	using Bucket = T_HashMap::Bucket;
+
+public:
+	static void DumpLoads(const T_HashMap& map)
+	{
+		UInt32 loadsArray[0x40];
+		__stosb((UInt8*)(loadsArray), 0, sizeof(loadsArray));
+		UInt32 maxLoad = 0;
+		for (Bucket* pBucket = map.GetBuckets(), *pEnd = map.End(); pBucket != pEnd; pBucket++)
+		{
+			UInt32 entryCount = pBucket->Size();
+			loadsArray[entryCount]++;
+			if (maxLoad < entryCount)
+				maxLoad = entryCount;
+		}
+		PrintDebug("Size = %d\nBuckets = %d\n----------------\n", map.Size(), map.BucketCount());
+		for (UInt32 iter = 0; iter <= maxLoad; iter++)
+			if (loadsArray[iter]) PrintDebug("%d:\t%05d (%.4f%%)", iter, loadsArray[iter], 100.0 * (double)loadsArray[iter] / map.Size());
+	}
+};

@@ -1,5 +1,5 @@
 #pragma once
-#include <ppNVSE.h>
+#include "ppNVSE.h"
 
 enum  //Memory Addresses
 {
@@ -20,12 +20,12 @@ enum  //Memory Addresses
 	kAddr_InitFontInfo = 0xA12020,
 };
 
-bool TESForm::IsBaseForm()
+bool TESForm::IsBaseForm() const
 {
 	return !((*(UInt32**)this)[0x3C] == kAddr_ReturnTrue);
 }
 
-bool TESForm::IsReference()
+bool TESForm::IsReference() const
 {
 	return ((*(UInt32**)this)[0x3C] == kAddr_ReturnTrue);
 
@@ -58,4 +58,54 @@ TESObjectREFR* TESForm::PlaceAtCell(TESForm* worldOrCell, float x, float y, floa
     }
 
     return nullptr;
+}
+
+TESForm* TESForm::CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex)
+{
+    TESForm* result = CreateFormInstance(typeID);
+
+    if (!result)
+    {
+        return nullptr;
+    }
+
+    result->DoAddForm(result, bPersist);
+    result->SetRefID(GetNextFreeFormID(GetFirstFormIDForModIndex(offset)), true);
+    result->SetEditorID(editorID);
+
+    DynamicallyCreatedForms.insert(result->refID);
+
+    StaticInstance* staticInst = result->MarkAsStaticForm(kitIndex);
+    if (!staticInst) {
+        Console_Print("CreateNewForm failed, attempted to create %s from type %d in kit index %d", editorID, typeID, kitIndex);
+    }
+
+    return result;
+}
+
+TESForm* TESForm::CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex)
+{
+
+    TESForm* result = nullptr;
+    if (copyFrom)
+    {
+        result = copyFrom->CloneForm(bPersist);
+    }
+
+    if (!result)
+    {
+        return nullptr;
+    }
+
+    result->SetRefID(GetNextFreeFormID(GetFirstFormIDForModIndex(offset)), true);
+    result->SetEditorID(editorID);
+
+    DynamicallyCreatedForms.insert(result->refID);
+
+    StaticInstance* staticInst = result->MarkAsStaticForm(kitIndex);
+    if (!staticInst) {
+        Console_Print("CreateNewForm failed, attempted to create %s from %s in kit index %d", editorID, copyFrom->GetEditorID(), kitIndex);
+    }
+
+    return result;
 }

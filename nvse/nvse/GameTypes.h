@@ -316,15 +316,21 @@ public:
 		}
 	}
 
-	void Insert(Item *item)
+	SInt32 Insert(Item* item, SInt32 index)
 	{
-		if (item)
+
+		if (!item) return eListInvalid;
+		if (!index)
 		{
 			if (m_listHead.data)
 				m_listHead.Insert(item);
-			else
-				m_listHead.data = item;
+			else m_listHead.data = item;
 		}
+		else if (_Node* node = GetNthNode(index))
+			node->Insert(item);
+		else return eListInvalid;
+
+		return index;
 	}
 
 	void CopyFrom(tList &sourceList)
@@ -643,20 +649,84 @@ public:
 };				   // 00C
 STATIC_ASSERT(sizeof(BSSimpleList<void *>) == 0xC);
 
-template <typename T>
+template <typename T_Data>
 struct BSSimpleArray
 {
-	void *_vtbl;  // 00
-	T *data;	  // 04
-	UInt32 size;  // 08
-	UInt32 alloc; // 0C
+	virtual void	Destroy(bool doFree);
+	virtual T_Data* Allocate(UInt32 size);
 
-	// this only compiles for pointer types
-	T operator[](UInt32 idx)
+	T_Data* data;			// 04
+	UInt32		size;			// 08
+	UInt32		alloc;			// 0C
+
+	T_Data operator[](UInt32 idx)
 	{
-		if (idx < size)
-			return data[idx];
-		return NULL;
+		return (idx < size) ? data[idx] : NULL;
+	}
+
+	T_Data Get(UInt32 idx)
+	{
+		return data[idx];
+	}
+
+	T_Data* pGet(UInt32 idx)
+	{
+		return &data[idx];
+	}
+
+	// BubbleSort
+	void Sort(bool (*Compare)(T_Data, T_Data))
+	{
+		bool swapped;
+
+		for (int i = 0; i < size - 1; i++)
+		{
+			swapped = false;
+			for (int j = 0; j < size - i - 1; j++)
+			{
+				if (Compare(data[j], data[j + 1]))
+				{
+					T_Data temp = data[j];
+					data[j] = data[j + 1];
+					data[j + 1] = temp;
+					swapped = true;
+				}
+			}
+
+			if (!swapped)
+			{
+				break;
+			}
+		}
+	}
+
+	class Iterator
+	{
+	protected:
+		friend BSSimpleArray;
+
+		T_Data* pData;
+		UInt32		count;
+
+	public:
+		bool End() const { return !count; }
+		void operator++()
+		{
+			count--;
+			pData++;
+		}
+
+		T_Data& operator*() const { return *pData; }
+		T_Data& operator->() const { return *pData; }
+		T_Data& Get() const { return *pData; }
+
+		Iterator() {}
+		Iterator(BSSimpleArray& source) : pData(source.data), count(source.size) {}
+	};
+
+	void Append(T_Data* item)
+	{
+		ThisCall(0x7CB2E0, this, item);
 	}
 };
 

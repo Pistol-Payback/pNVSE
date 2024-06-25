@@ -14,9 +14,90 @@ static EquipData FindEquipped(TESObjectREFR* thisObj, FormMatcher& matcher) {
 	return (pContainerChanges) ? pContainerChanges->FindEquipped(matcher) : EquipData();
 }
 
+//std::unordered_map<Script*, AuxVector> obsCallLoopMenu;
+//std::unordered_map<Script*, AuxVector> obsCallLoopGame;
+extern std::unordered_map<Script*, CallLoopInfo> obsCallLoopBoth;
+std::unordered_map<Script*, CallLoopInfo> obsCallLoopBoth;
+
+DEFINE_COMMAND_PLUGIN_EXP(CallLoop, "Like CallbackLoop", true, kNVSEParams_CallLoop);
+bool Cmd_CallLoop_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	Script* script = NULL;
+	double delay = 0;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+
+		delay = eval.GetNthArg(0)->GetFloat();
+		script = (Script*)eval.GetNthArg(1)->GetTESForm();
+
+		if (!script) {
+			return true;
+		}
+
+		CallLoopInfo& aux = obsCallLoopBoth[script] = CallLoopInfo{};
+
+		aux.delay = delay;
+		aux.callingObj = thisObj;
+
+		auto const numArgs = eval.NumArgs();
+		if (numArgs >= 2)
+		{
+			for (UInt32 i = 2; i < numArgs; i++)
+			{
+				PluginScriptToken* arg = eval.GetNthArg(i);
+				switch (arg->GetType()) {
+				case kTokenType_Number:
+				case kTokenType_NumericVar:
+				{
+					Float32 valueFlt = arg->GetFloat();
+					aux.arguments.push_back(*reinterpret_cast<UInt32*>(&valueFlt));
+					break;
+				}
+				case kTokenType_Form:
+				case kTokenType_RefVar:
+				{
+					TESObjectREFR* valueRef = (TESObjectREFR*)arg->GetTESForm();
+					if (valueRef) {
+						aux.arguments.push_back(*reinterpret_cast<UInt32*>(&valueRef));
+					}
+					break;
+				}
+				case kTokenType_String:
+				case kTokenType_StringVar:
+				{
+					const char* valueStr = arg->GetString();
+					if (valueStr) {
+						aux.arguments.push_back(*reinterpret_cast<UInt32*>(&valueStr));
+					}
+					break;
+				}
+				case kTokenType_Array:
+				case kTokenType_ArrayVar:
+				{
+					NVSEArrayVarInterface::Array* valueArr = arg->GetArrayVar();
+					if (valueArr) {
+						//aux.arguments.push_back(valueArr);
+					}
+					break;
+				}
+				}
+			}
+		}
+
+	}
+
+	return true;
+
+}
+
 class MatchBySlot : public FormMatcher
 {
+
 	UInt32 m_slotMask;
+
 public:
 	MatchBySlot(UInt32 slot) : m_slotMask(TESBipedModelForm::MaskForSlot(slot)) {}
 	bool Matches(TESForm* pForm) const {
