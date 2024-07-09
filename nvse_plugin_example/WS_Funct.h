@@ -129,6 +129,198 @@ bool Cmd_CreateFormInstance_Execute(COMMAND_ARGS)
 
 }
 
+DEFINE_COMMAND_ALT_PLUGIN(GetAkimboWeapons, GetAkimboWeapons, "Creates a new akimbo instance", false, kParams_CreateWeaponInstance);
+bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+	TESForm* form = NULL;
+	bool bRightLeft = false;
+	ExtraDataList* xData;
+	Actor* actor;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &bRightLeft)) {
+
+		InventoryRef* invRef = InventoryRef::InventoryRefGetForID(thisObj->refID);
+
+		if (!invRef) {
+			return true;
+		}
+
+		Instance* akimbo = invRef->data.type->pLookupInstance();
+
+		if (akimbo && akimbo->baseInstance->extendedType == 222) {
+
+			TESObjectREFR* weap = nullptr;
+
+			if (bRightLeft) {
+				weap = InventoryRef::InventoryRefCreateEntry(invRef->containerRef, ((Instance_Akimbo*)akimbo)->left->clone, 1, ((Instance_Akimbo*)akimbo)->xDataLeft);
+			}
+			else {
+				weap = InventoryRef::InventoryRefCreateEntry(invRef->containerRef, ((Instance_Akimbo*)akimbo)->right->clone, 1, ((Instance_Akimbo*)akimbo)->xDataRight);
+			}
+
+			if (weap) {
+				*refResult = weap->refID;
+			}
+
+		}
+
+	}
+	return true;
+
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(IsAkimboForm, IsAkimbo, "Creates a new akimbo instance", false, kParams_CreateWeaponInstance);
+bool Cmd_IsAkimboForm_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	TESForm* form = nullptr;
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form) || !form) {
+		return true;
+	}
+
+	TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
+
+	if (baseForm->IsStaticForm()) {
+		auto staticInstance = StaticLinker[kFormType_TESObjectWEAP][baseForm->refID];
+		if (staticInstance && staticInstance->extendedType == 222) {
+			*result = 1;
+		}
+	}
+	else if (baseForm->IsInstancedForm()) {
+		auto instance = InstanceLinker[kFormType_TESObjectWEAP][baseForm->refID];
+		if (instance && instance->baseInstance->extendedType == 222) {
+			*result = 1;
+		}
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(CreateAkimboInstance, CreateAkimbo, "Creates a new akimbo instance", false, kParams_CreateWeaponInstance);
+bool Cmd_CreateAkimboInstance_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+
+	Script* reconstruct = nullptr;
+	Script* deconstruct = nullptr;
+
+	TESObjectREFR* leftForm = NULL;
+	TESObjectREFR* rightForm = NULL;
+	char key[0x50];
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &rightForm, &leftForm, &key, &reconstruct, &deconstruct)) {
+
+		if (key[0] != '\0') {
+
+			StaticInstance_Akimbo* akimbo = StaticInstance_Akimbo::LookupAkimboSet(rightForm->baseForm, leftForm->baseForm);
+			if (!akimbo) {
+				return true;
+			}
+
+			TESForm* form = akimbo->newInstance(rightForm, leftForm, key);
+
+			*refResult = form->refID;
+
+			AuxVector filter = Event::EvaluateEventArgAux(1, 1, AuxValue(key));
+
+			if (reconstruct) {
+				Console_Print("reconstructer set");
+				Event eEvent('1', reconstruct, filter);
+				onInstanceReconstructEvent.AddEvent(eEvent);
+			}
+
+			if (deconstruct) {
+				Console_Print("deconstruct set");
+				Event eEvent('1', deconstruct, filter);
+				onInstanceDeconstructEvent.AddEvent(eEvent);
+			}
+
+		}
+
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(DeleteAkimboInstance, DeleteInstance, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_OneForm_OneOptionalInt);
+bool Cmd_DeleteAkimboInstance_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	TESForm* form = NULL;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form)) {
+
+		TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
+
+		if (baseForm->IsInstancedForm()) {
+
+			Instance* rInstance = baseForm->LookupInstance(40);
+			if (rInstance) {
+
+				AuxVector filter{ rInstance->key.c_str() };
+				for (auto it = onInstanceDeconstructEvent.handlers.begin(); it != onInstanceDeconstructEvent.handlers.end(); ++it) {
+
+					if (it->CompareFilters(filter)) {
+						g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 1, rInstance->clone);
+					}
+
+				}
+
+				BGSSaveLoadGame* saveGame = BGSSaveLoadGame::GetSingleton();
+				BGSSaveLoadChangesMap* saveChanges = saveGame->changesMap;
+
+				if (saveChanges) {
+
+					NiTMapBase<UInt32, BGSFormChange*>* formChangeMap = &saveChanges->BGSFormChangeMap;
+
+					for (auto it = formChangeMap->Begin(); it; ++it) {
+
+						UInt32 refID = it.Key();
+
+						if (refID) {
+
+							TESForm* object = LookupFormByRefID(refID);
+
+							if (object && object->IsReference()) {
+
+								TESObjectREFR* refObject = (TESObjectREFR*)object;
+
+								if (refObject && refObject->baseForm == rInstance->clone) {
+
+									refObject->DeleteReference();
+
+								}
+
+							}
+
+						}
+
+					}
+
+				}
+
+				rInstance->baseInstance->aInstances.remove(rInstance->InstID);
+				delete rInstance;
+
+			}
+
+		}
+
+	}
+
+	return true;
+
+}
+
 DEFINE_COMMAND_ALT_PLUGIN(DeleteFormInstance, DeleteFormInst, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_OneForm_OneOptionalInt);
 bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 {
@@ -143,7 +335,7 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 
 		if (baseForm->IsInstancedForm()) {
 
-			Instance* rInstance = form->pLookupInstance();
+			TESInstance* rInstance = form->pLookupInstance();
 			if (rInstance) {
 
 				AuxVector filter{ rInstance->key.c_str() };
@@ -157,9 +349,6 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 
 				BGSSaveLoadGame* saveGame = BGSSaveLoadGame::GetSingleton();
 				BGSSaveLoadChangesMap* formChangeMap = saveGame->changesMap;
-
-				const char* name;
-				bool suck = false;
 
 				if (formChangeMap) {
 
@@ -175,13 +364,24 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 								if (object && object->IsReference()) {
 									TESObjectREFR* refObject = (TESObjectREFR*)object;
 									if (refObject && refObject->baseForm == rInstance->clone) {
+
 										if (replace) {
-											refObject->baseForm = rInstance->baseInstance->parent;
-											//thisObj->Update3D();
+
+											if (rInstance->baseInstance->extendedType <= 120) {
+												refObject->baseForm = ((StaticInstance*)rInstance->baseInstance)->parent;
+											}
+											else if (rInstance->baseInstance->extendedType == 222) {
+												refObject->baseForm = ((StaticInstance_Akimbo*)rInstance->baseInstance)->right->parent;
+												refObject->baseForm = ((StaticInstance_Akimbo*)rInstance->baseInstance)->left->parent;
+											}
+
 										}
 										else {
+
 											refObject->DeleteReference();
+
 										}
+
 									}
 
 								}
@@ -192,8 +392,7 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 
 				}
 
-				rInstance->baseInstance->aInstances.remove(rInstance->InstID);
-				delete rInstance;
+				rInstance->destroy();
 
 			}
 
@@ -545,6 +744,7 @@ bool Hook_GetBaseObject_Execute(COMMAND_ARGS)
 			if (form) {
 				*refResult = form->refID;
 			}
+			return true;
 
 		}
 

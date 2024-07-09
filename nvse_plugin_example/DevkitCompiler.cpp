@@ -70,8 +70,6 @@ namespace Kit {
 
     void DevkitCompiler::RegisterWeaponTypeFunctions() {
 
-        fileManager.typeFunctions[40]["1stpersonmodel"] = TypeFunction(&DevkitCompiler::Set1stPersonWeaponModel);
-
         /*
             fileManager.typeFunctions[40]["objecteffect"] = TypeFunction(&DevkitCompiler::SetScript);
             fileManager.typeFunctions[40]["ammunition"] = TypeFunction(&DevkitCompiler::SetQuestItem);
@@ -105,20 +103,32 @@ namespace Kit {
 
             fileManager.typeFunctions[40]["flags"] = TypeFunction(&DevkitCompiler::SetQuestItem);
         */
-
-        fileManager.typeFunctions[40]["name"] = TypeFunction(&DevkitCompiler::SetName);
-        fileManager.typeFunctions[40]["description"] = TypeFunction(&DevkitCompiler::SetDescription);
-        fileManager.typeFunctions[40]["worldmodel"] = TypeFunction(&DevkitCompiler::SetModel);
-        fileManager.typeFunctions[40]["weight"] = TypeFunction(&DevkitCompiler::SetWeight);
-        fileManager.typeFunctions[40]["value"] = TypeFunction(&DevkitCompiler::SetValue);
-        fileManager.typeFunctions[40]["invenotryimage"] = TypeFunction(&DevkitCompiler::SetInvenotryImage);
-        fileManager.typeFunctions[40]["messageicon"] = TypeFunction(&DevkitCompiler::SetMessageIcon);
-        fileManager.typeFunctions[40]["slot"] = TypeFunction(&DevkitCompiler::BuildSlot);
-
         /*
         fileManager.typeFunctions[40]["Script"] = TypeFunction(&DevkitCompiler::SetScript);
         fileManager.typeFunctions[40]["QuestItem"] = TypeFunction(&DevkitCompiler::SetQuestItem);
         */
+
+        std::vector<std::pair<std::string, TypeFunction<DevkitCompiler>>> commonFunctions = {
+            {"name", TypeFunction(&DevkitCompiler::SetName)},
+            {"description", TypeFunction(&DevkitCompiler::SetDescription)},
+            {"invenotryimage", TypeFunction(&DevkitCompiler::SetInvenotryImage)},
+            {"messageicon", TypeFunction(&DevkitCompiler::SetMessageIcon)},
+        };
+
+        for (const auto& func : commonFunctions) {
+            fileManager.typeFunctions[40][func.first] = func.second;
+            fileManager.typeFunctions[222][func.first] = func.second;
+        }
+
+        //Only on weapons
+        fileManager.typeFunctions[40]["slot"] = TypeFunction(&DevkitCompiler::BuildSlot);
+        fileManager.typeFunctions[40]["1stpersonmodel"] = TypeFunction(&DevkitCompiler::Set1stPersonWeaponModel);
+        fileManager.typeFunctions[40]["worldmodel"] = TypeFunction(&DevkitCompiler::SetModel);
+        fileManager.typeFunctions[40]["value"] = TypeFunction(&DevkitCompiler::SetValue);
+        fileManager.typeFunctions[40]["weight"] = TypeFunction(&DevkitCompiler::SetWeight);
+
+        //Only on akimbos
+        fileManager.typeFunctions[222]["editorid"] = TypeFunction(&DevkitCompiler::BuildAkimboForm);
 
     }
 

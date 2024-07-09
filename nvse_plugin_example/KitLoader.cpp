@@ -235,6 +235,165 @@ namespace Kit {
 
     };
 
+    const std::unordered_map<std::string, int> KitFolder::extensionToType = {
+        {"fileheader", 1},
+        {"group", 2},
+        {"gamesetting", 3},
+        {"textureset", 4},
+        {"menuicon", 5},
+        {"global", 6},
+        {"class", 7},
+        {"faction", 8},
+        {"headpart", 9},
+        {"hair", 10},
+        {"eyes", 11},
+        {"race", 12},
+        {"sound", 13},
+        {"acousticspace", 14},
+        {"skill", 15},
+        {"baseeffect", 16},
+        {"script", 17},
+        {"landtexture", 18},
+        {"objecteffect", 19},
+        {"actoreffect", 20},
+        {"activator", 21},
+        {"talkingactivator", 22},
+        {"terminal", 23},
+        {"armor", 24},
+        {"book", 25},
+        {"clothing", 26},
+        {"container", 27},
+        {"door", 28},
+        {"ingredient", 29},
+        {"light", 30},
+        {"miscellaneous", 31},
+        {"static", 32},
+        {"staticcollection", 33},
+        {"moveablestatic", 34},
+        {"placeablewater", 35},
+        {"grass", 36},
+        {"tree", 37},
+        {"flora", 38},
+        {"furniture", 39},
+        {"weapon", 40},
+        {"ammo", 41},
+        {"npc", 42},
+        {"creature", 43},
+        {"leveledcreature", 44},
+        {"leveledcharacter", 45},
+        {"key", 46},
+        {"ingestible", 47},
+        {"idlemarker", 48},
+        {"note", 49},
+        {"constructibleobject", 50},
+        {"projectile", 51},
+        {"leveleditem", 52},
+        {"weather", 53},
+        {"climate", 54},
+        {"region", 55},
+        {"navmeshinfomap", 56},
+        {"cell", 57},
+        {"reference", 58},
+        {"characterreference", 59},
+        {"creaturereference", 60},
+        {"missileprojectile", 61},
+        {"grenadeprojectile", 62},
+        {"beamprojectile", 63},
+        {"flameprojectile", 64},
+        {"worldspace", 65},
+        {"land", 66},
+        {"navmesh", 67},
+        {"unknown", 68},
+        {"dialogtopic", 69},
+        {"dialogtopicinfo", 70},
+        {"quest", 71},
+        {"idle", 72},
+        {"package", 73},
+        {"combatstyle", 74},
+        {"loadscreen", 75},
+        {"leveledspell", 76},
+        {"animatedobject", 77},
+        {"water", 78},
+        {"effectshader", 79},
+        {"offsettable", 80},
+        {"explosion", 81},
+        {"debris", 82},
+        {"imagespace", 83},
+        {"imagespaceadapter", 84},
+        {"formlist", 85},
+        {"perk", 86},
+        {"bodypartdata", 87},
+        {"addonnode", 88},
+        {"actorvalueinfo", 89},
+        {"radiationstage", 90},
+        {"camerashot", 91},
+        {"camerapath", 92},
+        {"voicetype", 93},
+        {"impactdata", 94},
+        {"impactdataset", 95},
+        {"armoraddon", 96},
+        {"encounterzone", 97},
+        {"message", 98},
+        {"ragdoll", 99},
+        {"defaultobjectmanager", 100},
+        {"lightingtemplate", 101},
+        {"music", 102},
+        {"itemmod", 103},
+        {"reputation", 104},
+        {"continuousbeamprojectile", 105},
+        {"recipe", 106},
+        {"recipecategory", 107},
+        {"casinochip", 108},
+        {"casino", 109},
+        {"loadscreen", 110},
+        {"mediaset", 111},
+        {"medialocationcontroller", 112},
+        {"challenge", 113},
+        {"ammoeffect", 114},
+        {"caravancard", 115},
+        {"caravanmoney", 116},
+        {"caravandeck", 117},
+        {"dehydrationstage", 118},
+        {"hungerstage", 119},
+        {"sleepdeprivationstage", 120},
+        {"akimbo", 222},
+        {"kitInfo", 999}
+    };
+
+    KitFolder::KitFolder(const std::filesystem::path& path) : filePath(path) {
+        CompileTypes();
+    }
+
+    void KitFolder::CompileTypes() {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(filePath)) {
+            if (entry.is_regular_file()) {
+                int type = EvaluateType(entry.path());
+                if (type != -1) {
+                    filesByType[type].push_back(entry.path());
+                }
+            }
+        }
+    }
+
+    int KitFolder::EvaluateType(const std::filesystem::path& filePath) {
+        std::string filename = filePath.filename().string();
+        size_t startBracket = filename.find('[');
+        size_t endBracket = filename.find(']');
+
+        if (startBracket != std::string::npos && endBracket != std::string::npos && startBracket < endBracket) {
+            std::string typeTag = filename.substr(startBracket + 1, endBracket - startBracket - 1);
+            return ConvertExtensionToType(typeTag);
+        }
+        return -1;
+    }
+
+    int KitFolder::ConvertExtensionToType(const std::string& extension) {
+        std::string lowerExtension = StringUtils::toLowerCase(extension);
+        auto it = extensionToType.find(lowerExtension);
+        if (it != extensionToType.end()) {
+            return it->second;
+        }
+        return -1;
+    }
+
 }
-
-

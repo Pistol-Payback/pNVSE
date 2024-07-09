@@ -42,13 +42,13 @@ namespace Kit {
             return;
         }
 
-        if (staticParent->parent->typeID == 40) {
+        if (staticParent && staticParent->extendedType == 40 && ((StaticInstance*)staticParent)->parent->typeID == 40) {
 
             StaticInstance_WEAP* staticWeap = (StaticInstance_WEAP*)staticParent;
             staticWeap->aBaseAttachments[slot] = form->refID;
 
         }
-        else {
+        else if (staticParent && staticParent->extendedType == 103 && ((StaticInstance*)staticParent)->parent->typeID == 103) { //Is item mod
 
             StaticInstance* staticForm = form->LookupStaticInstance();
             if (staticForm) {

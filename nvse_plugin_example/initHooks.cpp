@@ -5,7 +5,7 @@
 namespace Hooks
 {
 
-	TESObjectREFR* __cdecl SaveData(void* objectPtr);
+	TESForm* __cdecl SaveData(void* refID);
 	int __fastcall StopAnimationType(AnimData* animData, void* edx, UInt16 GroupID, int a3, float a4, int a5);
 	int __fastcall OnEquipAlt(TESObjectREFR* equipper, void* edx, TESForm* item, SInt32 count, ExtraDataList* xData, int noMessage, bool lockEquipment, bool playsound);
 

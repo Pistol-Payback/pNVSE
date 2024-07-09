@@ -3,6 +3,9 @@
 
 std::unordered_map<UInt32, std::unordered_map<UInt32, StaticInstance*>> StaticLinker;		//This links the baseform to its extra data.
 std::unordered_map<UInt32, std::unordered_map<UInt32, Instance*>> InstanceLinker;					//This links cloned baseforms to its WeapInst that contains attachment data.
+std::unordered_map<UInt32, std::unordered_map<UInt32, TESRefr*>> TESRefLinker;
+
+std::unordered_map<UInt32, std::unordered_map<UInt32, StaticInstance_Akimbo*>> AkimboSets; //First UInt32 is the right weapon, and second UInt32 is the left
 
 std::unordered_set<UInt32> DynamicallyCreatedForms;
 
@@ -20,8 +23,9 @@ UInt32 InstanceInterface::cloneCount = 0;
 
 TESForm* TESForm::GetStaticParent() const {
 
-	if (InstanceLinker[this->typeID].find(this->refID) != InstanceLinker[this->typeID].end()) {
-		return InstanceLinker[this->typeID][this->refID]->baseInstance->parent;
+	if (InstanceLinker[this->typeID][this->refID]->baseInstance->extendedType <= 120) {
+		StaticInstance* staticInst = (StaticInstance*)InstanceLinker[this->typeID][this->refID]->baseInstance;
+		return staticInst->parent;
 	}
 	return nullptr;
 }
@@ -63,10 +67,18 @@ bool TESForm::pIsDynamicForm() const {
 	return DynamicallyCreatedForms.find(refID) != DynamicallyCreatedForms.end();
 }
 
-Instance* TESForm::pLookupInstance() const {
+TESInstance* TESForm::pLookupInstance() const {
 	auto iter = InstanceLinker[typeID].find(refID);
 	if (iter != InstanceLinker[typeID].end()) {
-		return iter->second;
+		return (TESInstance*)iter->second;
+	}
+	return nullptr;
+}
+
+Instance* TESForm::LookupInstance(UInt32 type) const {
+	auto iter = InstanceLinker[type].find(refID);
+	if (iter != InstanceLinker[type].end()) {
+		return (Instance*)iter->second;
 	}
 	return nullptr;
 }
@@ -100,11 +112,17 @@ StaticInstance* TESForm::MarkAsStaticForm(UInt32 kitIndex) {
 			return new StaticInstance_WEAP(this, kitIndex);
 			break;
 		default:
-			return new StaticInstance(this, kitIndex);
+			return new StaticInstance(this, kitIndex, this->typeID);
 			break;
 		}
 	}
 	return nullptr;
+}
+
+StaticInstance_Akimbo* TESForm::MarkAsAkimboForm(UInt32 kitIndex, StaticInstance_WEAP* leftWeap, StaticInstance_WEAP* rightWeap) {
+
+	return new StaticInstance_Akimbo(kitIndex, leftWeap, rightWeap);
+
 }
 
 TESForm* TESForm::CreateInst(std::string key) {
@@ -117,29 +135,34 @@ TESForm* TESForm::CreateInst(std::string key) {
 	}
 	else if (baseForm->IsInstancedForm()) {
 		Instance* instanceWEAP = InstanceLinker[baseForm->typeID][baseForm->refID];
-		staticInstance = instanceWEAP->baseInstance;
+		staticInstance = (StaticInstance*)instanceWEAP->baseInstance;
 	}
 
 	if (!staticInstance) { //Do not create modifiers of other modifiers. 
 		return nullptr;
 	}
 
-	Instance* NewInst = staticInstance->create(key);
+	Instance* NewInst = staticInstance->newInstance(key);
 
 	return NewInst->clone;
 
 }
 
+StaticInstance_Akimbo* StaticInstance_Akimbo::LookupAkimboSet(TESForm* left, TESForm* right) {
+
+	if (auto iter = AkimboSets.find(left->refID); iter != AkimboSets.end()) {
+		if (auto iterSub = iter->second.find(right->refID); iterSub != iter->second.end()) {
+			return iterSub->second;
+		}
+	}
+	return nullptr;
+
+}
 
 //..............................................................................................................................................................
 
 void Instance::destroy() {
-	if (this->baseInstance) {
-		auto it = std::find(this->baseInstance->aInstances.begin(), this->baseInstance->aInstances.end(), this);
-		if (it != this->baseInstance->aInstances.end()) {
-			this->baseInstance->aInstances.erase(it);
-		}
-	}
+	this->baseInstance->aInstances.remove(this->InstID);
 	delete this;
 }
 
@@ -173,24 +196,113 @@ TESForm* createInstance(StaticInstance* staticForm, std::string key) {
 
 }
 
-
-Instance* StaticInstance::create(std::string key) {
+Instance* StaticInstance::loadInstance(UInt32 instID, const std::string& key) {
 
 	TESForm* clone = createInstance(this, key);
-	return new Instance(this, clone, key);
+	return new TESInstance(instID, this, clone, key);
 
 }
 
-Instance* StaticInstance_WEAP::create(std::string key) {
+Instance* StaticInstance_WEAP::loadInstance(UInt32 instID, const std::string& key) {
+
+	TESForm* clone = createInstance(this, key);
+	return new Instance_WEAP(instID, this, clone, key, this->aBaseAttachments);
+
+}
+
+
+Instance* StaticInstance::newInstance(const std::string& key) {
+
+	TESForm* clone = createInstance(this, key);
+	return new TESInstance(this, clone, key);
+
+}
+
+Instance* StaticInstance_WEAP::newInstance(const std::string& key) {
 
 	TESForm* clone = createInstance(this, key);
 	return new Instance_WEAP(this, clone, key, this->aBaseAttachments);
 
 }
 
+Instance_Akimbo* StaticInstance_Akimbo::loadInstance(UInt16 InstID, Instance_WEAP* weapRight, Instance_WEAP* weapLeft, ExtraDataList* xDataRight, ExtraDataList* xDataLeft, const std::string& key) {
+
+	if (!weapRight || !weapLeft) {
+		return nullptr;
+	}
+
+	TESObjectWEAP* left = (TESObjectWEAP*)weapLeft->clone;
+	TESObjectWEAP* right = (TESObjectWEAP*)weapRight->clone;
+
+	UInt32 currentKitIndex = 0;
+	std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
+	TESForm* clone = TESForm::CreateNewForm(right, editorID.c_str(), false, 0, currentKitIndex, false);
+
+	TESFullName* fullName = clone->GetFullName();
+
+	std::string nameLeft = left->GetFullName() ? left->GetFullName()->name.m_data : "left";
+	std::string nameRight = right->GetFullName() ? right->GetFullName()->name.m_data : "right";
+	std::string akimboName = nameLeft + " & " + nameRight;
+	((TESObjectWEAP*)clone)->GetFullName()->name.Set(akimboName.c_str());
+
+
+	((TESObjectWEAP*)clone)->weight.weight = left->weight.weight + right->weight.weight;
+	((TESObjectWEAP*)clone)->value.value = left->value.value + right->value.value;
+
+	return new Instance_Akimbo(InstID, this, clone, key, weapLeft, weapRight, xDataLeft, xDataRight);
+
+}
+
+TESForm* StaticInstance_Akimbo::newInstance(TESObjectREFR* right, TESObjectREFR* left, const std::string& key) {
+
+	StaticInstance_WEAP* staticInstanceRight = nullptr;
+	StaticInstance_WEAP* staticInstanceLeft = nullptr;
+
+	Instance_WEAP* weapRight = nullptr;
+	Instance_WEAP* weapLeft = nullptr;
+
+	ExtraDataList* xDataRight = right->extraDataList.CreateCopy();
+	ExtraDataList* xDataLeft = left->extraDataList.CreateCopy();
+
+	if (!xDataRight || !xDataLeft) {
+		return nullptr;
+	}
+
+	if (right->baseForm->IsInstancedForm()) {
+		weapRight = static_cast<Instance_WEAP*>(InstanceLinker[right->baseForm->typeID][right->baseForm->refID]);
+	}
+
+	if (left->baseForm->IsInstancedForm()) {
+		weapLeft = static_cast<Instance_WEAP*>(InstanceLinker[left->baseForm->typeID][left->baseForm->refID]);
+	}
+
+	if (!weapRight || !weapLeft) {
+		return nullptr;
+	}
+
+	UInt32 currentKitIndex = 0;
+	std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
+	TESForm* clone = TESForm::CreateNewForm(right, editorID.c_str(), false, 0, currentKitIndex, false);
+
+	TESFullName* fullName = clone->GetFullName();
+
+	std::string nameLeft = left->GetFullName() ? left->GetFullName()->name.m_data : "left";
+	std::string nameRight = right->GetFullName() ? right->GetFullName()->name.m_data : "right";
+	std::string akimboName = nameLeft + " & " + nameRight;
+	((TESObjectWEAP*)clone)->GetFullName()->name.Set(akimboName.c_str());
+
+
+	((TESObjectWEAP*)clone)->weight.weight = ((TESObjectWEAP*)left)->weight.weight + ((TESObjectWEAP*)right)->weight.weight;
+	((TESObjectWEAP*)clone)->value.value = ((TESObjectWEAP*)left)->value.value + ((TESObjectWEAP*)right)->value.value;
+
+	Instance_Akimbo* NewInst = new Instance_Akimbo(this, clone, key, weapLeft, weapRight, xDataLeft, xDataRight);
+
+	return NewInst->clone;
+}
+
 //..........................................................................................................................................
 
-AuxVector* StaticInstance::GetLinkedTrait(const std::string& trait, StaticInstance* linkedObj, const std::string& sSlot) {
+AuxVector* ExtendedBaseType::GetLinkedTrait(const std::string& trait, ExtendedBaseType* linkedObj, const std::string& sSlot) {
 
 	if (!linkedObj) {
 		return nullptr;
@@ -221,9 +333,11 @@ AuxVector* StaticInstance::GetLinkedTrait(const std::string& trait, StaticInstan
 
 	return &functionsIter->second;
 
+	return nullptr;
+
 };
 
-AuxVector* StaticInstance::SetLinkedTrait(const std::string& trait, StaticInstance* linkedObj, const std::string& sSlot) {
+AuxVector* ExtendedBaseType::SetLinkedTrait(const std::string& trait, ExtendedBaseType* linkedObj, const std::string& sSlot) {
 
 	if (!linkedObj) {
 		return nullptr;
@@ -250,11 +364,12 @@ AuxVector* StaticInstance::SetLinkedTrait(const std::string& trait, StaticInstan
 
 	return &functionsIter->second;
 
+	return nullptr;
 };
 
 //................................................................................................................................................................
 
-AuxVector* StaticInstance::GetBaseTrait(const std::string& sTrait) {
+AuxVector* ExtendedBaseType::GetBaseTrait(const std::string& sTrait) {
 
 	auto it = this->traits.find(sTrait);
 	if (it != this->traits.end()) {
@@ -263,17 +378,17 @@ AuxVector* StaticInstance::GetBaseTrait(const std::string& sTrait) {
 	return nullptr;
 }
 
-AuxVector* StaticInstance::SetBaseTrait(const std::string& sTrait) {
+AuxVector* ExtendedBaseType::SetBaseTrait(const std::string& sTrait) {
 	return &this->traits[sTrait];
 }
 
-void StaticInstance::EraseBaseTrait(const std::string& sTrait) {
+void ExtendedBaseType::EraseBaseTrait(const std::string& sTrait) {
 
 	this->traits.erase(sTrait);
 
 }
 
-AuxVector* StaticInstance::GetTrait(const std::string& trait, StaticInstance* linkedObj, const std::string& sSlot, UInt8 priorityFlag) {
+AuxVector* ExtendedBaseType::GetTrait(const std::string& trait, ExtendedBaseType* linkedObj, const std::string& sSlot, UInt8 priorityFlag) {
 
 	if (!linkedObj) {
 		return this->GetBaseTrait(trait);
@@ -290,9 +405,11 @@ AuxVector* StaticInstance::GetTrait(const std::string& trait, StaticInstance* li
 		return linkedObj->GetBaseTrait(trait);	// Return Linked base trait
 	}
 
+	return nullptr;
+
 }
 
-AuxVector* StaticInstance::SetTrait(const std::string& trait, StaticInstance* linkedObj, const std::string& sSlot, UInt8 priorityFlag) {
+AuxVector* ExtendedBaseType::SetTrait(const std::string& trait, ExtendedBaseType* linkedObj, const std::string& sSlot, UInt8 priorityFlag) {
 
 	if (!linkedObj || linkedObj == this) {
 		return this->SetBaseTrait(trait);
@@ -312,10 +429,25 @@ AuxVector* StaticInstance::SetTrait(const std::string& trait, StaticInstance* li
 
 }
 
-void StaticInstance::MarkAsEdit(UInt32 modIndex) {
+void ExtendedBaseType::MarkAsEdit(UInt32 modIndex) {
 	if (std::find(edits.begin(), edits.end(), modIndex) == edits.end()) {
 		edits.push_back(modIndex);
 	}
+}
+
+void ExtendedBaseType::clearInstances() {
+	for (Instance* instance : aInstances) {
+		if (instance) {
+			AuxVector filter{ instance->key.c_str() };
+			for (auto it = onInstanceDeconstructEvent.handlers.begin(); it != onInstanceDeconstructEvent.handlers.end(); ++it) {
+				if (it->CompareFilters(filter)) {
+					g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 1, instance->clone);
+				}
+			}
+			delete instance;
+		}
+	}
+	aInstances.clear();
 }
 
 InstanceVector::~InstanceVector() {

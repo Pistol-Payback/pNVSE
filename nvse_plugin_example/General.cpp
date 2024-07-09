@@ -361,6 +361,49 @@ namespace Kit {
 
     }
 
+    void DevkitCompiler::BuildAkimboForm(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        std::string leftID, rightID;
+        if (!(argStream >> leftID)) {
+            PrintKitError("Akimbo left EditorID missing for the first argument.", argStream.str());
+            this->skipForm(it);
+            return;
+        }
+
+        if (!(argStream >> rightID)) {
+            //PrintKitError("Akimbo right EditorID missing for the second argument.", argStream.str());
+            rightID = leftID;
+           // this->skipForm(it);
+           // return;
+        }
+
+        TESForm* left = LookupEditorID<TESForm*>(leftID.c_str());
+        TESForm* right = LookupEditorID<TESForm*>(rightID.c_str());
+
+        if (!left || !right || left->typeID != 40 || right->typeID != 40) {
+            PrintKitError("Akimbo, both forms must be a weapon.", argStream.str());
+            this->skipForm(it);
+            return;
+        }
+
+        auto currentKitIndex = this->fileManager.currentKitFile->data->index;
+
+        if (staticParent = StaticInstance_Akimbo::LookupAkimboSet(left, right)) {
+
+            staticParent->MarkAsEdit(currentKitIndex);
+
+        }
+        else {
+
+            staticParent = new StaticInstance_Akimbo(
+                currentKitIndex, 
+                (StaticInstance_WEAP*)left->LookupStaticInstance(), 
+                (StaticInstance_WEAP*)right->LookupStaticInstance()
+            );
+
+        }
+    }
+
     void DevkitCompiler::SetQuestItem(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
     }

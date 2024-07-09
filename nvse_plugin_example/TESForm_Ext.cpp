@@ -60,6 +60,47 @@ TESObjectREFR* TESForm::PlaceAtCell(TESForm* worldOrCell, float x, float y, floa
     return nullptr;
 }
 
+TESObjectREFR* TESObjectREFR::MoveToCell(TESForm* worldOrCell, float x, float y, float z, float xR, float yR, float zR)
+{
+    TESObjectCELL* targetCell = nullptr;
+
+    if (worldOrCell->typeID == kFormType_TESObjectCELL)
+    {
+        targetCell = static_cast<TESObjectCELL*>(worldOrCell);
+    }
+    else
+    {
+        targetCell = static_cast<TESWorldSpace*>(worldOrCell)->cell;
+    }
+    /*
+    this->parentCell = targetCell;
+    this->posX = x;
+    this->posY = y;
+    this->posZ = z;
+    this->rotX = xR;
+    this->rotY = yR;
+    this->rotZ = zR;
+    */
+    this->parentCell = nullptr;
+    this->posX = x;
+    this->posY = y;
+    this->posZ = z;
+    this->rotX = xR;
+    this->rotY = yR;
+    this->rotZ = zR;
+
+    //this->MoveTo(&NiPoint3(x, y, z));
+
+    this->posX = x;
+    this->posY = y;
+    this->posZ = z;
+    this->rotX = xR;
+    this->rotY = yR;
+    this->rotZ = zR;
+
+    return nullptr;
+}
+
 TESForm* TESForm::CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex)
 {
     TESForm* result = CreateFormInstance(typeID);
@@ -83,7 +124,7 @@ TESForm* TESForm::CreateNewForm(UInt8 typeID, const char* editorID, bool bPersis
     return result;
 }
 
-TESForm* TESForm::CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex)
+TESForm* TESForm::CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex, bool markStatic)
 {
 
     TESForm* result = nullptr;
@@ -102,9 +143,11 @@ TESForm* TESForm::CreateNewForm(TESForm* copyFrom, const char* editorID, bool bP
 
     DynamicallyCreatedForms.insert(result->refID);
 
-    StaticInstance* staticInst = result->MarkAsStaticForm(kitIndex);
-    if (!staticInst) {
-        Console_Print("CreateNewForm failed, attempted to create %s from %s in kit index %d", editorID, copyFrom->GetEditorID(), kitIndex);
+    if (markStatic) {
+        StaticInstance* staticInst = result->MarkAsStaticForm(kitIndex);
+        if (!staticInst) {
+            Console_Print("CreateNewForm failed, attempted to create %s from %s in kit index %d", editorID, copyFrom->GetEditorID(), kitIndex);
+        }
     }
 
     return result;

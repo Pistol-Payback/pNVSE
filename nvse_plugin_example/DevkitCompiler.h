@@ -51,6 +51,7 @@ namespace Kit {
         void SetQuestItem(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void BuildForm(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void BuildAkimboForm(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         //FormsList
         void FormListAdd(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
@@ -82,7 +83,7 @@ namespace Kit {
 
         TESForm* templateForm = nullptr;
         std::string slot = "null";
-        StaticInstance* staticParent = nullptr;
+        ExtendedBaseType* staticParent = nullptr;
 
         KitFileManager fileManager;
 
@@ -122,12 +123,12 @@ namespace Kit {
             fileManager.compressKitFolders();
             fileManager.BuildForms(*this);
 
-            fileManager.typeFunctions[201]["conflicts"] = TypeFunction{ &DevkitCompiler::KitConflicts };
-            fileManager.typeFunctions[201]["version"] = TypeFunction{ &DevkitCompiler::KitVersion };
-            fileManager.typeFunctions[201]["updatewarning"] = TypeFunction{ &DevkitCompiler::KitUpdateWearning };
-            fileManager.typeFunctions[201]["safetoremove"] = TypeFunction{ &DevkitCompiler::KitIsSafeToRemove };
-            fileManager.typeFunctions[201]["updater"] = TypeFunction{ &DevkitCompiler::KitUpdater };
-            fileManager.typeFunctions[201]["uninstaller"] = TypeFunction{ &DevkitCompiler::KitUninstaller };
+            fileManager.typeFunctions[999]["conflicts"] = TypeFunction{ &DevkitCompiler::KitConflicts };
+            fileManager.typeFunctions[999]["version"] = TypeFunction{ &DevkitCompiler::KitVersion };
+            fileManager.typeFunctions[999]["updatewarning"] = TypeFunction{ &DevkitCompiler::KitUpdateWearning };
+            fileManager.typeFunctions[999]["safetoremove"] = TypeFunction{ &DevkitCompiler::KitIsSafeToRemove };
+            fileManager.typeFunctions[999]["updater"] = TypeFunction{ &DevkitCompiler::KitUpdater };
+            fileManager.typeFunctions[999]["uninstaller"] = TypeFunction{ &DevkitCompiler::KitUninstaller };
 
             fileManager.typeFunctions[17]["scn"] = TypeFunction(&DevkitCompiler::CompileScript);
             fileManager.typeFunctions[17]["name"] = TypeFunction(&DevkitCompiler::CompileScript);

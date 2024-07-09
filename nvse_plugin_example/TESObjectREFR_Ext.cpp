@@ -63,3 +63,14 @@ void TESObjectREFR::SetWeaponModFlags(UInt8 flags)
 	}
 
 }
+
+TESForm* TESObjectREFR::GetLocation(){
+
+	TESObjectCELL* cell = this->parentCell;
+	TESForm* location = cell->worldSpace;
+	if (!location) {
+		location = cell;
+	}
+	return location;
+
+}

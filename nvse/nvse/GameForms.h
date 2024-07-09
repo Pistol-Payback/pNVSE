@@ -189,6 +189,8 @@ struct Instance;
 
 struct Instance_WEAP;
 struct StaticInstance_WEAP;
+struct StaticInstance_Akimbo;
+struct TESInstance;
 
 struct Condition;
 
@@ -360,12 +362,15 @@ public:
 	UInt32 					GetInstanceID() const;
 
 	StaticInstance*			MarkAsStaticForm(UInt32 kitIndex);
+	StaticInstance_Akimbo*	MarkAsAkimboForm(UInt32 kitIndex, StaticInstance_WEAP* leftWeap, StaticInstance_WEAP* rightWeap);	//For stuff like akimbos
 	Instance*				LookupInstanceByID(UInt32 InstID) const;
 
 	TESForm*				CreateInst(std::string key);
+	TESForm* CreateAkimboInst(TESObjectREFR* left, std::string key);
 
 	StaticInstance*			LookupStaticInstance() const;
-	Instance*				pLookupInstance() const;
+	TESInstance*			pLookupInstance() const;
+	Instance*				LookupInstance(UInt32 type) const;
 
 	bool					IsStaticForm() const;
 	bool					HasExtendedMods() const;
@@ -374,7 +379,7 @@ public:
 	//TESForm_Ext
 
 	static TESForm* CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0);
-	static TESForm* CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0);
+	static TESForm* CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0, bool markStatic = true);
 	bool IsReference() const;
 	bool IsBaseForm() const;
 	UInt32 GetModIndexAlt() const;

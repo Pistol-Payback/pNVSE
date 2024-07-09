@@ -203,18 +203,21 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 	case NVSEMessagingInterface::kMessage_RenameGameName: break;
 	case NVSEMessagingInterface::kMessage_RenameNewGameName: break;
 	case NVSEMessagingInterface::kMessage_DeferredInit: {
-
+		
 		g_interfaceManager = InterfaceManager::GetSingleton();
 		g_1stPersonWeapModel = (TESObjectSTAT*)TESObjectSTAT::CreateNewForm(32, "pNVSE1stPersonDummy", 0, 0, 0);
 		Hooks::CMDPatchHooks();
 
-		ScriptConverter* converter = new ScriptConverter();
-		converter->Convert();
-		delete converter;
+		if (std::filesystem::exists(GetFalloutDirectory() + "Data\\ScriptConverter") && std::filesystem::is_directory(GetFalloutDirectory() + "Data\\ScriptConverter")) {
+			ScriptConverter* converter = ScriptConverter::Create();
+			converter->Convert();
+			delete converter;
+		}
 
-		Kit::DevkitCompiler* LoadKitFiles = new Kit::DevkitCompiler();
-		delete LoadKitFiles;
-
+		if (std::filesystem::exists(GetFalloutDirectory() + "Data\\Devkit") && std::filesystem::is_directory(GetFalloutDirectory() + "Data\\Devkit")) {
+			Kit::DevkitCompiler* LoadKitFiles = new Kit::DevkitCompiler();
+			delete LoadKitFiles;
+		}
 
 	}
 		break;

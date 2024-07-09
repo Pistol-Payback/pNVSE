@@ -54,6 +54,23 @@ public:
 
     std::vector<std::string> convertedFile;
 
+    bool Initialize() {
+        // Validate the root directory
+        if (!std::filesystem::exists(sRoot) || !std::filesystem::is_directory(sRoot)) {
+            std::cerr << "Error: Root directory '" << sRoot << "' does not exist or is not a directory." << std::endl;
+            return false; // Initialization failed
+        }
+        return true; // Initialization successful
+    }
+
+    static ScriptConverter* Create() {
+        std::unique_ptr<ScriptConverter> converter(new ScriptConverter());
+        if (!converter->Initialize()) {
+            return nullptr; // Return nullptr if initialization failed
+        }
+        return converter.release(); // Return the raw pointer if successful
+    }
+
     ScriptConverter() {
 
         stringOps[R"(\)"] = R"(\\)";

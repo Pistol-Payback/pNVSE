@@ -333,6 +333,7 @@
     <ClCompile Include="AuxVars.cpp" />
     <ClCompile Include="Base_Ext.cpp" />
     <ClCompile Include="DevkitListFunctions.cpp" />
+    <ClCompile Include="InstanceLoadSave.cpp" />
     <ClCompile Include="KitInfoFunctions.cpp" />
     <ClCompile Include="ScriptConverter.cpp" />
     <ClCompile Include="General.cpp" />

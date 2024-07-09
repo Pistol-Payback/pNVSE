@@ -171,9 +171,11 @@ public:
 		return CdeclCall<TESObjectREFR*>(0x5C4B30, this, form, count, distance, direction, health);
 	}
 
+	TESObjectREFR* MoveToCell(TESForm* worldOrCell, float x, float y, float z, float xR, float yR, float zR);
 	Instance* GetWeaponBase();
 	UInt8 GetWeaponModFlags();
 	void SetWeaponModFlags(UInt8);
+	TESForm* GetLocation();
 
 	//TESObjectREFR* PlaceAtMe(TESObjectREFR* refr, TESForm* form, UInt32 count, UInt32 distance, UInt32 direction, float health);
 
