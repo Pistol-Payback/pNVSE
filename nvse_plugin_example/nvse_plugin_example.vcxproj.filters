@@ -191,6 +191,15 @@
     <ClCompile Include="InstanceLoadSave.cpp">
       <Filter>ppNVSE\Instances</Filter>
     </ClCompile>
+    <ClCompile Include="ReplaceFunctions.cpp">
+      <Filter>ppNVSE\functions</Filter>
+    </ClCompile>
+    <ClCompile Include="Devkit_kNVSE.cpp">
+      <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\nvse\nvse\Hooks_DirectInput8Create.cpp">
+      <Filter>nvse</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\GameAPI.h">
@@ -322,6 +331,12 @@
     </ClInclude>
     <ClInclude Include="WeaponSmith.h">
       <Filter>ppNVSE\Instances</Filter>
+    </ClInclude>
+    <ClInclude Include="ReplaceFunctions.h">
+      <Filter>ppNVSE\functions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\Hooks_DirectInput8Create.h">
+      <Filter>nvse</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -5,6 +5,7 @@
 #include "nvse/ParamInfos.h"
 #include "nvse/ParamInfosNVSE.h"
 #include "nvse/GameObjects.h"
+#include "nvse/Hooks_DirectInput8Create.h"
 #include <string>
 #include "ppNVSE.h"
 #include "EventHandlers.h"

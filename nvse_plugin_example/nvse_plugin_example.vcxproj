@@ -324,6 +324,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug GECK|Win32'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\nvse\nvse\GameTypes.cpp" />
+    <ClCompile Include="..\nvse\nvse\Hooks_DirectInput8Create.cpp" />
     <ClCompile Include="..\nvse\nvse\InventoryReference.cpp" />
     <ClCompile Include="..\nvse\nvse\printf.cpp" />
     <ClCompile Include="..\nvse\nvse\SafeWrite.cpp" />
@@ -333,8 +334,10 @@
     <ClCompile Include="AuxVars.cpp" />
     <ClCompile Include="Base_Ext.cpp" />
     <ClCompile Include="DevkitListFunctions.cpp" />
+    <ClCompile Include="Devkit_kNVSE.cpp" />
     <ClCompile Include="InstanceLoadSave.cpp" />
     <ClCompile Include="KitInfoFunctions.cpp" />
+    <ClCompile Include="ReplaceFunctions.cpp" />
     <ClCompile Include="ScriptConverter.cpp" />
     <ClCompile Include="General.cpp" />
     <ClCompile Include="dllmain.c">
@@ -392,6 +395,7 @@
     <ClInclude Include="..\nvse\nvse\GameTiles.h" />
     <ClInclude Include="..\nvse\nvse\GameTypes.h" />
     <ClInclude Include="..\nvse\nvse\GameUI.h" />
+    <ClInclude Include="..\nvse\nvse\Hooks_DirectInput8Create.h" />
     <ClInclude Include="..\nvse\nvse\InventoryReference.h" />
     <ClInclude Include="..\nvse\nvse\ParamInfosNVSE.h" />
     <ClInclude Include="..\nvse\nvse\PluginAPI.h" />
@@ -411,6 +415,7 @@
     <ClInclude Include="KitLoader.h" />
     <ClInclude Include="ppNVSE.h" />
     <ClInclude Include="ppNVSE_Functions.h" />
+    <ClInclude Include="ReplaceFunctions.h" />
     <ClInclude Include="SaveSystem.h" />
     <ClInclude Include="ScriptConverter.h" />
     <ClInclude Include="TestHooks.h" />
