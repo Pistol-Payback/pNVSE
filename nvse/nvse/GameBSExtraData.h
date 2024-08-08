@@ -194,6 +194,7 @@ struct BaseExtraList
 {
 	bool HasType(UInt32 type) const;
 
+	//Same as Add
 	__forceinline BSExtraData* AddExtra(BSExtraData* toAdd)
 	{
 		return ThisCall<BSExtraData*>(0x40FF60, this, toAdd); //0x40FF60 ADDR_AddExtraData
@@ -233,10 +234,13 @@ struct BaseExtraList
 		ThisStdCall(0x411EC0, this, from);
 	}
 
+	//Vanilla copy from, this runs when dropping items. Regular copy works better? couldn't get this to copy kExtraData_Count
 	__forceinline void CopyFrom(const BaseExtraList* sourceList, bool bCopyAndRemove)
 	{
 		ThisCall(0x412490, this, sourceList, bCopyAndRemove);
 	}
+
+	SInt32 GetCount() const;
 
 	void DebugDump() const;
 
@@ -259,6 +263,8 @@ struct ExtraDataList : public BaseExtraList
 
 	bool ContainsMatch(ExtraDataList* xCompare, bool doFree = false);
 	bool ContainsMatch(BSExtraData* xCompare, bool doFree = false);
+
+	//Generally used for making new items using another items extra data list. Does not copy data like worn extra data.
 	static ExtraDataList* CopyItemData(ExtraDataList* xCopyFrom, bool doFree, ExtraDataList* xCopyTo = nullptr);
 
 };

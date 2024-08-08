@@ -80,3 +80,9 @@ bool BaseExtraList::MarkScriptEvent(UInt32 eventMask, TESForm* eventTarget)
 {
 	return MarkBaseExtraListScriptEvent(eventTarget, this, eventMask);
 }
+
+SInt32 BaseExtraList::GetCount() const
+{
+	ExtraCount* xCount = (ExtraCount*)(this)->GetByType(kXData_ExtraCount);
+	return xCount ? xCount->count : 1;
+}

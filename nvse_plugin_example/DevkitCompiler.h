@@ -7,21 +7,29 @@ namespace Kit {
 
         void skipDocument(std::vector<std::string>::const_iterator& it);
         void GatherLeveledData(std::vector<std::string>::const_iterator& it, TESLeveledList::BaseData* newData);
+
         void skipForm(std::vector<std::string>::const_iterator& it);
         void skipLink(std::vector<std::string>::const_iterator& it);
+
+        void skipNestedFunction(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void skipFunction(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void skipNested(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void SetTrait(TypeFunction<DevkitCompiler>& function, std::istringstream& argStream);
 
         void SetType(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
-        void SetTemplate(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
-        void BreakFromTemplate(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void SetTemplate(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void SetAkimboTemplate(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+ 
+        void EndOfDocument(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void QuestDelay(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void QuestFlags(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void QuestScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void BuildScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        Script* BuildScriptCondition(std::istringstream& iss);
         void RegFloatVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void RegIntVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void RegRefVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
@@ -31,10 +39,11 @@ namespace Kit {
 
         void CompileScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
-        void BuildSlot(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
-        void BuildWeaponModLink(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void BuildSlot(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void BuildWeaponModLink(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetWeaponAnimation(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
-        void Set1stPersonWeaponModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void Set1stPersonWeaponModel(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void SetWeaponWorldModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void SetBaseMod(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void Set1stPersonAttachmentModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
@@ -48,14 +57,23 @@ namespace Kit {
         void SetInvenotryImage(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetMessageIcon(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void SetTextureSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetQuestItem(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
+        //Akimbo
         void BuildForm(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void BuildAkimboForm(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
+        //kNVSE
+            void AssignAnim(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+            //-1
+            void kNVSECompileAnimSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+            void BuildFormAnimSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+            TESForm* lookupGroupEditorID(const std::string& argument);
+
         //FormsList
         void FormListAdd(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
-        void LeveledListAdd(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void LeveledListAdd(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void ChanceOfNone(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         //KitInfo...............................................................................................................
@@ -74,6 +92,8 @@ namespace Kit {
         void RegisterLists();
         void RegisterStatic();
         void compileTraitFiles();
+        void compilePartials();
+        void clearAnimGroups();
 
         //.........................................................................................................................
 
@@ -83,19 +103,76 @@ namespace Kit {
 
         TESForm* templateForm = nullptr;
         std::string slot = "null";
-        ExtendedBaseType* staticParent = nullptr;
+        StaticInstance* staticParent = nullptr;
+        StaticInstance* templateEXB = nullptr;
 
         KitFileManager fileManager;
 
+        struct NestedState {
+
+            NestedState(TESForm* form, TESForm* templateForm, std::string slot, 
+                StaticInstance* staticParent, StaticInstance* templateEXB, SInt32 type) :
+                form(form), templateForm(templateForm), slot(slot), 
+                staticParent(staticParent), templateEXB(templateEXB), type(type) {}
+
+            SInt32 type;
+            TESForm* form;
+            TESForm* templateForm;
+            std::string slot;
+            StaticInstance* staticParent;
+            StaticInstance* templateEXB;
+
+        };
+
+        std::vector<NestedState*> nested;
+        void EnterNestedState();
+        void ExitNestedState();
+        void ClearNestedState();
+        void RunOperatorOverloads(const char* m_operator, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+
+        std::vector<Script*> toCompile; //For partials
+        std::unordered_set<TESForm*> AnimGroups; //For AnimGroups -1. All these get destoryed at the end.
+        std::unordered_map<std::string, TESForm*> AnimGroupLookup;
+
+        //Used for akimbos that need to keep their anim groups as parents
+        std::unordered_set<StaticInstance*> AnimGroupsKeep;
+
         DevkitCompiler() : fileManager(GetFalloutDirectory() + "Data\\Devkit") {
 
-            //fileManager.compileLoadOrder();
-            fileManager.compileLoadOrderFromAll();
+        //Build faze
+
+            bool staticLoadOrder = false;
+            if (staticLoadOrder) {
+                fileManager.compileLoadOrder();
+            }
+            else {
+                fileManager.compileLoadOrderFromAll();
+            }
+
             fileManager.loadKitFolders();
 
             fileManager.typeFunctions[0]["type"] = TypeFunction{ &DevkitCompiler::SetType };
             fileManager.typeFunctions[0]["template"] = TypeFunction{ &DevkitCompiler::SetTemplate };
-            fileManager.typeFunctions[0]["}clear"] = TypeFunction{ &DevkitCompiler::BreakFromTemplate };
+            fileManager.typeFunctions[0]["}clear"] = TypeFunction{ &DevkitCompiler::EndOfDocument };
+
+            if (PluginFunctions::kNVSE) { //kNVSE
+
+              //AnimSets
+              fileManager.typeFunctions[-1]["editorid"] = TypeFunction(&DevkitCompiler::BuildFormAnimSet);
+              fileManager.typeFunctions[-1]["folder"] = TypeFunction(&DevkitCompiler::kNVSECompileAnimSet);
+
+              //akimbos
+              fileManager.typeFunctions[222]["template"] = TypeFunction{ &DevkitCompiler::SetAkimboTemplate };
+              fileManager.typeFunctions[222]["editorid"] = TypeFunction(&DevkitCompiler::BuildAkimboForm);
+              
+            }
+            else { //Skips
+
+                //akimbos
+                fileManager.typeFunctions[222]["template"] = TypeFunction{ &DevkitCompiler::skipNestedFunction };
+                fileManager.typeFunctions[222]["editorid"] = TypeFunction(&DevkitCompiler::skipNestedFunction);
+
+            }
 
             for (int i = 1; i <= 120; ++i) {
 
@@ -120,22 +197,34 @@ namespace Kit {
                 }
             }
 
+            fileManager.loadESPToKitData();
             fileManager.compressKitFolders();
             fileManager.BuildForms(*this);
 
-            fileManager.typeFunctions[999]["conflicts"] = TypeFunction{ &DevkitCompiler::KitConflicts };
-            fileManager.typeFunctions[999]["version"] = TypeFunction{ &DevkitCompiler::KitVersion };
-            fileManager.typeFunctions[999]["updatewarning"] = TypeFunction{ &DevkitCompiler::KitUpdateWearning };
-            fileManager.typeFunctions[999]["safetoremove"] = TypeFunction{ &DevkitCompiler::KitIsSafeToRemove };
-            fileManager.typeFunctions[999]["updater"] = TypeFunction{ &DevkitCompiler::KitUpdater };
-            fileManager.typeFunctions[999]["uninstaller"] = TypeFunction{ &DevkitCompiler::KitUninstaller };
+         //Linker faze below:
 
+            if (PluginFunctions::kNVSE) { //kNVSE
+                fileManager.typeFunctions[0]["animset"] = TypeFunction{ &DevkitCompiler::AssignAnim };
+            }
+            else { //Skips
+                fileManager.typeFunctions[0]["animset"] = TypeFunction{ &DevkitCompiler::skipNestedFunction };
+            }
+            fileManager.typeFunctions[0]["texture"] = TypeFunction{ &DevkitCompiler::SetTextureSet };
+            
             fileManager.typeFunctions[17]["scn"] = TypeFunction(&DevkitCompiler::CompileScript);
             fileManager.typeFunctions[17]["name"] = TypeFunction(&DevkitCompiler::CompileScript);
 
             fileManager.typeFunctions[71]["name"] = TypeFunction(&DevkitCompiler::SetName);
             fileManager.typeFunctions[71]["questdelay"] = TypeFunction(&DevkitCompiler::QuestDelay);
             fileManager.typeFunctions[71]["flags"] = TypeFunction(&DevkitCompiler::QuestFlags);
+
+            //Kit info Functions
+            fileManager.typeFunctions[999]["conflicts"] = TypeFunction{ &DevkitCompiler::KitConflicts };
+            fileManager.typeFunctions[999]["version"] = TypeFunction{ &DevkitCompiler::KitVersion };
+            fileManager.typeFunctions[999]["updatewarning"] = TypeFunction{ &DevkitCompiler::KitUpdateWearning };
+            fileManager.typeFunctions[999]["safetoremove"] = TypeFunction{ &DevkitCompiler::KitIsSafeToRemove };
+            fileManager.typeFunctions[999]["updater"] = TypeFunction{ &DevkitCompiler::KitUpdater };
+            fileManager.typeFunctions[999]["uninstaller"] = TypeFunction{ &DevkitCompiler::KitUninstaller };
 
             RegisterWeaponTypeFunctions();
             RegisterWeaponModTypeFunctions();
@@ -144,6 +233,10 @@ namespace Kit {
             compileTraitFiles();
 
             fileManager.ReadKitFiles(*this);
+
+            //Compile partials after core scripts have been compiled
+            compilePartials();
+            clearAnimGroups();
 
         }
 
@@ -175,7 +268,7 @@ namespace Kit {
             }
 
             if (fileManager.currentKitFile) {
-                errorStream << "FolderType: " << fileManager.type << '\n';
+                errorStream << "FolderType: " << ConvertTypeToExtension(fileManager.type) << '\n';
             }
             else {
                 errorStream << "FolderType: Undefined " << '\n';

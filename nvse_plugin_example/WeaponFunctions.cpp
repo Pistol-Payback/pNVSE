@@ -2,54 +2,108 @@
 
 namespace Kit {
 
-    void DevkitCompiler::Set1stPersonWeaponModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::Set1stPersonWeaponModel(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string argument;
         std::string modelPath;
         TESObjectSTAT* FirstPersonModel = nullptr;
-        bool quoted = false;
+        TESObjectWEAP* weapForm = static_cast<TESObjectWEAP*>(form);
+
+        if (!weapForm) return;
 
         if (getQuotedString(argStream, modelPath)) {
 
-            quoted = true;
-
-            if (!staticParent) {
-                return;
+            FirstPersonModel = weapForm->firstPersonStatic;
+            if (!FirstPersonModel) {
+                //std::string newEditorID = "FirstPerson" + std::string(EditorID); //Do these need editorIDs?
+                FirstPersonModel = (TESObjectSTAT*)TESForm::CreateNewForm(32, nullptr, true, 0); //Make a to delete vector
             }
-            ((StaticInstance_WEAP*)staticParent)->FirstPersonModelPath = modelPath;
-            FirstPersonModel = g_1stPersonWeapModel;
+            FirstPersonModel->model.SetPath(modelPath.c_str());
 
+        }
+        else if (!(argStream >> argument)) {
+            PrintKitError("missing argument for first person.", argStream.str());
+            return;
         }
         else {
 
             FirstPersonModel = LookupEditorID<TESObjectSTAT*>(argument.c_str());
+            if (getQuotedString(argStream, modelPath)) {
+                FirstPersonModel->model.SetPath(modelPath.c_str());
+            }
 
         }
 
-        TESObjectWEAP* weapForm = reinterpret_cast<TESObjectWEAP*>(form);
+        int modelIndex = -1;
 
-        if (!FirstPersonModel || !weapForm || weapForm->worldStatic == FirstPersonModel) return;
+        if (!FirstPersonModel) return;
 
-        if (quoted) {
-
+        if (!(argStream >> modelIndex) || modelIndex == -1) { //Second argument index for weapons
             std::fill_n(weapForm->modStatics, 7, FirstPersonModel);
-            weapForm->worldStatic = FirstPersonModel;
-
+            weapForm->firstPersonStatic = FirstPersonModel;
         }
         else {
-
-            int modelIndex = -1;
-            if (!(argStream >> modelIndex) || modelIndex < 1 || modelIndex > 7) {
-                std::fill_n(weapForm->modStatics, 7, FirstPersonModel);
-                weapForm->worldStatic = FirstPersonModel;
+            if (modelIndex == 0) {
+                weapForm->firstPersonStatic = FirstPersonModel;
+            }
+            else if (modelIndex >= 1 && modelIndex <= 7) {
+                weapForm->modStatics[modelIndex - 1] = FirstPersonModel;
             }
             else {
-                weapForm->modStatics[modelIndex - 1] = FirstPersonModel;
+                PrintKitError("Model index out of range.", argStream.str());
+            }
+        }
+
+        if (isNested) {
+            form = FirstPersonModel;
+        }
+        else {
+            argStream >> std::ws;
+            if (argStream.peek() != EOF) {
+                TESForm* temp = form;
+                form = FirstPersonModel;
+                SetTextureSet(it, argStream);
+                form = temp;
+            }
+        }
+
+    }
+
+    void DevkitCompiler::SetWeaponWorldModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        std::string modelPath;
+        TESObjectWEAP* weapForm = static_cast<TESObjectWEAP*>(form);
+
+        if (!weapForm) return;
+
+        if (!getQuotedString(argStream, modelPath)) {
+            return;
+        }
+
+        std::vector<char> transferablePath(modelPath.begin(), modelPath.end());
+        transferablePath.push_back('\0');
+
+        int modelIndex = -1;
+        if (!(argStream >> modelIndex) || modelIndex == -1) {
+            weapForm->textureSwap.SetModelPath(transferablePath.data());
+            for (int i = 0; i < 7; ++i) {
+                weapForm->modModels[i].SetModelPath(transferablePath.data());
+            }
+        }
+        else {// Apply the model path to a specific index
+            if (modelIndex == 0) {
+                weapForm->textureSwap.SetModelPath(transferablePath.data());
+            }
+            else if (modelIndex >= 1 && modelIndex <= 7) {
+                weapForm->modModels[modelIndex - 1].SetModelPath(transferablePath.data());
+            }
+            else {
+                PrintKitError("Model index out of range.", argStream.str());
             }
         }
     }
 
-    void DevkitCompiler::BuildSlot(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::BuildSlot(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string argument;
         if (!(getQuotedString(argStream, argument))) {
@@ -60,7 +114,7 @@ namespace Kit {
         slot = argument;
         std::string functionName;
 
-        while (it != this->fileManager.currentKitFile->file.end()) {
+        while (it != this->fileManager.currentFile->end()) {
 
             ++it;
             std::istringstream iss(*it);
@@ -84,9 +138,10 @@ namespace Kit {
 
         std::string argument;
 
-        while (it != this->fileManager.currentKitFile->file.end()) {
+        while (it != this->fileManager.currentFile->end()) {
 
-            std::istringstream iss(*(++it));
+            ++it;
+            std::istringstream iss(*it);
             if (!(iss >> argument)) {
                 continue;
             }
@@ -100,7 +155,7 @@ namespace Kit {
 
     }
 
-    void DevkitCompiler::BuildWeaponModLink(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::BuildWeaponModLink(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string argument;
         if (!(argStream >> argument)) {

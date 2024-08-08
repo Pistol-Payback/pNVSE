@@ -162,6 +162,13 @@ static constexpr NVSEParamInfo kNVSEParams_OneBasicType_OneBoolean[2] =
 	{	"string",	kNVSEParamType_BasicType,	0	},
 	{	"bool",	kNVSEParamType_Boolean,	0	},
 };
+
+static constexpr NVSEParamInfo kNVSEParams_OneBasicType[1] =
+{
+{	"element", kNVSEParamType_BasicType, 1	}
+};
+
+
 static constexpr NVSEParamInfo kNVSEParams_OneBasicType_OneOptionalBoolean[2] =
 {
 	{	"string",	kNVSEParamType_BasicType,	0	},
@@ -197,6 +204,13 @@ static constexpr NVSEParamInfo kNVSEParams_OneForm_OneArray_OneOptionalIndex[3] 
 	{	"index",	kNVSEParamType_Number,1	},
 };
 
+static constexpr NVSEParamInfo kNVSEParams_OneForm_OneOptionalForm_OneOptionalInt[3] =
+{
+	{	"form",	kNVSEParamType_Form,	0	},
+	{	"form",	kNVSEParamType_Form,	1	},
+	{	"int",	kNVSEParamType_Number,	1	},
+};
+
 static constexpr NVSEParamInfo kNVSEParams_OneArray_OneString_OneArray[3] =
 {
 	{	"array",	kNVSEParamType_Array,	0	},
@@ -219,6 +233,11 @@ static constexpr NVSEParamInfo kNVSEParams_OneForm_OneString[2] =
 {
 	{	"form",	kNVSEParamType_Form,	0	},
 	{	"string",	kNVSEParamType_String,	0	},
+};
+static constexpr NVSEParamInfo kNVSEParams_OneForm_OneOptionalInt[2] =
+{
+	{	"form",	kNVSEParamType_Form,	0	},
+	{	"string",	kNVSEParamType_Number,	1	},
 };
 
 
@@ -425,6 +444,24 @@ static constexpr NVSEParamInfo kNVSEParams_OneNumber_OneForm_OneString_OneOption
 	{	"form",		kNVSEParamType_Form,		1	},
 	{	"string",	kNVSEParamType_String,		1	},
 	{	"num",		kNVSEParamType_Number,		1	}
+};
+
+static constexpr NVSEParamInfo  kNVSE_Event_OneForm_TwoFormsF[7] =
+{
+	{"int", kNVSEParamType_Number,	0},
+	{"form", kNVSEParamType_Form, 0},
+	{"int", kNVSEParamType_Number,	0},
+	{"string", kNVSEParamType_String, 1},
+	{"form", kNVSEParamType_Form, 1},
+	{"string", kNVSEParamType_String, 1},
+	{"form", kNVSEParamType_Form, 1}
+};
+
+static constexpr NVSEParamInfo kNVSE_OneOptionalString_OneOptionalInt_OneOptionalForm[3] =
+{
+	{	"string",	kNVSEParamType_String,	1	},
+	{	"int",		kNVSEParamType_Number,	1	},
+	{	"form",		kNVSEParamType_Form,	1	},
 };
 
 static constexpr NVSEParamInfo kNVSEParams_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber[5] =

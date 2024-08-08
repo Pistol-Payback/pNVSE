@@ -300,6 +300,12 @@ static ParamInfo kParams_OneForm[1] =
 	{	"form",	kParamType_AnyForm,	0	},
 };
 
+static ParamInfo kParams_TwoForms[2] =
+{
+	{	"form",	kParamType_AnyForm,	0	},
+	{	"form",	kParamType_AnyForm,	0	}
+};
+
 static ParamInfo kParams_OneForm_OneFloat[2] =
 {
 	{	"form",		kParamType_AnyForm,	0	},
@@ -450,6 +456,12 @@ static ParamInfo kParams_OneForm_OneOptionalInt[2] =
 	{	"int",	kParamType_Integer,	1	},
 };
 
+static ParamInfo kParams_OneOptionalForm_OneOptionalInt[2] =
+{
+	{	"form",	kParamType_AnyForm,	1	},
+	{	"int",	kParamType_Integer,	1	},
+};
+
 static ParamInfo kParams_Event_OneStringF[3] =
 {
 	{"int", kParamType_Integer,	0},
@@ -476,4 +488,11 @@ static ParamInfo kParams_Event_OneForm_TwoFormsF[7] =
 	{"form", kParamType_AnyForm, 1},
 	{"string", kParamType_String, 1},
 	{"form", kParamType_AnyForm, 1}
+};
+
+static ParamInfo kParams_OneForm_OneOptionalForm_OneOptionalInt[3] =
+{
+	{"form",	kParamType_AnyForm,	0	},
+	{"form",	kParamType_AnyForm,	1	},
+	{"int",		kParamType_Integer,	1	}
 };

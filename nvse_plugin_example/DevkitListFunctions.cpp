@@ -113,7 +113,7 @@ namespace Kit {
     void DevkitCompiler::GatherLeveledData(std::vector<std::string>::const_iterator& it, TESLeveledList::BaseData* newData) {
 
         std::string argument;
-        while (it != this->fileManager.currentKitFile->file.end()) {
+        while (it != this->fileManager.currentFile->end()) {
 
             std::istringstream iss(*(++it));
             if (!(iss >> argument)) {
@@ -123,15 +123,15 @@ namespace Kit {
 
             char commandType = tolower(argument[0]);
             switch (commandType) {
-            case 'l':
+            case 'l': //Level:
                 if (!(iss >> newData->level))
                     PrintKitError("Failed to parse level.", iss.str());
                 break;
-            case 'c':
+            case 'c': //Count:
                 if (!(iss >> newData->count))
                     PrintKitError("Failed to parse count.", iss.str());
                 break;
-            case 'o':
+            case 'o': //Owner:
                 if (!(iss >> argument)) {
                     PrintKitError("Failed to parse owner argument.", iss.str());
                 }
@@ -139,7 +139,7 @@ namespace Kit {
                     ParseOwner(newData->extra, iss, argument, *this);
                 }
                 break;
-            case 'h':
+            case 'h': //Health:
                 if (!(iss >> newData->extra->health))
                     PrintKitError("Failed to parse health.", iss.str());
                 break;
@@ -154,7 +154,7 @@ namespace Kit {
         }
     }
 
-    void DevkitCompiler::LeveledListAdd(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::LeveledListAdd(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string argument;
         if (!(argStream >> argument)) {

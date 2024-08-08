@@ -326,7 +326,13 @@ public:
 	{
 	public:
 		SInt32 AddAt(ExtraDataList* item, SInt32 index);
+
+		//This won't free the extra data lists
 		void RemoveAll() const;
+
+		//Remember to set count delta to 0 if called directly.
+		void RemoveAll(bool doFree);
+
 		ExtraDataList* RemoveNth(SInt32 n);
 	};
 
@@ -341,6 +347,7 @@ public:
 		static EntryData* Create(TESForm* pForm, UInt32 count = 1, ExtraContainerChanges::ExtendDataList* pExtendDataList = NULL);
 		ExtendDataList * Add(ExtraDataList* newList);
 		bool Remove(ExtraDataList* toRemove, bool bFree = false);
+		bool RemoveAll(bool bFree);
 
 		bool HasExtraLeveledItem()
 		{
@@ -556,6 +563,15 @@ public:
 
 };
 
+// 10
+class ExtraTimeLeft : public BSExtraData
+{
+public:
+	float		time;		// 0C
+
+	static ExtraTimeLeft* Create(float time);
+};
+
 // 00C
 class ExtraWorn : public BSExtraData	// Item is equipped
 {
@@ -689,7 +705,10 @@ public:
 	~ExtraAmmo();
 
 	TESAmmo* ammo;
-	UInt32 unk4;
+	UInt32	count;
+
+	static ExtraAmmo* Create(TESAmmo* ammo, UInt32 count);
+
 };
 
 // 010

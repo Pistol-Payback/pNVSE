@@ -12,6 +12,7 @@
 #include "common/ICriticalSection.h"
 #include "GameData.h"
 #include "AuxVars.h"
+#include "Hooks_DirectInput8Create.h"
 
 using namespace std::literals;
 
@@ -24,6 +25,7 @@ extern std::unordered_set<UInt32> DynamicallyCreatedForms;
 extern bool (*ExtractArgsEx)(COMMAND_ARGS_EX, ...);
 extern bool (*ExtractFormatStringArgs)(UInt32 fmtStringPos, char* buffer, COMMAND_ARGS_EX, UInt32 maxParams, ...);  // From JIP_NVSE.H
 extern NVSEArrayVarInterface* g_arrInterface;
+extern DIHookControl* g_keyInterface;
 extern NVSEArrayVar* (*CreateArray)(const NVSEArrayElement* data, UInt32 size, Script* callingScript);
 extern NVSEArrayVar* (*CreateStringMap)(const char** keys, const NVSEArrayElement* values, UInt32 size, Script* callingScript);
 extern NVSEArrayVar* (*CreateMap)(const double* keys, const NVSEArrayElement* values, UInt32 size, Script* callingScript);
@@ -94,7 +96,6 @@ struct decay_equiv :
 {};
 
 extern TESObjectREFR* DevKitDummyMarker;
-extern TESObjectSTAT* g_1stPersonWeapModel;
 extern void DumpInfoToLog(const std::string& info);
 
 namespace kNVSE {
@@ -115,15 +116,20 @@ struct AuxVarInfo
 
 namespace StringUtils {
 
+	std::string extractFirstLine(const char* data, size_t length);
 	std::string toLowerCase(const std::string& str);
 	char* toLowerCase(const char* str);
 
 	constexpr UInt32 ToUInt32(const char* str);
 
+	bool isNumber(const std::string& s);
+
 }
 
 namespace PluginFunctions {
 
+	//JIP
+	/*
 	extern int (*AuxVarGetSize)(AuxVarInfo* varInfo);
 	extern int (*AuxVarGetType)(AuxVarInfo* varInfo, SInt32 idx);
 
@@ -138,9 +144,21 @@ namespace PluginFunctions {
 
 	extern AuxVarInfo (*CreateAuxVarInfo)(TESForm* form, TESObjectREFR* thisObj, char* pVarName);
 	extern void (*AuxVarErase)(AuxVarInfo* varInfo, SInt32 idx);
-
+	*/
 	extern void (*SetDescriptionJIP)(TESDescription* description, const char* altText);
+
+	//kNVSE
+
+	extern void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, std::unordered_set<UInt16>& groupIdFillSet, Script* conditionScript, bool pollCondition);
+	extern bool (*CopyAnimationsToForm)(TESForm* fromForm, TESForm* toForm);
+	extern bool (*RemoveFormAnimations)(TESForm* form);
+
+	void c_RemoveFormAnimations(TESForm* form);
+
+	extern bool kNVSE;
+	extern bool JIP;
 
 }
 
-std::istringstream& getQuotedString(std::istringstream& argStream, std::string& argument);
+extern bool getQuotedString(std::istringstream& argStream, std::string& argument);
+extern Script* CompileScriptAlt(Script* script);

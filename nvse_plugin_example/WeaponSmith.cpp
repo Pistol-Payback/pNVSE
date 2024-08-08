@@ -7,6 +7,10 @@ std::unordered_map<UInt32, std::unordered_map<UInt32, TESRefr*>> TESRefLinker;
 
 std::unordered_map<UInt32, std::unordered_map<UInt32, StaticInstance_Akimbo*>> AkimboSets; //First UInt32 is the right weapon, and second UInt32 is the left
 
+std::vector<ExpirationTimer*> lifecycleTimer;
+std::vector<TESObjectREFR*> newlyCreatedReferences;
+//std::unordered_map<std::pair<TESObjectREFR*, TESForm*>, UInt32> lifecycleLookup;
+
 std::unordered_set<UInt32> DynamicallyCreatedForms;
 
 //std::unordered_map<UInt32, StaticInstance*> StaticLinker;					//This links the baseform to its extra data.
@@ -21,17 +25,63 @@ UInt32 InstanceInterface::cloneCount = 0;
 //std::vector<UInt32> aUsedClones;
 //std::vector<UInt32> aClones;		//Deleting the created clones would be better, but I'm not sure what issues deleting a baseform would cause.
 
+void LifecycleManager::addLifecycleTimer(TESObjectREFR* worldRef, TESForm* baseForm, float time, ExtraDataList* xDataList, bool insideWorldRef, bool set) {
+
+	UInt8 type = insideWorldRef ? kExtraData_ContainerChanges : kExtraData_TimeLeft;
+
+	auto it = std::find_if(lifecycleTimer.begin(), lifecycleTimer.end(),
+		[worldRef, baseForm](ExpirationTimer* timer) {
+			return timer->ref == worldRef && timer->baseform == baseForm;
+		});
+
+	if (it == lifecycleTimer.end()) {
+		lifecycleTimer.emplace_back(new ExpirationTimer(worldRef, baseForm, type, &worldRef->extraDataList));
+	}
+
+	ExtraTimeLeft* xData = (ExtraTimeLeft*)xDataList->GetByType(kExtraData_TimeLeft);
+	if (xData) {
+		if (set) {
+			xData->time = time;
+		}
+	}
+	else{
+		xData = ExtraTimeLeft::Create(time);
+		worldRef->extraDataList.Add(xData);
+	}
+
+}
+
 TESForm* TESForm::GetStaticParent() const {
 
-	if (InstanceLinker[this->typeID][this->refID]->baseInstance->extendedType <= 120) {
-		StaticInstance* staticInst = (StaticInstance*)InstanceLinker[this->typeID][this->refID]->baseInstance;
-		return staticInst->parent;
+	auto iter = InstanceLinker[typeID].find(refID);
+	if (iter != InstanceLinker[typeID].end()) {
+		return iter->second->baseInstance->parent;
 	}
+
+	return nullptr;
+}
+
+TESForm* TESForm::GetStaticParent(UInt32 parentTypeFilter) const {
+
+	auto iter = InstanceLinker[typeID].find(refID);
+	if (iter != InstanceLinker[typeID].end() && iter->second->baseInstance->extendedType == parentTypeFilter) {
+		return iter->second->baseInstance->parent;
+	}
+
 	return nullptr;
 }
 
 bool TESForm::IsInstancedForm() const {
 	return InstanceLinker[this->typeID].find(this->refID) != InstanceLinker[this->typeID].end();
+}
+
+bool TESForm::IsInstancedForm(UInt32 typeFilter) const {
+
+	auto iter = InstanceLinker[typeID].find(refID);
+	if (iter != InstanceLinker[typeID].end() && iter->second->baseInstance->extendedType == typeFilter) {
+		return true;
+	}
+	return false;
 }
 
 UInt32 TESForm::GetInstanceID() const {
@@ -44,18 +94,29 @@ UInt32 TESForm::GetInstanceID() const {
 
 }
 
+bool TESForm::IsStaticForm(UInt32 typeFilter) const {
+	return StaticLinker[typeID].find(refID) != StaticLinker[typeID].end();
+
+		auto iter = StaticLinker[typeID].find(refID);
+		if (iter != StaticLinker[typeID].end() && iter->second->extendedType == typeFilter) {
+			return true;
+		}
+		return false;
+
+}
 bool TESForm::IsStaticForm() const {
 	return StaticLinker[typeID].find(refID) != StaticLinker[typeID].end();
 }
+
 
 bool TESForm::HasExtendedMods() const {
 
 	const StaticInstance_WEAP* staticInst = nullptr;
 
-	if (this->IsStaticForm()) {
+	if (this->IsStaticForm(40)) {
 		staticInst = static_cast<StaticInstance_WEAP*>(StaticLinker[40][this->refID]);
 	}
-	else if (this->IsInstancedForm()) {
+	else if (this->IsInstancedForm(40)) {
 		staticInst = static_cast<StaticInstance_WEAP*>(InstanceLinker[40][this->refID]->baseInstance);
 	}
 
@@ -91,6 +152,19 @@ StaticInstance* TESForm::LookupStaticInstance() const {
 	return nullptr;
 }
 
+StaticInstance* TESForm::LookupExtendedBase() const {
+
+	if (Instance* inst = this->LookupInstance(this->typeID)) {
+		return inst->baseInstance;
+	}
+	auto iter = StaticLinker[typeID].find(refID);
+	if (iter != StaticLinker[typeID].end()) {
+		return iter->second;
+	}
+
+	return nullptr;
+}
+
 Instance* TESForm::LookupInstanceByID(UInt32 InstID) const {
 
 	auto it = StaticLinker[typeID].find(refID);
@@ -106,7 +180,8 @@ Instance* TESForm::LookupInstanceByID(UInt32 InstID) const {
 
 StaticInstance* TESForm::MarkAsStaticForm(UInt32 kitIndex) {
 
-	if (!this->IsInstancedForm() && StaticLinker[this->typeID].find(this->refID) == StaticLinker[this->typeID].end()) {
+	auto it = StaticLinker[this->typeID].find(this->refID);
+	if (it == StaticLinker[this->typeID].end() && !this->IsInstancedForm()) {
 		switch (this->typeID) {
 		case 40:
 			return new StaticInstance_WEAP(this, kitIndex);
@@ -116,33 +191,22 @@ StaticInstance* TESForm::MarkAsStaticForm(UInt32 kitIndex) {
 			break;
 		}
 	}
-	return nullptr;
+	return it->second;
 }
 
-StaticInstance_Akimbo* TESForm::MarkAsAkimboForm(UInt32 kitIndex, StaticInstance_WEAP* leftWeap, StaticInstance_WEAP* rightWeap) {
-
-	return new StaticInstance_Akimbo(kitIndex, leftWeap, rightWeap);
-
-}
-
-TESForm* TESForm::CreateInst(std::string key) {
+TESForm* TESForm::CreateInst(std::string key, UInt32 modIndex) {
 
 	TESForm* baseForm = this->IsReference() ? ((TESObjectREFR*)this)->baseForm : this;
-	StaticInstance* staticInstance = nullptr;
 
-	if (baseForm->IsStaticForm()) {
-		staticInstance = StaticLinker[baseForm->typeID][baseForm->refID];
-	}
-	else if (baseForm->IsInstancedForm()) {
-		Instance* instanceWEAP = InstanceLinker[baseForm->typeID][baseForm->refID];
-		staticInstance = (StaticInstance*)instanceWEAP->baseInstance;
-	}
+	StaticInstance* staticInstance = baseForm->LookupExtendedBase();
+
+	staticInstance = baseForm->MarkAsStaticForm(modIndex);
 
 	if (!staticInstance) { //Do not create modifiers of other modifiers. 
 		return nullptr;
 	}
 
-	Instance* NewInst = staticInstance->newInstance(key);
+	Instance* NewInst = staticInstance->newInstance(key, modIndex);
 
 	return NewInst->clone;
 
@@ -150,10 +214,14 @@ TESForm* TESForm::CreateInst(std::string key) {
 
 StaticInstance_Akimbo* StaticInstance_Akimbo::LookupAkimboSet(TESForm* left, TESForm* right) {
 
-	if (auto iter = AkimboSets.find(left->refID); iter != AkimboSets.end()) {
-		if (auto iterSub = iter->second.find(right->refID); iterSub != iter->second.end()) {
+	auto iter = AkimboSets.find(left->refID);
+	if (iter != AkimboSets.end()) {
+
+		auto iterSub = iter->second.find(right->refID);
+		if (iterSub != iter->second.end()) {
 			return iterSub->second;
 		}
+
 	}
 	return nullptr;
 
@@ -166,136 +234,169 @@ void Instance::destroy() {
 	delete this;
 }
 
-TESForm* createInstance(StaticInstance* staticForm, std::string key) {
+TESForm* StaticInstance::createInstance(std::string key) {
 
-	TESForm* clone = nullptr;
-	UInt32 cloneRefID = 0;
-
-	if (!staticForm) {
-		throw std::runtime_error("Instance constructor failed.");
-	}
-
-	clone = staticForm->parent->CloneForm(0);
-	if (clone) {
-
-		cloneRefID = GetNextFreeFormID(GetFirstFormIDForModIndex(0));
-
-		clone->SetRefID(cloneRefID, true);
-		std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
-		clone->SetEditorID(editorID.c_str());
-
-	}
-
-	if (clone) {
-		Console_Print("Making new instance with: %s", key.c_str());
+	std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
+	if (TESForm* clone = TESForm::CreateNewForm(this->parent, true, editorID.c_str())) {
 		return clone;
 	}
-	else {
-		throw std::runtime_error("Instance constructor failed.");
+
+	return nullptr;
+
+}
+
+//Used for akimbos, if you use this function, make sure to clean up the old form if it's not being used.
+//Shouldn't be used at runtime.
+void StaticInstance::setParent(TESForm* form, bool doFree) {
+
+	if (this->parent) { //Remove old parent from the map  -potential to leak memory
+		auto typeIt = StaticLinker.find(this->parent->typeID);
+		if (typeIt != StaticLinker.end()) {
+			auto refIt = typeIt->second.find(this->parent->refID); 
+			if (refIt != typeIt->second.end()) {
+				if (refIt->second == this) {
+					typeIt->second.erase(refIt);
+				}
+			}
+			if (typeIt->second.empty()) {
+				StaticLinker.erase(typeIt);
+			}
+		}
+		if (doFree) {
+			this->parent->Destroy(true);
+		}
+	}
+	this->parent = form; //Add new parent to the map
+	if (this->parent) {
+		StaticLinker[this->parent->typeID][this->parent->refID] = this;
 	}
 
 }
 
-Instance* StaticInstance::loadInstance(UInt32 instID, const std::string& key) {
+Instance* StaticInstance::loadInstance(UInt32 instID, UInt32 modIndex, const std::string& key, LifecycleManager* lifecycle) {
 
-	TESForm* clone = createInstance(this, key);
-	return new TESInstance(instID, this, clone, key);
-
-}
-
-Instance* StaticInstance_WEAP::loadInstance(UInt32 instID, const std::string& key) {
-
-	TESForm* clone = createInstance(this, key);
-	return new Instance_WEAP(instID, this, clone, key, this->aBaseAttachments);
+	TESForm* clone = this->createInstance(key);
+	TESInstance* NewInst = new TESInstance(instID, this, clone, modIndex, key, std::move(*lifecycle));
+	return NewInst;
 
 }
 
+Instance* StaticInstance::newInstance(const std::string& key, UInt32 modIndex) {
 
-Instance* StaticInstance::newInstance(const std::string& key) {
-
-	TESForm* clone = createInstance(this, key);
-	return new TESInstance(this, clone, key);
-
-}
-
-Instance* StaticInstance_WEAP::newInstance(const std::string& key) {
-
-	TESForm* clone = createInstance(this, key);
-	return new Instance_WEAP(this, clone, key, this->aBaseAttachments);
+	TESForm* clone = this->createInstance(key);
+	return new TESInstance(this, clone, modIndex, key);
 
 }
 
-Instance_Akimbo* StaticInstance_Akimbo::loadInstance(UInt16 InstID, Instance_WEAP* weapRight, Instance_WEAP* weapLeft, ExtraDataList* xDataRight, ExtraDataList* xDataLeft, const std::string& key) {
 
-	if (!weapRight || !weapLeft) {
+Instance* StaticInstance_WEAP::loadInstance(UInt32 instID, UInt32 modIndex, const std::string& key, LifecycleManager* lifecycle) {
+
+	TESForm* clone = this->createInstance(key);
+	Instance_WEAP* NewInst = new Instance_WEAP(instID, this, clone, modIndex, key, std::move(*lifecycle), this->aBaseAttachments);
+	return NewInst;
+
+}
+Instance* StaticInstance_WEAP::newInstance(const std::string& key, UInt32 modIndex) {
+
+	TESForm* clone = this->createInstance(key);
+	return new Instance_WEAP(this, clone, modIndex, key, this->aBaseAttachments);
+
+}
+
+Instance* StaticInstance_Akimbo::newInstance(const std::string& key, UInt32 modIndex) {
+
+	TESForm* clone = this->createInstance(key);
+	Instance_Akimbo* NewInst = new Instance_Akimbo(this, clone, modIndex, key, nullptr, nullptr);
+	return NewInst;
+
+}
+
+
+Instance_Akimbo* StaticInstance_Akimbo::loadInstance(UInt16 InstID, UInt32 modIndex, TESObjectREFR* right, TESObjectREFR* left, const std::string& key, LifecycleManager* lifecycle) {
+
+	if (!PluginFunctions::kNVSE) {
 		return nullptr;
 	}
 
-	TESObjectWEAP* left = (TESObjectWEAP*)weapLeft->clone;
-	TESObjectWEAP* right = (TESObjectWEAP*)weapRight->clone;
+	TESObjectWEAP* leftWeap = static_cast<TESObjectWEAP*>(left->baseForm);
+	TESObjectWEAP* rightWeap = static_cast<TESObjectWEAP*>(right->baseForm);
 
-	UInt32 currentKitIndex = 0;
-	std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
-	TESForm* clone = TESForm::CreateNewForm(right, editorID.c_str(), false, 0, currentKitIndex, false);
-
-	TESFullName* fullName = clone->GetFullName();
-
-	std::string nameLeft = left->GetFullName() ? left->GetFullName()->name.m_data : "left";
-	std::string nameRight = right->GetFullName() ? right->GetFullName()->name.m_data : "right";
-	std::string akimboName = nameLeft + " & " + nameRight;
-	((TESObjectWEAP*)clone)->GetFullName()->name.Set(akimboName.c_str());
-
-
-	((TESObjectWEAP*)clone)->weight.weight = left->weight.weight + right->weight.weight;
-	((TESObjectWEAP*)clone)->value.value = left->value.value + right->value.value;
-
-	return new Instance_Akimbo(InstID, this, clone, key, weapLeft, weapRight, xDataLeft, xDataRight);
-
-}
-
-TESForm* StaticInstance_Akimbo::newInstance(TESObjectREFR* right, TESObjectREFR* left, const std::string& key) {
-
-	StaticInstance_WEAP* staticInstanceRight = nullptr;
-	StaticInstance_WEAP* staticInstanceLeft = nullptr;
-
-	Instance_WEAP* weapRight = nullptr;
-	Instance_WEAP* weapLeft = nullptr;
-
-	ExtraDataList* xDataRight = right->extraDataList.CreateCopy();
-	ExtraDataList* xDataLeft = left->extraDataList.CreateCopy();
-
-	if (!xDataRight || !xDataLeft) {
-		return nullptr;
-	}
-
-	if (right->baseForm->IsInstancedForm()) {
-		weapRight = static_cast<Instance_WEAP*>(InstanceLinker[right->baseForm->typeID][right->baseForm->refID]);
-	}
-
-	if (left->baseForm->IsInstancedForm()) {
-		weapLeft = static_cast<Instance_WEAP*>(InstanceLinker[left->baseForm->typeID][left->baseForm->refID]);
-	}
-
-	if (!weapRight || !weapLeft) {
+	if (!leftWeap || !rightWeap) {
 		return nullptr;
 	}
 
 	UInt32 currentKitIndex = 0;
-	std::string editorID = "Inst" + std::to_string(InstanceInterface::cloneCount);
-	TESForm* clone = TESForm::CreateNewForm(right, editorID.c_str(), false, 0, currentKitIndex, false);
+	std::string editorID = "AkimboInst" + std::to_string(InstanceInterface::cloneCount);
+
+	Console_Print("Loading akimbo with: %s", key.c_str());
+
+	TESObjectWEAP* clone = (TESObjectWEAP*)TESForm::CreateNewForm(rightWeap, true, editorID.c_str());
+	PluginFunctions::CopyAnimationsToForm(leftWeap, clone);
+	PluginFunctions::CopyAnimationsToForm(this->parent, clone);
 
 	TESFullName* fullName = clone->GetFullName();
 
-	std::string nameLeft = left->GetFullName() ? left->GetFullName()->name.m_data : "left";
-	std::string nameRight = right->GetFullName() ? right->GetFullName()->name.m_data : "right";
+	std::string nameLeft = leftWeap->GetFullName() ? leftWeap->GetFullName()->name.m_data : "left";
+	std::string nameRight = rightWeap->GetFullName() ? rightWeap->GetFullName()->name.m_data : "right";
 	std::string akimboName = nameLeft + " & " + nameRight;
-	((TESObjectWEAP*)clone)->GetFullName()->name.Set(akimboName.c_str());
+	clone->GetFullName()->name.Set(akimboName.c_str());
 
+	clone->weight.weight = leftWeap->weight.weight + rightWeap->weight.weight;
+	clone->value.value = leftWeap->value.value + rightWeap->value.value;
+	clone->strRequired = leftWeap->strRequired + rightWeap->strRequired;
+	clone->clipRounds.clipRounds = leftWeap->clipRounds.clipRounds + rightWeap->clipRounds.clipRounds;
 
-	((TESObjectWEAP*)clone)->weight.weight = ((TESObjectWEAP*)left)->weight.weight + ((TESObjectWEAP*)right)->weight.weight;
-	((TESObjectWEAP*)clone)->value.value = ((TESObjectWEAP*)left)->value.value + ((TESObjectWEAP*)right)->value.value;
+	Instance_Akimbo* NewInst = new Instance_Akimbo(InstID, this, clone, modIndex, key, std::move(*lifecycle), left, right);
+	return NewInst;
 
-	Instance_Akimbo* NewInst = new Instance_Akimbo(this, clone, key, weapLeft, weapRight, xDataLeft, xDataRight);
+}
+
+TESForm* StaticInstance_Akimbo::newInstance(TESObjectREFR* right, TESObjectREFR* left, UInt32 modIndex, const std::string& key) {
+
+	if (!PluginFunctions::kNVSE) {
+		return nullptr;
+	}
+
+	TESObjectWEAP* leftWeap = (TESObjectWEAP*)left->baseForm;
+	TESObjectWEAP* rightWeap = (TESObjectWEAP*)right->baseForm;
+
+	if (!leftWeap || !rightWeap) {
+		return nullptr;
+	}
+	
+	UInt32 currentKitIndex = 0;
+	std::string editorID = "AkimboInst" + std::to_string(InstanceInterface::cloneCount);
+
+	TESObjectWEAP* clone = (TESObjectWEAP*)TESForm::CreateNewForm(rightWeap, true, editorID.c_str());
+	PluginFunctions::CopyAnimationsToForm(leftWeap, clone);
+	PluginFunctions::CopyAnimationsToForm(this->parent, clone);
+
+	TESFullName* fullName = clone->GetFullName();
+
+	std::string nameLeft = leftWeap->GetFullName() ? leftWeap->GetFullName()->name.m_data : "left";
+	std::string nameRight = rightWeap->GetFullName() ? rightWeap->GetFullName()->name.m_data : "right";
+	std::string akimboName = nameLeft + " & " + nameRight;
+	clone->GetFullName()->name.Set(akimboName.c_str());
+
+	clone->weight.weight = leftWeap->weight.weight + rightWeap->weight.weight;
+	clone->value.value = leftWeap->value.value + rightWeap->value.value;
+	clone->strRequired = leftWeap->strRequired + rightWeap->strRequired;
+	clone->clipRounds.clipRounds = leftWeap->clipRounds.clipRounds + rightWeap->clipRounds.clipRounds;
+
+	TESObjectREFR* rightRef = TESObjectREFR::Create(false);
+	TESObjectREFR* leftRef = TESObjectREFR::Create(false);
+
+	rightRef->baseForm = rightWeap;
+	ExtraDataList::CopyItemData(&right->extraDataList, 0, &rightRef->extraDataList);
+	rightRef->SetRefID(GetNextFreeFormID(), true);
+	rightRef->extraDataList.RemoveByType(kXData_ExtraCount);
+
+	leftRef->baseForm = leftWeap;
+	ExtraDataList::CopyItemData(&left->extraDataList, 0, &leftRef->extraDataList);
+	leftRef->SetRefID(GetNextFreeFormID(), true);
+	leftRef->extraDataList.RemoveByType(kXData_ExtraCount);
+
+	Instance_Akimbo* NewInst = new Instance_Akimbo(this, clone, modIndex, key, leftRef, rightRef);
 
 	return NewInst->clone;
 }

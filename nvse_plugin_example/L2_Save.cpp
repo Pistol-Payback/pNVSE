@@ -1,7 +1,7 @@
 #pragma once
 #include "SaveSystem.h"
 
-
+/*
 namespace std {
 
 	template<>
@@ -12,7 +12,7 @@ namespace std {
 	};
 
 }
-
+*/
 // Force instantiation of the template specializations
 //template struct std::hash<SaveSystem::SaveDataLink>;
 //template struct std::hash<SaveSystem::SaveDataREFR>;
@@ -25,88 +25,110 @@ namespace SaveSystem {
 		SaveData::clearLog();
 		SaveData::OpenRecord(1, 2);
 		SaveLoadManager::saveManager.saveAll();
-		SaveLoadManager::reset();
-	}
-
-	void SaveLoadManager::reset(){
 		SaveLoadManager::saveManager.reset();
 	}
 
 	void InstanceSaveManager::reset() {
-		searchLocation.clear();
-		locations.clear();
-		instanceRefs.clear();
-		dynamicsRefs.clear();
+		queue.searchLocation.clear();
+		queue.locations.clear();
+		queue.instanceRefs.clear();
+		queue.dynamicsRefs.clear();
 	}
 
 	void SaveDataLink::forceQueueToSave(TESForm* form) {
-		SaveLoadManager::saveManager.queueToSave(form);
+		SaveLoadManager::saveManager.queue.queueToSave(form);
+	}
+
+	void InstanceSaveManager::Save(Kit::KitData* thisObj) {
+
+		WriteRecordString(thisObj->name);
+		WriteRecord32(thisObj->index);
+		WriteRecord32(thisObj->version);
+		WriteRecord8(thisObj->safeUninstall);
+
 	}
 
 	void InstanceSaveManager::saveAll() {
 
-		queueAllWithSaveBehavior();
+		WriteRecord32(Kit::loadedKitFiles.size());
 
-		logOperation("Saveing Forms:::::::::::::::::::::::::::::::::::::::::" + std::to_string(locations.size()));
-		WriteRecord32(locations.size());
+		for (auto it : Kit::loadedKitFiles) {
+			Save(&it.second);
+		}
 
-		for (TESForm* form : locations) {
+		queue.queueAllWithSaveBehavior();
 
-			Save(form);
+		logOperation("Saveing Forms:::::::::::::::::::::::::::::::::::::::::" + std::to_string(queue.locations.size()));
+		WriteRecord32(queue.locations.size());
+
+		for (UInt32 ref : queue.locations) {
+			Save(LookupFormByRefID(ref));
+		}
+
+		logOperation("Saveing instanceList::::::::::::::::::::::::::::::::::" + std::to_string(queue.instanceRefs.size()));
+		WriteRecord32(queue.instanceRefs.size());
+
+		for (auto& extendedTypes : queue.instanceRefs) {
+
+			WriteRecord32(extendedTypes.first); //Type
+			WriteRecord32(extendedTypes.second.size());
+
+			for (auto& [baseInstance, instanceList] : extendedTypes.second) {
+
+				std::string printEditor = ((StaticInstance*)baseInstance)->parent->GetEditorID();
+				logOperation("Saveing static instance.........................." + printEditor);
+
+				SaveBase(baseInstance);
+
+				logOperation("Saveing instances.................count: " + std::to_string(instanceList.size()));
+				WriteRecord32(instanceList.size());
+
+				for (auto& [inst, refList] : instanceList) {
+
+					printEditor = inst->clone->GetEditorID();
+					logOperation("Saveing instance.................EditorID: " + printEditor);
+
+					WriteRecord32(inst->modIndex);
+					SaveInstance(inst);
+					logOperation("Saveing instance refs...........count: " + std::to_string(refList.size()));
+					SaveRefsList(refList);
+
+				}
+
+				if (extendedTypes.first <= 120) { //Only vanilla base types can be placed directly in the world without instancing.
+					auto it = queue.dynamicsRefs.find(baseInstance);
+					if (it != queue.dynamicsRefs.end()) { //if worldRefs exist, that also happen to be dirived from dynamics.
+
+						logOperation("Saveing dynamics instance mix::::::::::::::::::::::::::::::::::" + std::to_string(queue.dynamicsRefs[baseInstance].size()));
+
+						SaveRefsList(it->second);
+						queue.dynamicsRefs.erase(it);	//Erase so they don't get saved again.
+
+					}
+					else {
+						WriteRecord32(0);
+					}
+				}
+
+			}
 
 		}
 
-		logOperation("Saveing instanceList::::::::::::::::::::::::::::::::::" + std::to_string(instanceRefs.size()));
-		WriteRecord32(instanceRefs.size());
+		logOperation("Saveing dynamic refs::::::::::::::::::::::::::::::::::" + std::to_string(queue.dynamicsRefs.size()));
+		WriteRecord32(queue.dynamicsRefs.size());
 
-		for (auto& [baseInstance, instanceList] : instanceRefs) {
-
-			std::string printEditor = ((StaticInstance*)baseInstance)->parent->GetEditorID();
-			logOperation("Saveing static instance.........................." + printEditor);
+		for (auto& [baseInstance, refList] : queue.dynamicsRefs) {	//Iterate through left over dynamics
 
 			WriteRecord32(baseInstance->extendedType);
-			SaveBase(baseInstance);
 
+			if (baseInstance->extendedType <= 120) { //Only vanilla statics can be placed directly in the world.
 
-			logOperation("Saveing instances.................count: " + std::to_string(instanceList.size()));
-			WriteRecord32(instanceList.size());
+				SaveBase(baseInstance);
 
-			for (auto& [inst, refList] : instanceList) {
-
-				printEditor = inst->clone->GetEditorID();
-				logOperation("Saveing instance.................EditorID: " + printEditor);
-
-				SaveInstance(inst);
-				logOperation("Saveing instance refs...........count: " + std::to_string(refList.size()));
-				SaveRefsList(refList);
+				logOperation("Saveing pure dynamic refs............" + std::to_string(refList.size()));
+				SaveRefsList(refList); //Dynamic World Refs
 
 			}
-
-			auto it = dynamicsRefs.find(baseInstance);
-			if (it != dynamicsRefs.end()) { //if worldRefs exist, that also happen to be dirived from dynamics.
-
-				logOperation("Saveing dynamics instance mix::::::::::::::::::::::::::::::::::" + std::to_string(dynamicsRefs[baseInstance].size()));
-				
-				SaveRefsList(it->second);
-				dynamicsRefs.erase(it);	//Erase so they don't get saved again.
-
-			}
-			else {
-				WriteRecord32(0); //SaveRefsList size 0
-			}
-
-		}
-
-		logOperation("Saveing dynamic refs::::::::::::::::::::::::::::::::::" + std::to_string(dynamicsRefs.size()));
-		WriteRecord32(dynamicsRefs.size());
-
-		for (auto& [baseInstance, refList] : dynamicsRefs) {	//Iterate through left over dynamics
-
-			WriteRecord32(baseInstance->extendedType);
-			SaveBase(baseInstance);
-
-			logOperation("Saveing pure dynamic refs............" + std::to_string(refList.size()));
-			SaveRefsList(refList); //Dynamic World Refs
 
 		}
 
@@ -123,9 +145,6 @@ namespace SaveSystem {
 
 	void InstanceSaveManager::SaveBase(ExtendedBaseType* thisObj) {
 		switch (thisObj->extendedType) {
-		case 40:
-			Save(static_cast<StaticInstance_WEAP*>(thisObj));
-			break;
 		case 222:
 			Save(static_cast<StaticInstance_Akimbo*>(thisObj));
 			break;
@@ -152,14 +171,6 @@ namespace SaveSystem {
 	void InstanceSaveManager::Save(StaticInstance* thisObj) {
 
 		logOperation("Save StaticInstance*");
-
-		//if (thisObj->aInstances.empty()) {
-			//return;
-		//}
-
-		//SaveSystem::SaveData::WriteRecord32(thisObj->parent->typeID);
-
-		//We assume there aren't any instances of instances right now.
 		SaveLink({ thisObj->parent, nullptr });
 
 	}
@@ -172,10 +183,19 @@ namespace SaveSystem {
 		}
 
 		//We assume there aren't any instances of instances right now.
-		SaveLink({ thisObj->right->parent, nullptr });
+		SaveLink({ thisObj->right, nullptr });
 
 		//We assume there aren't any instances of instances right now.
-		SaveLink({ thisObj->left->parent, nullptr });
+		SaveLink({ thisObj->left, nullptr });
+
+	}
+
+	void InstanceSaveManager::SaveLifecycle(LifecycleManager& thisObj) {
+
+		logOperation("Saving Lifecycle");
+
+		WriteRecord8(thisObj.getPolicies());
+		WriteRecordFloat(thisObj.getLifeTime());
 
 	}
 
@@ -184,10 +204,9 @@ namespace SaveSystem {
 		logOperation("Saving Instance* InstID below");
 
 		WriteRecord16(thisObj->InstID);
+		WriteRecordString(thisObj->key);
 
-		UInt32 length = thisObj->key.length();
-		WriteRecord32(length);
-		WriteRecordData(thisObj->key.c_str(), length);
+		SaveLifecycle(thisObj->lifecycle);
 
 	}
 
@@ -195,9 +214,8 @@ namespace SaveSystem {
 
 		logOperation("Saveing Instance_WEAP*");
 
-		Save((Instance*)thisObj);
+		Save((Instance*)thisObj); //Save regulare instance data
 
-		UInt32 length;
 		WriteRecord32(thisObj->aAttachments.size());
 
 		for (const auto& pair : thisObj->aAttachments) {
@@ -207,10 +225,7 @@ namespace SaveSystem {
 
 				const std::string& slot = pair.first;
 
-				length = slot.length();
-
-				WriteRecord32(length);
-				WriteRecordData(slot.c_str(), length);
+				WriteRecordString(slot);
 
 				TESForm* attachment = LookupFormByRefID(refID);
 
@@ -235,13 +250,16 @@ namespace SaveSystem {
 
 		SaveData::logOperation("Save Instance_Akimbo*");
 
-		WriteRecord16(thisObj->left->InstID);	//Fetch static instance using these
-		WriteRecord16(thisObj->right->InstID);
+		Save(static_cast<Instance*>(thisObj)); //Saves regular instance data
 
-		Save((Instance*)thisObj);
+		TESObjectREFR* right = static_cast<TESObjectREFR*>(LookupFormByRefID(thisObj->right));
+		TESObjectREFR* left = static_cast<TESObjectREFR*>(LookupFormByRefID(thisObj->left));
 
-		SaveExtraData(thisObj->xDataLeft);
-		SaveExtraData(thisObj->xDataRight);
+		SaveLink({ right->GetBaseObject(), right->baseForm->pLookupInstance()});
+		SaveLink({ left->GetBaseObject(), left->baseForm->pLookupInstance() });
+
+		SaveExtraData(&right->extraDataList);
+		SaveExtraData(&left->extraDataList);
 
 	}
 
@@ -262,9 +280,10 @@ namespace SaveSystem {
 
 		logOperation("Save SaveDataEntry&");
 		SaveExtraData(thisObj.xData);
+		WriteRecord32(thisObj.countDelta);
 		if (thisObj.type == 1) {
 			if (thisObj.instance) {
-				RestorEntryRefs(thisObj);
+				RestoreEntryRefs(thisObj);
 			}
 			delete& thisObj;
 			return;
@@ -273,18 +292,23 @@ namespace SaveSystem {
 
 	}
 
-	void InstanceSaveManager::RestorEntryRefs(const SaveDataEntry& thisObj) {
+	void InstanceSaveManager::RestoreEntryRefs(const SaveDataEntry& thisObj) {
 
-		if (thisObj.location.parent->IsReference()) {
+		TESForm* location = LookupFormByRefID(thisObj.location.parentID);
+		if (!location || !thisObj.instance || !thisObj.instance->clone) {
+			return;
+		}
 
-			TESObjectREFR* location = (TESObjectREFR*)thisObj.location.parent;
+		if (location->IsReference()) {
+
+			TESObjectREFR* locationRef = (TESObjectREFR*)location;
 			if (thisObj.xData && thisObj.xData->HasType(kExtraData_Worn)) {
 				thisObj.xData->RemoveByType(kExtraData_Worn);
-				((Actor*)location)->AddItem(thisObj.instance->clone, thisObj.xData, 1);
-				((Actor*)location)->SilentEquip(thisObj.instance->clone, thisObj.xData);
+				((Actor*)locationRef)->AddItem(thisObj.instance->clone, thisObj.xData, thisObj.countDelta);
+				((Actor*)locationRef)->SilentEquip(thisObj.instance->clone, thisObj.xData);
 			}
 			else {
-				(location)->AddItem(thisObj.instance->clone, thisObj.xData, 1);
+				(locationRef)->AddItem(thisObj.instance->clone, thisObj.xData, thisObj.countDelta);
 			}
 
 		}
@@ -301,85 +325,100 @@ namespace SaveSystem {
 		WriteRecordFloat(thisObj.xR);
 		WriteRecordFloat(thisObj.yR);
 		WriteRecordFloat(thisObj.zR);
+		//RestoreWorldRefs(thisObj);
 		delete& thisObj;
+	}
+
+	void InstanceSaveManager::RestoreWorldRefs(const SaveDataWorldREFR& thisObj) {
+
+		if (!thisObj.location.parentID || !thisObj.instance || !thisObj.instance->clone) {
+			return;
+		}
+
+		//TESObjectREFR* refr = ThisCall<TESObjectREFR*>(0x55A2F0, Game_HeapAlloc<TESObjectREFR>());
+		//refr->baseForm = thisObj.instance->clone;
+		TESObjectREFR* refr = thisObj.instance->clone->PlaceAtCellAlt(LookupFormByRefID(thisObj.location.parentID), thisObj.x, thisObj.y, thisObj.z, thisObj.xR, thisObj.yR, thisObj.zR, thisObj.xData);
+		//ExtraDataList::CopyItemData(thisObj.xData, 1, &refr->extraDataList);
+
 	}
 
 	void InstanceSaveManager::Save(TESForm* thisObj) {
 
 		const char* EditorID = thisObj->GetEditorID();
-		UInt32 length = strlen(EditorID);
-		WriteRecord32(length);
-		WriteRecordData(EditorID, length);
+		WriteRecordString(EditorID);
 		WriteRecord8(thisObj->typeID);
 
 	}
 
-	void InstanceSaveManager::SaveLink(const SaveDataLink& thisObj) {
+	void InstanceSaveManager::SaveLinkType(UInt8 type, const UInt32* ID32, const UInt16* ID16) {
 
-		if (thisObj.parent->IsReference()) {
+		if (ID32 || ID16) {
+			WriteRecord8(type);
 
-			TESObjectREFR* parent = (TESObjectREFR*)thisObj.parent;
-
-			if (!parent->baseForm->pIsDynamicForm()) { //Vanilla
-				logOperation("Saveing Link Vanilla:");
-				WriteRecord8(0);
-				WriteRecord32(thisObj.parent->refID);
+			if (ID32) {
+				WriteRecord32(*ID32);
 			}
-			else { //ref dynamic
-
-				const char* EditorID = parent->baseForm->GetEditorID();
-				std::string editorIDStr = EditorID ? EditorID : "Unknown EditorID";
-				logOperation("Saving Link Dynamic: " + editorIDStr);
-
-				WriteRecord8(1);
-				WriteRecord32(GetSaveIndex(parent->baseForm));
-				WriteRecord32(parent->refID);
-
+			if (ID16) {
+				WriteRecord16(*ID16);
 			}
-
 
 		}
-		else if (!thisObj.instance) { //baseform Dynamic
 
-			const char* EditorID = thisObj.parent->GetEditorID();
-			std::string editorIDStr = EditorID ? EditorID : "Unknown EditorID";
-			logOperation("Saving Link Dynamic: " + editorIDStr);
+	}
 
-			WriteRecord8(2);
-			WriteRecord32(GetSaveIndex(thisObj.parent));
+	void InstanceSaveManager::SaveLink(const SaveDataLink& thisObj) {
+		TESForm* parent = LookupFormByRefID(thisObj.parentID);
+		if (parent->IsReference()) { //Is reference
+
+			TESObjectREFR* parentRef = static_cast<TESObjectREFR*>(parent);
+
+			if (!parentRef->baseForm->pIsDynamicForm()) { //ref vanilla
+				SaveLinkType(1, &parentRef->refID);
+			}
+			else {										//ref dynamic
+				SaveLinkType(3, &parentRef->refID);
+				WriteRecord32(*GetSaveIndex(parentRef->baseForm->refID));
+			}
+
+		}
+		else if (!thisObj.instance) { //no instance
+
+			if (!parent->pIsDynamicForm()) { //baseform vanilla
+				SaveLinkType(2, &thisObj.parentID);
+			}
+			else {									//baseform dynamic
+				SaveLinkType(4, GetSaveIndex(thisObj.parentID));
+			}
 
 		}
 		else if (thisObj.instance){ //Instances
 
-			const char* EditorID = thisObj.parent->GetEditorID();
-			std::string editorIDStr = EditorID ? EditorID : "Unknown EditorID";
-			logOperation("Saving Link Instance: " + editorIDStr);
-
-			WriteRecord8(3);
-			WriteRecord32(GetSaveIndex(thisObj.parent));
-
-			logOperation("Saveing InstID:");
-			WriteRecord16(thisObj.instance->InstID);
+			if (!parent->pIsDynamicForm()) { //vanilla with instance
+				SaveLinkType(5, &thisObj.parentID, &thisObj.instance->InstID);
+			}
+			else {									//dynamic with instance
+				SaveLinkType(6, GetSaveIndex(thisObj.parentID), &thisObj.instance->InstID);
+			}
 
 		}
 
 	}
 
-	UInt32 InstanceSaveManager::GetSaveIndex(TESForm* thisObj) {
+	UInt32* InstanceSaveManager::GetSaveIndex(UInt32 thisObj) {
 
-		auto it = searchLocation.find(thisObj);
-		if (it != searchLocation.end()) {
-			return it->second;
+		auto it = queue.searchLocation.find(thisObj);
+		if (it != queue.searchLocation.end()) {
+			return &it->second;
 		}
 
-		const char* EditorID = thisObj->GetEditorID();
+		const char* EditorID = LookupFormByRefID(thisObj)->GetEditorID();
 		std::string editorIDStr = EditorID ? EditorID : "Unknown EditorID";
-		SaveData::logOperation("Error, GetSaveIndex failed to fine form: " + editorIDStr);
+		SaveData::logOperation("SAVE Error, GetSaveIndex failed to find form: " + editorIDStr);
 
-		return 0;
+		return nullptr;
 	}
 
-	void InstanceSaveManager::queueAllWithSaveBehavior() {
+	void InstanceSaveManager::SaveQueue::queueAllWithSaveBehavior() {
 
 		for (auto& typeMap : StaticLinker) {
 			for (auto& pair : typeMap.second) {
@@ -409,38 +448,40 @@ namespace SaveSystem {
 		}
 	}
 
-	void InstanceSaveManager::queueToSave(ExtendedBaseType* thisObj) {
+	void InstanceSaveManager::SaveQueue::queueToSave(ExtendedBaseType* thisObj) {
 
 		for (auto it = thisObj->aInstances.begin(); it != thisObj->aInstances.end(); ++it) {
 			Instance* inst = *it;
-			if (inst) {
+			if (inst && !inst->lifecycle.isPolicyEnabled(LifecycleManager::Recycle)) {
 				queueToSave(inst, 0); //Only queue objects with saveBehavior
 			}
 		}
 
 	}
 
-	void InstanceSaveManager::queueToSave(Instance* instance, bool forceQueue) {
+	bool InstanceSaveManager::SaveQueue::queueToSave(Instance* instance, bool forceQueue) {
 
 		if (!forceQueue && !instance->lifecycle.saveBehavior) {
-			return;
+			return false;
 		}
 
 		switch (instance->baseInstance->extendedType) {
 		case 40:  // Weapons
-			queueToSave(static_cast<Instance_WEAP*>(instance));
+			queueToSaveWEAP(static_cast<Instance_WEAP*>(instance));
+			break;
 		case 222:  // Akimbo
-			queueToSave(static_cast<Instance_Akimbo*>(instance));
+			queueToSaveAkimbo(static_cast<Instance_Akimbo*>(instance));
 			break;
 		default:
-			instanceRefs[instance->baseInstance].insert({ instance, std::unordered_set<SaveDataREFR*>() });
+			instanceRefs[instance->baseInstance->extendedType][instance->baseInstance].insert({ instance, std::unordered_set<SaveDataREFR*>() });
 			break;
 		}
 
+		return true;
 
 	}
 
-	void InstanceSaveManager::queueToSave(Instance_WEAP* thisObj) {
+	void InstanceSaveManager::SaveQueue::queueToSaveWEAP(Instance_WEAP* thisObj) {
 
 		for (auto slot = thisObj->aAttachments.begin(); slot != thisObj->aAttachments.end(); ++slot) {
 
@@ -449,82 +490,129 @@ namespace SaveSystem {
 				TESForm* attachment = LookupFormByRefID(refID);
 				if (attachment) {
 
-					TESForm* containerForm = ((StaticInstance*)thisObj->baseInstance)->parent;
+					//Think more about this
+					TESForm* containerForm = thisObj->baseInstance->parent;
 					if (Instance* worldInstance = attachment->pLookupInstance()) {
-						//queueToSaveRef(worldInstance, new SaveDataREFR(containerForm, thisObj));
 						queueToSave(worldInstance, 0);
 					}
-					//else if (StaticInstance* staticWorldInstance = attachment->LookupStaticInstance()){
-						//queueToSaveRef(staticWorldInstance, new SaveDataREFR(containerForm, thisObj));
-					//}
+					else if (StaticInstance* staticWorldInstance = attachment->LookupStaticInstance()){
+						queueToSave(staticWorldInstance->parent);
+					}
 
 				}
 			}
 		}
 
-		instanceRefs[thisObj->baseInstance].insert({ thisObj, std::unordered_set<SaveDataREFR*>() });
+		instanceRefs[thisObj->baseInstance->extendedType][thisObj->baseInstance].insert({ thisObj, std::unordered_set<SaveDataREFR*>() });
 
 	}
 
-	void InstanceSaveManager::queueToSave(Instance_Akimbo* thisObj) {
+	void InstanceSaveManager::SaveQueue::queueToSaveAkimbo(Instance_Akimbo* thisObj) {
 
 		if (!thisObj->left || !thisObj->right) {
 			return;
 		}
 
-		if (!thisObj->left->lifecycle.saveBehavior) {
-			queueToSave(thisObj->left, 0);
-			//queueToSaveRef(thisObj->left, new SaveDataREFR(thisObj->clone, thisObj));
+		TESForm* left = LookupFormByRefID(thisObj->left);
+		TESForm* right = LookupFormByRefID(thisObj->right);
+		if (!left || !right) {
+			return;
 		}
 
-		if (!thisObj->right->lifecycle.saveBehavior) {
-			queueToSave(thisObj->right, 0);
-			//queueToSaveRef(thisObj->right, new SaveDataREFR(thisObj->clone, thisObj));
+		if (!left->IsReference() || !right->IsReference()) {
+			return;
 		}
 
-		instanceRefs[thisObj->baseInstance].insert({ thisObj, std::unordered_set<SaveDataREFR*>() });
+		TESObjectREFR* leftRefr = static_cast<TESObjectREFR*>(left);
+		TESObjectREFR* rightRefr = static_cast<TESObjectREFR*>(right);
+
+		if (!queueToSaveRefDirect(leftRefr) || !queueToSaveRefDirect(rightRefr)) {
+			return;
+		}
+
+		instanceRefs[thisObj->baseInstance->extendedType][thisObj->baseInstance].insert({ thisObj, std::unordered_set<SaveDataREFR*>()});
 
 	}
 
 	//Instance
-	void InstanceSaveManager::queueToSaveRef(Instance* instance, SaveDataREFR* worldRef) {
+	void InstanceSaveManager::SaveQueue::queueToSaveRef(Instance* instance, SaveDataREFR* worldRef) {
 		queueToSave(instance, 0);
 		if (isQueueToSave(instance)) {
-			instanceRefs[instance->baseInstance][instance].insert(std::move(worldRef));
+			if (instance->baseInstance->parent) {
+				queueToSave(instance->baseInstance->parent);
+			}
+			instanceRefs[instance->baseInstance->extendedType][instance->baseInstance][instance].insert(worldRef);
 		}
 	}
 
 	//Only used for instance world refs
-	bool InstanceSaveManager::isQueueToSave(Instance* instance) {
-		return instanceRefs[instance->baseInstance].find(instance) != instanceRefs[instance->baseInstance].end();
+	bool InstanceSaveManager::SaveQueue::isQueueToSave(Instance* instance) {
+		return instanceRefs[instance->baseInstance->extendedType][instance->baseInstance].find(instance) != instanceRefs[instance->baseInstance->extendedType][instance->baseInstance].end();
 	}
 
 	//Dynamics
-	void InstanceSaveManager::queueToSaveRef(ExtendedBaseType* base, SaveDataREFR* worldRef) {
+	void InstanceSaveManager::SaveQueue::queueToSaveRef(ExtendedBaseType* base, SaveDataREFR* worldRef) {
 
 		if (!base->baseLifecycle.saveBehavior) {
 			return;
 		}
-		dynamicsRefs[base].insert(std::move(worldRef));
+		if(base->parent) {
+			queueToSave(base->parent);
+		}
+
+		dynamicsRefs[base].insert(worldRef);
 	}
 
-	void InstanceSaveManager::queueToSave(TESForm* thisObj) {	//Saves static baseforms
+	bool InstanceSaveManager::SaveQueue::queueToSave(TESForm* thisObj) {	//Saves static baseforms
 
 		if (thisObj->IsInstancedForm()) {
-			queueToSave(thisObj->pLookupInstance(), 0);
-			return;
+			return queueToSave(thisObj->pLookupInstance(), 0);
+		}
+		else if (thisObj->pIsDynamicForm()) {
+
+			auto it = searchLocation.find(thisObj->refID);
+			if (it == searchLocation.end()) {
+				//if (locations.empty) {
+					UInt32 newIndex = locations.size();
+					locations.push_back(thisObj->refID);
+					searchLocation[thisObj->refID] = newIndex;
+				//}
+				return true;
+			}
+
 		}
 
-		auto it = searchLocation.find(thisObj);
-		if (it == searchLocation.end()) {
-			UInt32 newIndex = locations.size();
-			locations.push_back(thisObj);
-			searchLocation[thisObj] = newIndex;
-		}
+		return false;
 
 	}
 
-	TESObjectREFR* InstanceSaveManager::queueToSave(TESObjectREFR* thisObj) {
+	//Saves a reference that is stored directly. References that are not in the world, and not in a container.
+	bool InstanceSaveManager::SaveQueue::queueToSaveRefDirect(TESObjectREFR* thisObj) {
+
+		if (thisObj->baseForm->IsInstancedForm() || thisObj->baseForm->pIsDynamicForm()) {
+
+			if (Instance* thisInstance = thisObj->baseForm->pLookupInstance()) {
+				if (thisInstance->lifecycle.isPolicyEnabled(LifecycleManager::OnUnload)) {
+					return false;
+				}
+				return queueToSave(thisInstance, 0);
+
+			}
+			else if (StaticInstance* thisStaticInstance = thisObj->baseForm->LookupStaticInstance()) {
+
+				if (thisStaticInstance->baseLifecycle.isPolicyEnabled(LifecycleManager::OnUnload)) {
+					return false;
+				}
+
+				return queueToSave(thisStaticInstance->parent);
+
+			}
+
+		}
+		return true;
+	}
+
+	TESObjectREFR* InstanceSaveManager::SaveQueue::queueToSave(TESObjectREFR* thisObj) {
 
 		TESForm* containerForm = thisObj;
 		Instance* thisInstance = nullptr;
@@ -536,12 +624,26 @@ namespace SaveSystem {
 				if (thisInstance->lifecycle.isPolicyEnabled(LifecycleManager::OnUnload) && !thisObj->GetInSameCellOrWorld(*g_thePlayer)) {
 					return nullptr;
 				}
+
+				ExtraDataList* xData = &thisObj->extraDataList;
+				SInt16 count = 1;
+				if (xData) {
+					if (xData->HasType(kExtraData_Count)) {
+						ExtraCount* xCount = (ExtraCount*)xData->GetByType(kExtraData_Count);
+						count = xCount->count;
+					}
+				}
+
 				containerForm = thisObj->baseForm;
 				//We assume there will be no instances of cells/worldspaces.
-				InstanceSaveManager::queueToSaveRef(thisInstance, new SaveDataWorldREFR{ thisObj->refID, thisObj->GetLocation(), nullptr, thisInstance, thisObj->extraDataList.CreateCopy(),
-					thisObj->posX, thisObj->posY, thisObj->posZ, thisObj->rotX, thisObj->rotY, thisObj->rotZ });
-
-				vanillaSaveRef->DeleteReference(); //Try clearing the cell buffer instead.
+				if (TESForm* location = thisObj->GetLocation()) {
+					queueToSaveRef(thisInstance, new SaveDataWorldREFR{ thisObj->refID, location, nullptr, thisInstance, xData, count,
+						thisObj->posX, thisObj->posY, thisObj->posZ, thisObj->rotX, thisObj->rotY, thisObj->rotZ });
+				}
+				else {
+					Console_Print("Error, location null for saving ref: %s", thisObj->baseForm->GetEditorID());
+				}
+				//vanillaSaveRef->DeleteReference(); //Try clearing the cell buffer instead.
 				vanillaSaveRef = nullptr;
 
 			}
@@ -551,11 +653,24 @@ namespace SaveSystem {
 					return nullptr;
 				}
 
-				//We assume there will be no instances of cells/worldspaces.
-				InstanceSaveManager::queueToSaveRef(thisStaticInstance, new SaveDataWorldREFR{ thisObj->refID, thisObj->GetLocation(), nullptr, nullptr, thisObj->extraDataList.CreateCopy(),
-					thisObj->posX, thisObj->posY, thisObj->posZ, thisObj->rotX, thisObj->rotY, thisObj->rotZ });
+				ExtraDataList* xData = &thisObj->extraDataList;
+				SInt16 count = 1;
+				if (xData) {
+					if (xData->HasType(kExtraData_Count)) {
+						ExtraCount* xCount = (ExtraCount*)xData->GetByType(kExtraData_Count);
+						count = xCount->count;
+					}
+				}
 
-				vanillaSaveRef->DeleteReference(); //Try clearing the cell buffer instead.
+				//We assume there will be no instances of cells/worldspaces.
+				if (TESForm* location = thisObj->GetLocation()) {
+					queueToSaveRef(thisStaticInstance, new SaveDataWorldREFR{ thisObj->refID, location, nullptr, nullptr, xData, count,
+						thisObj->posX, thisObj->posY, thisObj->posZ, thisObj->rotX, thisObj->rotY, thisObj->rotZ });
+				}
+				else {
+					Console_Print("Error, location null for saving ref: %s", thisObj->baseForm->GetEditorID());
+				}
+				//vanillaSaveRef->DeleteReference(); //Try clearing the cell buffer instead.
 				vanillaSaveRef = nullptr;
 
 			}
@@ -564,57 +679,80 @@ namespace SaveSystem {
 
 		ContChangesEntryList* entryList = thisObj->GetContainerChangesList();
 
-		if (entryList) {
+		if (!entryList) return vanillaSaveRef;  // Not a container
 
-			ContChangesEntry* entry;
+		ListNode<ExtraContainerChanges::EntryData>* curr = entryList->Head(), * prev = NULL;
+		do
+		{
 
-			for (auto iter = entryList->Begin(); !iter.End(); ++iter) {
+			ContChangesEntry* entry = curr->data;
+			if (!entry) {
+				curr = curr->next; // Move to next before continuing to skip null entries
+				continue;
+			}
 
-				entry = iter.Get();
+			// Skip entries not marked as instanced or dynamic forms
+			if (!(entry->type->IsInstancedForm() || entry->type->pIsDynamicForm())) {
+				curr = curr->next;
+				continue;
+			}
 
-				if (entry && (entry->type->IsInstancedForm() || entry->type->pIsDynamicForm())) {
+			Instance* entryInstance = entry->type->pLookupInstance();
+			StaticInstance* staticEntryInstance = entry->type->LookupStaticInstance();
 
-					UInt32 objectsToRemove = entry->countDelta;
-					while (objectsToRemove > 0) {
+			// Skip based on lifecycle policies and player proximity
+			if ((entryInstance && entryInstance->lifecycle.isPolicyEnabled(LifecycleManager::OnUnload) && !thisObj->GetInSameCellOrWorld(*g_thePlayer)) ||
+				(staticEntryInstance && staticEntryInstance->baseLifecycle.isPolicyEnabled(LifecycleManager::OnUnload) && !thisObj->GetInSameCellOrWorld(*g_thePlayer))) {
+				curr = curr->next;
+				continue;
+			}
 
-						ExtraDataList* xData = nullptr;
-						ExtraDataList* xDataSave = nullptr;
-						if (entry->extendData) {
-							xData = entry->extendData->GetFirstItem();
-							if (xData) {
-								xDataSave = ExtraDataList::CopyItemData(xData, 0);
-								if (xData->HasType(kExtraData_Worn)) {
-									((Actor*)thisObj)->UnequipItem(entry->type, 1, xData, 1, 0, 0);
-								}
-							}
+			if (entry->extendData) {
+
+				for (auto xData : *entry->extendData) {
+
+					ExtraDataList* xDataSave = xData ? xData->CreateCopy() : nullptr;
+					SInt16 count = 1;
+					if (xDataSave) {
+
+						if (xData->HasType(kExtraData_Count)) {
+							ExtraCount* xCount = (ExtraCount*)xData->GetByType(kExtraData_Count);
+							count = xCount->count;
+						}
+						if (xData->HasType(kExtraData_Worn)) {
+							((Actor*)thisObj)->UnequipItem(entry->type, count, xData, 1, 0, 0);  // Unequip item if worn
 						}
 
-						entry->Remove(xData, 1);
-						objectsToRemove--;
-
-						if (Instance* entryInstance = entry->type->pLookupInstance()) {
-							if (entryInstance->lifecycle.isPolicyEnabled(LifecycleManager::OnUnload) && !thisObj->GetInSameCellOrWorld(*g_thePlayer)) {
-								continue;
-							}
-							queueToSave(containerForm);
-							InstanceSaveManager::queueToSaveRef(entryInstance, new SaveDataEntry{ containerForm, thisInstance, entryInstance, xDataSave });
-						}
-						else if (StaticInstance* staticEntryInstance = entry->type->LookupStaticInstance()) {
-							if (staticEntryInstance->baseLifecycle.isPolicyEnabled(LifecycleManager::OnUnload) && !thisObj->GetInSameCellOrWorld(*g_thePlayer)) {
-								continue;
-							}
-							queueToSave(containerForm);
-							InstanceSaveManager::queueToSaveRef(staticEntryInstance, new SaveDataEntry{ containerForm, thisInstance, nullptr, xDataSave });
-						}
-
+					}
+					if (entryInstance) {
+						queueToSave(containerForm);
+						queueToSaveRef(entryInstance, new SaveDataEntry{ containerForm, thisInstance, entryInstance, xDataSave, count });
+					}
+					else if (staticEntryInstance) {
+						queueToSave(containerForm);
+						queueToSaveRef(staticEntryInstance, new SaveDataEntry{ containerForm, thisInstance, nullptr, xDataSave, count });
 					}
 
 				}
 
+				entry->extendData->RemoveAll(true);
 
 			}
+			else {
+				// Handle static instances without extended data
+				if (entryInstance) {
+					queueToSave(containerForm);
+					queueToSaveRef(entryInstance, new SaveDataEntry{ containerForm, thisInstance, entryInstance, nullptr, entry->countDelta });
+				}
+				else if (staticEntryInstance) {
+					queueToSave(containerForm);
+					queueToSaveRef(staticEntryInstance, new SaveDataEntry{ containerForm, thisInstance, nullptr, nullptr, entry->countDelta });
+				}
+			}
 
-		}
+			curr = prev ? prev->RemoveNext() : curr->RemoveMe();
+
+		} while (curr);
 
 		return vanillaSaveRef;
 
@@ -636,17 +774,27 @@ namespace SaveSystem {
 						WriteRecord32(xData->owner->refID);
 					}
 				}
-										  break;
+				break;
 				case kXData_ExtraCount: {
 
 					ExtraCount* xData = (ExtraCount*)extraData;
 					if (xData)
 					{
 						WriteRecord8(extraData->type);
-						WriteRecord32(xData->count);
+						WriteRecord16(xData->count);
 					}
 				}
-									  break;
+				break;
+				case kExtraData_TimeLeft:
+				{
+					ExtraTimeLeft* xData = (ExtraTimeLeft*)extraData;
+					if (xData)
+					{
+						WriteRecord8(extraData->type);
+						WriteRecordFloat(xData->time);
+					}
+				}
+				break;
 				case kXData_ExtraHealth: {
 
 					ExtraHealth* xData = (ExtraHealth*)extraData;
@@ -656,7 +804,7 @@ namespace SaveSystem {
 						WriteRecordFloat(xData->health);
 					}
 				}
-									   break;
+				break;
 				case kXData_ExtraHotkey: {
 
 					ExtraHotkey* xData = (ExtraHotkey*)extraData;
@@ -666,7 +814,7 @@ namespace SaveSystem {
 						WriteRecord8(xData->index);
 					}
 				}
-									   break;
+				break;
 				case kXData_ExtraWorn: {
 
 					ExtraWorn* xData = (ExtraWorn*)extraData;
@@ -675,7 +823,7 @@ namespace SaveSystem {
 						WriteRecord8(extraData->type);
 					}
 				}
-									 break;
+				break;
 				default:
 					break;
 				}

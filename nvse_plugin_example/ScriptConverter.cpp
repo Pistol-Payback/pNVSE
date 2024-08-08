@@ -323,6 +323,8 @@ std::string ScriptConverter::DeclareVar(std::string operation, std::string segme
         return (operation + ProcessSegment(segment));
     }
 
+    return "";
+
 }
 
 std::string ScriptConverter::ReplaceScn(std::string operation, std::string segment) {

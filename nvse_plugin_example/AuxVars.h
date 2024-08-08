@@ -1,5 +1,4 @@
 #pragma once
-#include <variant>
 
 struct AuxVector;
 
@@ -12,10 +11,12 @@ struct AuxValue
         UInt32	refID;
         char* str;
         AuxVector* NVSEArray;
+        Float32 fNum; //Used to prevent CallLoop conversions
     };
 
     AuxValue();
     AuxValue(double num);
+    AuxValue(Float32 fNum);
     AuxValue(UInt32 refID);
     AuxValue(TESForm* form);
     AuxValue(const char* value);
@@ -23,7 +24,10 @@ struct AuxValue
 
     //Copy constructor:
     AuxValue(const AuxValue& other);
+
+    //Operator overloads
     AuxValue& operator=(const AuxValue& other);
+    bool operator==(const AuxValue& rhs) const;
 
     ~AuxValue()
     {
@@ -34,18 +38,22 @@ struct AuxValue
     NVSEArrayVarInterface::Array* CopyToNVSEArray(Script* resultArray) const;
 
     UInt8 GetType() const { return type; }
-    double GetFlt() const { return (type == kRetnType_Default) ? num : 0; }
+    Float32 GetFlt() const { return (type == kRetnType_Float) ? fNum : 0; }
+    double GetDouble() const { return (type == kRetnType_Default) ? num : 0; }
     UInt32 GetRef() const { return (type == kRetnType_Form) ? refID : 0; }
     const char* GetStr() const { return (type == kRetnType_String) ? str : nullptr; }
     AuxVector* GetArray() const { return (type == kRetnType_Array) ? NVSEArray : nullptr; }
 
     void SetValue();
     void SetValue(double value);
+    void SetValue(Float32 value);
     void SetValue(UInt32 value);
     void SetValue(const char* value);
     void SetValue(NVSEArrayVarInterface::Array* value);
 
+    UInt32* bitCast(Script* script) const; //Used for pushing unknown arguments to CallFunction
     double GetValue(double value);
+    Float32 GetValue(Float32 value);
     UInt32 GetValue(UInt32 value);
     const char* GetValue(const char* value);
     AuxVector* GetValue(NVSEArrayVarInterface::Array* value);
@@ -53,6 +61,35 @@ struct AuxValue
     ArrayElementL GetAsElement() const;
 
     void CleanUpUnion();
+
+    struct Hash {
+        size_t operator()(const AuxValue& value) const {
+            size_t hash = 17;
+            switch (value.type) {
+            case kRetnType_Default:
+                hash = hash * 31 + std::hash<double>()(value.num);
+                break;
+            case kRetnType_Float:
+                hash = hash * 31 + std::hash<Float32>()(value.fNum);
+                break;
+            case kRetnType_Form:
+                hash = hash * 31 + std::hash<UInt32>()(value.refID);
+                break;
+            case kRetnType_String:
+                if (value.str) {
+                    std::string strValue(value.str);
+                    hash = hash * 31 + std::hash<std::string>()(strValue);
+                }
+                break;
+            case kRetnType_Array:
+                hash = hash * 31 + std::hash<void*>()(value.NVSEArray);
+                break;
+            default:
+                break;
+            }
+            return hash;
+        }
+    };
 
 };
 
@@ -105,15 +142,129 @@ struct AuxVector : public std::vector<AuxValue> {
         return -1; // Return a special value to indicate that the element was not found
     }
 
+    bool operator==(const AuxVector& rhs) const {
+        if (this->size() != rhs.size()) return false;
+        for (size_t i = 0; i < this->size(); ++i) {
+            if (!((*this)[i] == rhs[i])) return false;
+        }
+        return true;
+    }
+
+    size_t hash() const {
+        size_t hash = 17;
+        AuxValue::Hash valueHasher;
+        for (const AuxValue& value : *this) {
+            hash = hash * 31 + valueHasher(value);
+        }
+        return hash;
+    }
+
 };
+
+enum Type { NONE, AUX, VECT };
 
 struct CallLoopInfo {
 
-    double delay;
-    double timer;
-    TESObjectREFR* callingObj;
+    Type type = NONE;
+
+    mutable double timer = 0.0;
+    mutable double delay = 0.0;
+
+    Script* script;
+    UInt32 callingObj;
+
+    //union {//This doesn't compile
+        AuxVector argumentsAux;
+        std::vector<UInt32> arguments;
+    //};
+
+    bool gameTimer = false;
+
+    CallLoopInfo(double delay, Script* script, UInt32 callingObj, AuxVector&& arguments)
+        : delay(delay), script(script), callingObj(callingObj), argumentsAux(std::move(arguments)), type(AUX) {}
+
+    CallLoopInfo(double delay, Script* script, UInt32 callingObj, std::vector<UInt32>&& arguments)
+        : delay(delay), script(script), callingObj(callingObj), arguments(std::move(arguments)), type(VECT) {}
+
+    ~CallLoopInfo() { clearInfo(); }
+
+    bool operator==(const CallLoopInfo& other) const;
+    double CallLoopFunction() const; // Implementation needed
+    double CallFunctionProxyAlt() const; // Implementation needed
+    void clearInfo();
+
+    struct Hash {
+        size_t operator()(const CallLoopInfo& info) const {
+            size_t hash = std::hash<Script*>()(info.script);
+            hash ^= std::hash<UInt32>()(info.callingObj) << 1;
+            if (info.type == AUX) {
+                hash = hash * 31 + info.argumentsAux.hash();
+            }
+            else if (info.type == VECT) {
+                std::hash<UInt32> hasher;
+                for (const auto& item : info.arguments) {
+                    hash ^= hasher(item) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+                }
+            }
+            return hash;
+        }
+    };
+};
+/*
+struct CallLoopInfo {
+
+    mutable double timer = 0.0;
+    mutable double delay = 0;
+
+    Script* script;
+    UInt32 callingObj;
     std::vector<UInt32> arguments;
 
-    double CallLoopFunction(Script* script, TESObjectREFR* callingObj, TESObjectREFR* container);
+    bool gameTimer = false;
 
+    CallLoopInfo(double delay, Script* script, UInt32 callingObj, std::vector<UInt32>&& arguments = std::vector<UInt32>{})
+        : delay(delay), script(script), callingObj(callingObj), arguments(std::move(arguments)) {}
+
+    bool operator==(const CallLoopInfo& other) const;
+
+    double CallLoopFunction() const;
+
+    struct Hash {
+        size_t operator()(const CallLoopInfo& info) const {
+            size_t hash = std::hash<Script*>()(info.script);
+            hash ^= std::hash<UInt32>()(info.callingObj) << 1;
+            return hash;
+        }
+    };
+};
+*/
+struct CallLoopHandler {
+
+    std::unordered_set<CallLoopInfo, CallLoopInfo::Hash> infos = {};
+    //std::vector<CallLoopInfo> infos = {};
+
+    std::vector<CallLoopInfo*> findMatching(const CallLoopInfo& targetInfo) {
+        std::vector<CallLoopInfo*> matches;
+        for (const auto& info : infos) {
+            if ((targetInfo.script == nullptr || info.script == targetInfo.script) &&
+                (targetInfo.callingObj == 0 || info.callingObj == targetInfo.callingObj) &&
+                (targetInfo.argumentsAux.empty() || info.argumentsAux == targetInfo.argumentsAux)) {
+                matches.push_back(const_cast<CallLoopInfo*>(&info));
+            }
+        }
+        return matches;
+    }
+
+    void removeInfo(const CallLoopInfo& targetInfo) {
+        for (auto it = infos.begin(); it != infos.end(); ) {
+            if (!targetInfo.script || it->script == targetInfo.script &&
+                (!targetInfo.callingObj || it->callingObj == targetInfo.callingObj) &&
+                (targetInfo.argumentsAux.empty() || it->argumentsAux == targetInfo.argumentsAux)) {
+                it = infos.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+    }
 };

@@ -19,6 +19,23 @@ using TraitMap = std::unordered_map<std::string, AuxVector>;
 using LinkedTraitMap = std::unordered_map<ExtendedBaseType*, TraitMap>;
 using SlotMap = std::unordered_map<std::string, LinkedTraitMap>;
 
+struct ExpirationTimer {
+
+    ExpirationTimer(TESObjectREFR* ref, TESForm* baseform, UInt8 type, ExtraDataList* xDataList)
+    :
+     ref(ref), baseform(baseform), type(type), xDataList(xDataList){}
+
+    TESObjectREFR* ref;         //Either container or world ref
+    TESForm* baseform;          //For error checking
+    UInt8 type;                 //ExtraContainerChanges, or ExtraTimeLeft
+    ExtraDataList* xDataList;   //Either Containers ExtraContainerChanges, or direct objects ExtraTimeLeft
+
+};
+
+extern std::vector<ExpirationTimer*> lifecycleTimer;
+extern std::vector<TESObjectREFR*> newlyCreatedReferences;
+//extern std::unordered_set<TESObjectREFR*, TESForm*>, UInt32> lifecycleLookup;
+
 struct InstanceInterface {
     static UInt32 cloneCount;
 };
@@ -40,6 +57,13 @@ public:
     //Not used atm
     void cleanUp();
 
+    void insertAt(UInt32 index, Instance* instance) {
+        if (index >= this->size()) {
+            this->resize(index + 1, nullptr);  // Resize and fill with nullptrs
+        }
+        (*this)[index] = instance;
+    }
+
 };
 
 class LifecycleManager {
@@ -47,12 +71,12 @@ public:
     enum DestructionPolicy {
         Timed = 1,
         OnUnload = 2,
-        Immediate = 4,
+        Recycle = 4,
         None = 0
     };
 
-    LifecycleManager(int policies = None, double lifetime = 0.0)
-        : policies(policies), lifetime(lifetime), timeElapsed(0.0) {}
+    LifecycleManager(int policies = None, float lifetime = 0.0)
+        : policies(policies), lifetime(lifetime) {}
 
     void enablePolicy(DestructionPolicy policy) {
         policies |= policy;
@@ -66,13 +90,16 @@ public:
         return (policies & policy) != 0;
     }
 
-    void update(double deltaTime) {
-        if (policies & Timed) {
-            timeElapsed += deltaTime;
-            if (timeElapsed >= lifetime) {
-                requestDestruction();
-            }
-        }
+    int getPolicies() const {
+        return policies;
+    }
+
+    float getLifeTime() const {
+        return lifetime;
+    }
+
+    void setLifeTime(float time) {
+        lifetime = time;
     }
 
     void unload() {
@@ -80,13 +107,13 @@ public:
             requestDestruction();
         }
     }
-
+    /*
     void requestImmediateDestruction() {
         if (policies & Immediate) {
             requestDestruction();
         }
     }
-
+    */
     void setSaveBehavior(bool save) {
         saveBehavior = save;
     }
@@ -101,12 +128,13 @@ public:
         destroyCallback = callback;
     }
 
+    static void addLifecycleTimer(TESObjectREFR* worldRef, TESForm* baseForm, float time, ExtraDataList* xDataList, bool insideWorldRef = false, bool set = false);
+
     bool saveBehavior = true;
 
 private:
-    int policies;
-    double lifetime;
-    double timeElapsed;
+    UInt8 policies;
+    float lifetime;
     std::function<void()> destroyCallback;
 };
 
@@ -115,12 +143,13 @@ struct ExtendedBaseType {
 protected:
 
     ExtendedBaseType(
+        TESForm* parent = nullptr,
         UInt32 modIndex = 0,
         UInt32 extendedType = 0,
         const TraitMap& traits = {},
         const SlotMap& linkedTraits = {},
         const InstanceVector& aInstances = {}
-    ) : edits({ modIndex }), extendedType(extendedType), traits(traits), linkedTraits(linkedTraits), aInstances(aInstances) {}
+    ) : edits({ modIndex }), parent(parent), extendedType(extendedType), traits(traits), linkedTraits(linkedTraits), aInstances(aInstances) {}
 
 public:
 
@@ -128,11 +157,13 @@ public:
         clearInstances();
     }
 
+    TESForm* parent;
+
     LifecycleManager baseLifecycle; //All instances will inherit this
 
     InstanceVector aInstances;
 
-    TraitMap traits;
+    TraitMap traits; //Maybe move traits outside so we don't have multi maps on every form
     SlotMap linkedTraits;
 
     UInt32 extendedType;
@@ -157,16 +188,16 @@ public:
 struct StaticInstance : ExtendedBaseType {
 
     StaticInstance(
-        TESForm* parent = nullptr,
+        TESForm* parent,
         UInt32 modIndex = 0,
         UInt32 extendedType = 0,
         const TraitMap& traits = {},
         const SlotMap& linkedTraits = {},
         const InstanceVector& aInstances = {}
-    ) : ExtendedBaseType(modIndex, extendedType, traits, linkedTraits, aInstances), parent(parent) {
-
-        StaticLinker[this->parent->typeID][this->parent->refID] = this;
-
+    ) : ExtendedBaseType(parent, modIndex, extendedType, traits, linkedTraits, aInstances) {
+        if (parent) {
+            StaticLinker[this->parent->typeID][this->parent->refID] = this;
+        }
     }
 
     ~StaticInstance() {
@@ -174,17 +205,20 @@ struct StaticInstance : ExtendedBaseType {
         //Shouldn't be destroying these
     }
 
-    TESForm* parent;
+    TESForm* createInstance(std::string key);
 
-    virtual Instance* newInstance(const std::string& key);
-    virtual Instance* loadInstance(UInt32 InstID, const std::string& key);
+    //Shouldn't be used at runtime.
+    void setParent(TESForm* form, bool doFree = false);
+
+    virtual Instance* newInstance(const std::string& key, UInt32 modIndex);
+    virtual Instance* loadInstance(UInt32 InstID, UInt32 modIndex, const std::string& key, LifecycleManager* lifecycle);
 
 };
 
 struct StaticInstance_WEAP : StaticInstance {
 
     StaticInstance_WEAP(
-        TESForm* parent = nullptr,
+        TESForm* parent,
         UInt32 modIndex = 0,
         UInt32 extendedType = 40,
         const std::unordered_map<std::string, UInt32>& aBaseAttachments = {},
@@ -196,46 +230,45 @@ struct StaticInstance_WEAP : StaticInstance {
     std::unordered_map<std::string, UInt32> aBaseAttachments;
     std::unordered_map<std::string, std::vector<UInt32>> aAllAttachments;
 
-    std::string FirstPersonModelPath;
-
-    Instance* newInstance(const std::string& key) override final;
-    Instance* loadInstance(UInt32 InstID, const std::string& key) override final;
+    Instance* newInstance(const std::string& key, UInt32 modIndex) override final;
+    Instance* loadInstance(UInt32 InstID, UInt32 modIndex, const std::string& key, LifecycleManager* lifecycle) override final;
 
 };
 
 
-struct StaticInstance_Akimbo : ExtendedBaseType {
+struct StaticInstance_Akimbo : StaticInstance {
 
     StaticInstance_Akimbo(
-        UInt32 modIndex = 0,
-        StaticInstance_WEAP* left = nullptr,
-        StaticInstance_WEAP* right = nullptr,
-        const TraitMap& traits = {},
-        const SlotMap& linkedTraits = {},
+        TESForm* parent,
+        UInt32 modIndex,
+        TESForm* left,
+        TESForm* right,
+        const TraitMap traits = {},         //Used to copy traits
+        const SlotMap linkedTraits = {},
         const InstanceVector& aInstances = {}
-    ) : ExtendedBaseType(modIndex, 222, traits, linkedTraits, aInstances), left(left), right(right) {
+    ) : StaticInstance(parent, modIndex, 222, traits, linkedTraits, aInstances), left(left), right(right) {
 
-        AkimboSets[this->left->parent->refID][this->right->parent->refID] = this;
+        AkimboSets[this->left->refID][this->right->refID] = this;
 
     }
 
     ~StaticInstance_Akimbo() {
-        AkimboSets[this->left->parent->refID].erase(this->right->parent->refID);
-        if (AkimboSets[this->left->parent->refID].empty()) {
-            AkimboSets.erase(this->left->parent->refID);
+        AkimboSets[this->left->refID].erase(this->right->refID);
+        if (AkimboSets[this->left->refID].empty()) {
+            AkimboSets.erase(this->left->refID);
         }
         //Shouldn't be destroying these
     }
 
-    StaticInstance_WEAP* left;
-    StaticInstance_WEAP* right;
+    TESForm* left;
+    TESForm* right;
 
-    TESForm* newInstance(TESObjectREFR* right, TESObjectREFR* left, const std::string& key);
+    Instance* newInstance(const std::string& key, UInt32 modIndex) override final;
+    TESForm* newInstance(TESObjectREFR* right, TESObjectREFR* left, UInt32 modIndex, const std::string& key);
 
-    Instance_Akimbo* loadInstance(UInt16 InstID, 
-        Instance_WEAP* weapRight, Instance_WEAP* weapLeft, 
-        ExtraDataList* xDataRight, ExtraDataList* xDataLeft, 
-        const std::string& key);
+    Instance_Akimbo* loadInstance(UInt16 InstID, UInt32 modIndex,
+        TESObjectREFR* weapRight, TESObjectREFR* weapLeft,
+        const std::string& key, LifecycleManager* lifecycle);
 
     static StaticInstance_Akimbo* LookupAkimboSet(TESForm* left, TESForm* right);
 
@@ -243,45 +276,51 @@ struct StaticInstance_Akimbo : ExtendedBaseType {
 
 struct TESRefr {
 
-    TESRefr(ExtendedBaseType* baseInstance)
-        : TESRefr(baseInstance, baseInstance->baseLifecycle) {}
+    TESRefr(StaticInstance* baseInstance, UInt32 modIndex)
+        : TESRefr(baseInstance, modIndex, baseInstance->baseLifecycle) {}
 
-    TESRefr(ExtendedBaseType* baseInstance, const LifecycleManager& lifecycle)
-        : baseInstance(baseInstance), lifecycle(lifecycle) {
+    TESRefr(StaticInstance* baseInstance, UInt32 modIndex, const LifecycleManager& lifecycle)
+        : baseInstance(baseInstance), modIndex(modIndex), lifecycle(lifecycle) {
     }
 
+    //Direct loading
+    TESRefr(StaticInstance* baseInstance, UInt32 modIndex, LifecycleManager&& lifecycle)
+        : baseInstance(baseInstance), modIndex(modIndex), lifecycle(std::move(lifecycle)) {}
+
     LifecycleManager lifecycle;
-    ExtendedBaseType* baseInstance;
+    StaticInstance* baseInstance;
+    UInt32 modIndex;
 
 };
 
 struct Instance : TESRefr {
 
-    Instance(ExtendedBaseType* baseInstance, TESForm* clone, std::string key)
-        : Instance(baseInstance, clone, key, baseInstance->baseLifecycle) {}
+    Instance(StaticInstance* baseInstance, TESForm* clone, UInt32 modIndex, std::string key)
+        : Instance(baseInstance, clone, modIndex, key, baseInstance->baseLifecycle) {}
 
-    Instance(ExtendedBaseType* baseInstance, TESForm* clone, std::string key, const LifecycleManager& lifecycle)
-        : TESRefr(baseInstance, lifecycle), clone(clone), key(key) {
+    Instance(StaticInstance* baseInstance, TESForm* clone, UInt32 modIndex, std::string key, LifecycleManager& lifecycle)
+        : TESRefr(baseInstance, modIndex, lifecycle), clone(clone), key(key) {
         InstID = baseInstance->aInstances.add(this);
+        lifecycle.enablePolicy(LifecycleManager::Recycle);  //Cleans up instances that don't exist in the world
         ++InstanceInterface::cloneCount;
     }
 
-    Instance(UInt16 InstID, ExtendedBaseType* baseInstance, TESForm* clone, std::string key)
-        : Instance(InstID, baseInstance, clone, key, baseInstance->baseLifecycle) {}
-
-    Instance(UInt16 InstID, ExtendedBaseType* baseInstance, TESForm* clone, std::string key, const LifecycleManager& lifecycle)
-        : TESRefr(baseInstance, lifecycle), clone(clone), key(key), InstID(InstID) {
-        baseInstance->aInstances[InstID] = this;
+    //Used to load direct info
+    Instance(UInt16 InstID, StaticInstance* baseInstance, TESForm* clone, UInt32 modIndex, std::string key, LifecycleManager&& lifecycle_p)
+        : TESRefr(baseInstance, modIndex, std::move(lifecycle_p)), clone(clone), key(key), InstID(InstID) {
+        baseInstance->aInstances.insertAt(InstID, this);
+        lifecycle.enablePolicy(LifecycleManager::Recycle);  //Cleans up instances that don't exist in the world
         ++InstanceInterface::cloneCount;
     }
 
     virtual ~Instance() {
-        clone->Destroy(0);
+        PluginFunctions::c_RemoveFormAnimations(clone);
+        clone->Destroy(false);
     }
 
     UInt16 InstID;
     TESForm* clone;
-    std::string key;
+    std::string key; //Maybe don't store a key on every instance, instead use a set
 
    //Use if deleting single instances
    void destroy();
@@ -293,23 +332,28 @@ struct TESInstance : Instance {
     TESInstance(
         StaticInstance* baseInstance,
         TESForm* clone,
+        UInt32 modIndex,
         std::string key
-    ) : Instance(baseInstance, clone, key) {
+    ) : Instance(baseInstance, clone, modIndex, key) {
         InstanceLinker[this->clone->typeID][this->clone->refID] = this;
     }
 
+    //Used to load direct info
     TESInstance(
         UInt16 InstID,
         StaticInstance* baseInstance,
         TESForm* clone,
-        std::string key
-    ) : Instance(InstID, baseInstance, clone, key) {
+        UInt32 modIndex,
+        std::string key,
+        LifecycleManager&& lifecycle
+    ) : Instance(InstID, baseInstance, clone, modIndex, key, std::move(lifecycle)) {
         InstanceLinker[this->clone->typeID][this->clone->refID] = this;
     }
 
     ~TESInstance() override {
+        PluginFunctions::c_RemoveFormAnimations(clone);
         InstanceLinker[this->clone->typeID].erase(this->clone->refID);
-        clone->Destroy(0);
+        clone->Destroy(false);
     }
 
 };
@@ -319,67 +363,66 @@ struct Instance_WEAP : TESInstance {
     Instance_WEAP(
         StaticInstance* baseInstance,
         TESForm* clone,
+        UInt32 modIndex,
         std::string key,
         const std::unordered_map<std::string, UInt32>& aAttachments = {}
-    ) : TESInstance(baseInstance, clone, key), aAttachments(aAttachments){}
+    ) : TESInstance(baseInstance, clone, modIndex, key), aAttachments(aAttachments){}
 
+    //Used to load direct info
     Instance_WEAP(
         UInt16 InstID,
         StaticInstance* baseInstance,
         TESForm* clone,
+        UInt32 modIndex,
         std::string key,
+        LifecycleManager&& lifecycle,
         const std::unordered_map<std::string, UInt32>& aAttachments = {}
-    ) : TESInstance(InstID, baseInstance, clone, key), aAttachments(aAttachments) {}
+    ) : TESInstance(InstID, baseInstance, clone, modIndex, key, std::move(lifecycle)), aAttachments(aAttachments) {}
 
-    std::unordered_map<std::string, UInt32> aAttachments;
+    std::unordered_map<std::string, UInt32> aAttachments; //Use a map of cad objects, to avoid dupe strings.
 
 };
 
 struct Instance_Akimbo : Instance {
 
     Instance_Akimbo(
-        ExtendedBaseType* baseInstance,
+        StaticInstance* baseInstance,
         TESForm* clone,
+        UInt32 modIndex,
         std::string key,
-        Instance_WEAP* left,
-        Instance_WEAP* right,
-        ExtraDataList* xDataLeft,
-        ExtraDataList* xDataRight
-    ) : Instance(baseInstance, clone, key),
-        right(right),
-        left(left),
-        xDataLeft(xDataLeft),
-        xDataRight(xDataRight)
+        TESObjectREFR* left,
+        TESObjectREFR* right
+    ) : Instance(baseInstance, clone, modIndex, key),
+        right(right->refID),
+        left(left->refID)
     {
         InstanceLinker[40][this->clone->refID] = this;
     }
 
+    //Used to load direct info
     Instance_Akimbo(
         UInt16 InstID,
-        ExtendedBaseType* baseInstance,
+        StaticInstance* baseInstance,
         TESForm* clone,
+        UInt32 modIndex,
         std::string key,
-        Instance_WEAP* left,
-        Instance_WEAP* right,
-        ExtraDataList* xDataLeft,
-        ExtraDataList* xDataRight
-    ) : Instance(InstID, baseInstance, clone, key),
-        right(right),
-        left(left),
-        xDataLeft(xDataLeft),
-        xDataRight(xDataRight)
+        LifecycleManager&& lifecycle,
+        TESObjectREFR* left,
+        TESObjectREFR* right
+    ) : Instance(InstID, baseInstance, clone, modIndex, key, std::move(lifecycle)),
+        right(right->refID),
+        left(left->refID)
     {
         InstanceLinker[40][this->clone->refID] = this;
     }
 
     ~Instance_Akimbo() override final {
+        PluginFunctions::c_RemoveFormAnimations(clone);
         InstanceLinker[40].erase(this->clone->refID);
-        clone->Destroy(0);
+        clone->Destroy(false);
     }
 
-    Instance_WEAP* right;   //SetAkimboWeapon
-    Instance_WEAP* left;
-    ExtraDataList* xDataRight;
-    ExtraDataList* xDataLeft;
+    UInt32 right;   //SetAkimboWeapon
+    UInt32 left;
 
 };

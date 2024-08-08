@@ -6,6 +6,25 @@
 namespace SaveSystem {
 
 	std::vector<SpawnQueue> queueToSpawn;
+	std::vector<TESObjectREFR*> queueToUpdate3d;
+
+	void ExecuteUpdate3dQueue() {
+		if (!queueToUpdate3d.empty()) {
+			for (auto& ref : queueToUpdate3d) {
+				ref->Update3D_v1c();
+			}
+			queueToUpdate3d.clear();
+		}
+	}
+
+	void ExecuteSpawnQueue() {
+		if (!queueToSpawn.empty()) {
+			for (auto& spawn : queueToSpawn) {
+				spawn.baseForm->PlaceAtCellAlt(spawn.location, spawn.x, spawn.y, spawn.z, spawn.xR, spawn.yR, spawn.zR, spawn.xData);
+			}
+			queueToSpawn.clear();
+		}
+	}
 
 	UInt8(*SaveData::ReadRecord8)();
 	UInt16(*SaveData::ReadRecord16)();
@@ -15,6 +34,24 @@ namespace SaveSystem {
 		int intValue = ReadRecord32();
 		return *reinterpret_cast<float*>(&intValue);
 	}
+
+	char* SaveData::ReadRecordString()
+	{
+		UInt32 length = ReadRecord32();
+		char* key = new char[length + 1];
+		ReadRecordData(key, length);
+		key[length] = '\0';
+		return key;
+
+	}
+
+	void SaveData::SkipRecordString()
+	{
+		UInt32 length = ReadRecord32();
+		SkipNBytes(length);
+	}
+
+
 
 	bool (*SaveData::ResolveRefID)(UInt32 refID, UInt32* outRefID);
 	UInt32(*SaveData::ReadRecordData)(void* buf, UInt32 length);
@@ -35,6 +72,20 @@ namespace SaveSystem {
 	void SaveData::WriteRecordFloat(float value)
 	{
 		WriteRecord32(*reinterpret_cast<int*>(&value));
+	}
+
+	void SaveData::WriteRecordString(std::string value)
+	{
+		UInt32 length = value.length();
+		WriteRecord32(length);
+		WriteRecordData(value.c_str(), length);
+	}
+
+	void SaveData::WriteRecordString(const char* value)
+	{
+		UInt32 length = strlen(value);
+		WriteRecord32(length);
+		WriteRecordData(value, length);
 	}
 
 	bool (*SaveData::OpenRecord)(UInt32 type, UInt32 version);
@@ -123,7 +174,7 @@ namespace SaveSystem {
 		SaveData::SkipNBytes = serialization->SkipNBytes;
 		SaveData::OpenRecord = serialization->OpenRecord;
 
-		//serialization->SetLoadCallback(pluginHandle, LoadGameCallback);
+		serialization->SetLoadCallback(pluginHandle, LoadGameCallback);
 		serialization->SetSaveCallback(pluginHandle, SaveGameCallback);
 
 	}

@@ -4,6 +4,7 @@
 #include "GameObjects.h"
 #include "GameRTTI.h"
 #include "GameScript.h"
+#include "class_vtbls.h"
 
 struct GetMatchingEquipped {
 	FormMatcher& m_matcher;
@@ -129,6 +130,23 @@ void ExtraContainerChanges::ExtendDataList::RemoveAll() const
 	//CallSemaphore(GetExtraSemaphore(), s_SemaphoreLeave);
 };
 
+void ExtraContainerChanges::ExtendDataList::RemoveAll(bool doFree) {
+
+	tList<ExtraDataList>::_Node* curr = Head(), * prev = NULL;
+	do
+	{
+		if (doFree) {
+			ExtraDataList* xDataList = curr->data;
+			if (xDataList) {
+				xDataList->RemoveAll(true);
+				FormHeap_Free(xDataList);
+			}
+		}
+		curr = prev ? prev->RemoveNext() : curr->RemoveMe();
+	} while (curr);
+
+}
+
 ExtraDataList* ExtraContainerChanges::ExtendDataList::RemoveNth(SInt32 n)
 {
 	//CallSemaphore4(GetExtraSemaphore(), s_SemaphoreWait);
@@ -208,7 +226,7 @@ void ExtraContainerChanges::EntryData::Cleanup()
 		while (!iter.End())
 			if (iter.Get()) {
 				ExtraCount* xCount = (ExtraCount*)iter.Get()->GetByType(kExtraData_Count);
-				if (xCount && xCount->count<2)
+				if (xCount && xCount->count < 2)
 					iter.Get()->RemoveByType(kExtraData_Count);
 				if (countDelta || iter.Get()->m_data)	// There are other extras than count like ExtraWorn :)
 					++iter;
@@ -422,6 +440,15 @@ bool ExtraContainerChanges::EntryData::Remove(ExtraDataList* toRemove, bool bFre
 			return true;
 		}
 
+	}
+	return false;
+}
+
+bool ExtraContainerChanges::EntryData::RemoveAll(bool bFree)
+{
+	if (extendData) {
+		extendData->RemoveAll(true);
+		countDelta = 0;
 	}
 	return false;
 }
@@ -803,6 +830,21 @@ ExtraAction* ExtraAction::Create()
 	return xAction;
 }
 
+ExtraTimeLeft* ExtraTimeLeft::Create(float timer)
+{
+	ExtraTimeLeft* timeLeft = (ExtraTimeLeft*)BSExtraData::Create(kXData_ExtraTimeLeft, sizeof(ExtraTimeLeft), kVtbl_ExtraTimeLeft);
+	timeLeft->time = timer;
+	return timeLeft;
+}
+
+ExtraAmmo* ExtraAmmo::Create(TESAmmo* ammo, UInt32 count)
+{
+	ExtraAmmo* xData = (ExtraAmmo*)BSExtraData::Create(kXData_ExtraAmmo, sizeof(ExtraAmmo), kVtbl_ExtraAmmo);
+	xData->ammo = ammo;
+	xData->count = count;
+	return xData;
+}
+
 const char* GetExtraDataName(UInt8 ExtraDataType) {
 	switch (ExtraDataType) {			
 		case	kExtraData_Havok                    	: return "Havok"; break;
@@ -1045,6 +1087,14 @@ inline bool Compare(const ExtraHotkey* xData, const ExtraHotkey* xCompare) {
 	return xData && xCompare && xData->index == xCompare->index;
 }
 
+inline bool Compare(const ExtraAmmo* xData, const ExtraAmmo* xCompare) {
+	return xData && xCompare && xData->ammo == xCompare->ammo && xData->count == xCompare->count;
+}
+
+inline bool Compare(const ExtraWeaponModFlags* xData, const ExtraWeaponModFlags* xCompare) {
+	return xData && xCompare && xData->flags == xCompare->flags;
+}
+
 bool Compare(const BSExtraData* xData, const BSExtraData* xCompare) {
 	if (!xData || !xCompare || xData->type != xCompare->type) return false;
 
@@ -1057,6 +1107,10 @@ bool Compare(const BSExtraData* xData, const BSExtraData* xCompare) {
 		return Compare(static_cast<const ExtraHealth*>(xData), static_cast<const ExtraHealth*>(xCompare));
 	case kXData_ExtraHotkey:
 		return Compare(static_cast<const ExtraHotkey*>(xData), static_cast<const ExtraHotkey*>(xCompare));
+	case kXData_ExtraAmmo:
+		return Compare(static_cast<const ExtraAmmo*>(xData), static_cast<const ExtraAmmo*>(xCompare));
+	case kExtraData_WeaponModFlags:
+		return Compare(static_cast<const ExtraWeaponModFlags*>(xData), static_cast<const ExtraWeaponModFlags*>(xCompare));
 	default:
 		return true;
 	}
@@ -1079,9 +1133,14 @@ bool CopyBSExtra(ExtraDataList* xCopyTo, const BSExtraData* xCopyFrom) {
 	case kXData_ExtraHotkey:
 		xCopyTo->AddExtra(ExtraHotkey::Create(static_cast<const ExtraHotkey*>(xCopyFrom)->index));
 		break;
-	default:
-		return false;
+	case kXData_ExtraAmmo:
+		xCopyTo->AddExtra(ExtraAmmo::Create(static_cast<const ExtraAmmo*>(xCopyFrom)->ammo, static_cast<const ExtraAmmo*>(xCopyFrom)->count));
+		break;
+	case kExtraData_WeaponModFlags:
+		xCopyTo->AddExtra(ExtraWeaponModFlags::Create(static_cast<const ExtraWeaponModFlags*>(xCopyFrom)->flags));
+		break;
 	}
+	return false;
 
 }
 //Returns newly created xData, or overwrites existing.
@@ -1092,7 +1151,7 @@ ExtraDataList* ExtraDataList::CopyItemData(ExtraDataList* xCopyFrom, bool doFree
 		if (!xCopyTo) {
 			xCopyTo = ExtraDataList::Create();
 		}
-		else {
+		else{
 			xCopyTo->RemoveAll(0);
 		}
 

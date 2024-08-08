@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameForms.h"
+#include "GameExtraData.h"
 #include "Utilities.h"
 
 class TESReputation;
@@ -20,6 +21,8 @@ class MediaLocationController;
 class TESRegionList;
 class TESRegionManager;
 class BSFile;
+struct NiPoint3;
+class ImageSpaceModifierInstanceForm;
 
 struct ChunkAndFormType {
 	UInt32		chunkType;	// ie 
@@ -296,6 +299,7 @@ public:
 	UInt8 GetModIndex(const char* modName);
 	UInt8 GetActiveModCount() const;
 	const char* GetNthModName(UInt32 modIndex);
+	TESObjectREFR* PlaceObject(TESForm* form, NiPoint3* pos, NiPoint3* rotation, TESObjectCELL* cell, TESWorldSpace* wrldSpc, Actor* container = nullptr, void* primitive = nullptr, ExtraDataList* xData = nullptr);
 
 	void DisableAssignFormIDs(bool shouldAsssign);
 
@@ -310,3 +314,4 @@ public:
 STATIC_ASSERT(offsetof(DataHandler, modList) == 0x210);
 STATIC_ASSERT(offsetof(DataHandler, unk618) == 0x618);
 STATIC_ASSERT(sizeof(DataHandler) == 0x63C);
+

@@ -183,10 +183,13 @@ class BGSRagdoll;
 class TESLeveledList;
 class TESGlobal;
 class TESNPC;
+class TESContainer;
+class BGSTextureSet;
 
 struct StaticInstance;
 struct Instance;
 
+struct ExtendedBaseType;
 struct Instance_WEAP;
 struct StaticInstance_WEAP;
 struct StaticInstance_Akimbo;
@@ -355,36 +358,40 @@ public:
 
 
 	//Weapon Smith................................................
-
+	TESForm*				GetStaticParent(UInt32 parentTypeFilter) const;
 	TESForm*				GetStaticParent() const;
 	bool					IsInstancedForm() const;
+	bool					IsInstancedForm(UInt32 typeFilter) const;
 
 	UInt32 					GetInstanceID() const;
 
 	StaticInstance*			MarkAsStaticForm(UInt32 kitIndex);
-	StaticInstance_Akimbo*	MarkAsAkimboForm(UInt32 kitIndex, StaticInstance_WEAP* leftWeap, StaticInstance_WEAP* rightWeap);	//For stuff like akimbos
 	Instance*				LookupInstanceByID(UInt32 InstID) const;
 
-	TESForm*				CreateInst(std::string key);
-	TESForm* CreateAkimboInst(TESObjectREFR* left, std::string key);
+	TESForm*				CreateInst(std::string key, UInt32 modIndex);
 
 	StaticInstance*			LookupStaticInstance() const;
+	StaticInstance*			LookupExtendedBase() const;
 	TESInstance*			pLookupInstance() const;
 	Instance*				LookupInstance(UInt32 type) const;
 
 	bool					IsStaticForm() const;
+	bool					IsStaticForm(UInt32 typeFilter) const;
 	bool					HasExtendedMods() const;
 	bool					pIsDynamicForm() const;
 
 	//TESForm_Ext
 
-	static TESForm* CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0);
-	static TESForm* CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist = false, UInt32 offset = 0, UInt32 kitIndex = 0, bool markStatic = true);
+	static TESForm* CreateNewForm(UInt8 typeID, const char* editorID = nullptr, bool bPersist = false, UInt32 offset = 0);
+	static TESForm* CreateNewForm(TESForm* copyFrom, bool copyAnims = false, const char* editorID = nullptr, bool bPersist = false, UInt32 offset = 0);
 	bool IsReference() const;
 	bool IsBaseForm() const;
+	TESForm* GetBaseObject();
 	UInt32 GetModIndexAlt() const;
+	std::vector<UInt32> GetFormEdits(bool getParentEdits) const;
 
 	TESObjectREFR* PlaceAtCell(TESForm* form, float x, float y, float z, float xR, float yR, float zR);
+	TESObjectREFR* PlaceAtCellAlt(TESForm* worldOrCell, float x, float y, float z, float xR, float yR, float zR, ExtraDataList* xData);
 
 	TESForm *		TryGetREFRParent(void);
 	UInt8			GetModIndex() const;
@@ -401,6 +408,8 @@ public:
 	TESForm* CloneForm(bool bPersist = true) const;
 	void	CopyFromAlt(const TESForm* form);
 	bool     IsInventoryObject() const;
+
+	TESContainer* GetContainer() const;  //From JIP
 
 	bool FormMatches(TESForm* toMatch) const;
 
@@ -794,7 +803,7 @@ public:
 
 	struct Texture 
 	{
-		UInt32	textureID;			// 00
+		BGSTextureSet*	textureID;			// 00
 		UInt32	index3D;			// 04
 		char	textureName[0x80];	// 08
 	};	// there seem to be an array (length 6) post 0x88
@@ -805,6 +814,80 @@ public:
 	virtual void *	Unk_07(void);
 
 	tList<Texture> textureList;	// 018
+
+	Texture* findTextureByIndex(UInt32 index) {
+		for (auto iter = textureList.Head(); iter != nullptr; iter = iter->next) {
+			if (iter->data && iter->data->index3D == index) {
+				return iter->data;
+			}
+		}
+		return nullptr;
+	}
+
+	ListNode<TESModelTextureSwap::Texture>* find(UInt32 index) {
+		for (auto iter = textureList.Head(); iter != nullptr; iter = iter->next) {
+			if (iter->data && iter->data->index3D == index) {
+				return iter;
+			}
+		}
+		return nullptr;
+	}
+
+	ListNode<TESModelTextureSwap::Texture>* find(const BGSTextureSet* textureSetToFind) {
+		for (auto iter = this->textureList.Head(); iter != nullptr; iter = iter->next) {
+			if (iter->data && iter->data->textureID == textureSetToFind) {
+				return iter;
+			}
+		}
+		return nullptr;
+	}
+
+	void setTextureSetAtIndex(UInt32 index, BGSTextureSet* newTextureSet) {
+		Texture* texture = findTextureByIndex(index);
+		if (texture) { //Update existing texture
+			texture->textureID = newTextureSet;
+			texture->textureName[0] = '\0';
+		}
+		else { //Create new texture set at this index
+			texture = (TESModelTextureSwap::Texture*)GameHeapAlloc(0x88);
+			if (texture) {
+				texture->index3D = index;
+				texture->textureID = newTextureSet;
+				texture->textureName[0] = '\0';
+				textureList.Append(texture);
+			}
+		}
+	}
+
+	void replace(ListNode<TESModelTextureSwap::Texture>* iter, BGSTextureSet* newTextureSet, UInt32 index) {
+		if (iter) {
+			iter->data->textureID = newTextureSet;
+			iter->data->textureName[0] = '\0'; // Resetting the texture name if needed
+		}
+		else {
+			insert(index, newTextureSet);
+		}
+	}
+
+	void insert(UInt32 index, BGSTextureSet* newTextureSet) {
+		Texture* texture = (TESModelTextureSwap::Texture*)GameHeapAlloc(0x88);
+		if (texture) {
+			texture->index3D = index;
+			texture->textureID = newTextureSet;
+			texture->textureName[0] = '\0';
+			textureList.AddAt(texture, index);
+		}
+	}
+
+	void remove(UInt32 index) {
+		for (auto iter = textureList.Head(); iter != nullptr; iter = iter->next) {
+			if (iter->data && iter->data->index3D == index) {
+				textureList.Remove(iter->data);
+				break;
+			}
+		}
+	}
+
 };
 
 // 008
@@ -2881,9 +2964,9 @@ public:
 	UInt32				unk218;				// 218
 	TESSound			* sounds[12];		// 21C
 	BGSImpactDataSet	* impactDataSet;	// 24C
-	TESObjectSTAT*		worldStatic;		// 250
-	TESObjectSTAT*		modStatics[7];		// 254
-	TESModelTextureSwap	modModels[7];		// 270
+	TESObjectSTAT*		firstPersonStatic;	// 250
+	TESObjectSTAT*		modStatics[7];		// 254 Mod First person models
+	TESModelTextureSwap	modModels[7];		// 270 Mod Wold models
 	TESObjectIMOD*		itemMod[3];			// 350
 	UInt32				unk35C;				// 35C
 	UInt32				unk360;				// 360
@@ -2912,6 +2995,9 @@ public:
 	UInt32 GetItemModEffect(UInt8 which)	{ which -= 1; ASSERT(which < 3); return effectMods[which]; }
 	float GetItemModValue1(UInt8 which)		{ which -= 1; ASSERT(which < 3); return value1Mod[which]; }
 	float GetItemModValue2(UInt8 which)		{ which -= 1; ASSERT(which < 3); return value2Mod[which]; }
+
+	//Weapon Smith................................................
+	UInt32 GetModdedClipSize(UInt32 externalModFlags = 0) const;
 
 };
 
@@ -3558,13 +3644,15 @@ public:
 
 	TESFullName				fullName;			// 018	// 030 in GECK
 	UInt8					cellFlags;			// 024
-	UInt8					byte25;				// 025
-	UInt8					flags2;				// 026	// 5 or 6 would mean cell is loaded, name based on OBSE
+	UInt8					fullySeen;			// 25	Fully visible on local-map
+	UInt8					loadingStage;		// 26	// 5 or 6 would mean cell is loaded, name based on OBSE
 	UInt8					unk027;				// 027
 	ExtraDataList			extraDataList;		// 028
+
 	CellCoordinates			* coords;			// 048
+
 	TESObjectLAND			* land;				// 04C
-	float					unk050;				// 050
+	float					waterHeight;		// 50
 	TESTexture				texture054;			// 054
 	void					* NavMeshArray;		// 060	?$BSSimpleArray@VNavMeshPtr@@$0EAA@@@
 	UInt32					unk064[(0x0A4-0x064) >> 2];	// 064	080 is CellRefLock semaphore
@@ -3576,7 +3664,7 @@ public:
 	NiNode					* niNode0B8;		// 0B8
 	UInt32					unk0BC;				// 0BC
 	TESWorldSpace			* worldSpace;		// 0C0
-	NiNode					* unk0C4;			// 0C4	structure (NiNode) containing at 20 a vector XYZT, 4C a list of scripted references, 5C a list of refer with activateRefChildren
+	NiNode					* renderData;			// 0C4	structure (NiNode) containing at 20 a vector XYZT, 4C a list of scripted references, 5C a list of refer with activateRefChildren
 	float					unk0C8;				// 0C8
 	UInt32					unk0CC;				// 0CC
 	UInt32					unk0D0;				// 0D0
@@ -3585,6 +3673,15 @@ public:
 	UInt32					unk0DC;				// 0DC
 
 	bool IsInterior() { return worldSpace == NULL; }
+	//bool IsInterior() const { return (cellFlags & kCellFlag_IsInterior) != 0; };
+
+	__forceinline void AddReference(TESObjectREFR* ref, unsigned __int8 a3)
+	{
+		ThisStdCall(0x0548230, this, ref, a3);
+	}
+
+	void __fastcall ToggleNodes(UInt32 nodeBits);
+
 };
 
 STATIC_ASSERT(offsetof(TESObjectCELL, NavMeshArray) == 0x060);

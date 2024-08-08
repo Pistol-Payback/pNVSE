@@ -15,10 +15,37 @@ namespace Hooks
 		}
 
 		TESObjectREFR* ref = (TESObjectREFR*)form;
-		ref = SaveSystem::SaveLoadManager::saveManager.queueToSave(ref);
+		ref = SaveSystem::SaveLoadManager::saveManager.queue.queueToSave(ref);
 
 		return ref;
 
+
+	}
+
+	int __fastcall SetPersistentHook(TESForm* form) { //Not used
+
+		int result = ThisStdCall<int>(0x044DDC0, form);
+
+		if (form->IsReference()) {
+
+			if (Instance* inst = ((TESObjectREFR*)form)->baseForm->pLookupInstance()) {
+
+				if (inst->lifecycle.isPolicyEnabled(LifecycleManager::Timed)) {
+					newlyCreatedReferences.push_back((TESObjectREFR*)form);
+				}
+
+			}
+			else if (ExtendedBaseType* staticForm = ((TESObjectREFR*)form)->baseForm->LookupStaticInstance()) {
+
+				if (staticForm->baseLifecycle.isPolicyEnabled(LifecycleManager::Timed)) {
+					newlyCreatedReferences.push_back((TESObjectREFR*)form);
+				}
+
+			}
+
+		}
+
+		return result;
 
 	}
 

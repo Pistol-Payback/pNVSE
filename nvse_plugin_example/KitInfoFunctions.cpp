@@ -8,8 +8,8 @@ namespace Kit {
 
         while (getQuotedString(argStream, argument)) {
 
-            auto dataIter = this->fileManager.reverseNameLookup.find(argument);
-            if (dataIter == this->fileManager.reverseNameLookup.end()) {
+            auto dataIter = reverseNameLookup.find(argument);
+            if (dataIter == reverseNameLookup.end()) {
                 continue;
             }
 

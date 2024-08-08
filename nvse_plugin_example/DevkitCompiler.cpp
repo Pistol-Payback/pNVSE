@@ -108,6 +108,7 @@ namespace Kit {
         fileManager.typeFunctions[40]["QuestItem"] = TypeFunction(&DevkitCompiler::SetQuestItem);
         */
 
+        //akimbos and weapons
         std::vector<std::pair<std::string, TypeFunction<DevkitCompiler>>> commonFunctions = {
             {"name", TypeFunction(&DevkitCompiler::SetName)},
             {"description", TypeFunction(&DevkitCompiler::SetDescription)},
@@ -123,12 +124,9 @@ namespace Kit {
         //Only on weapons
         fileManager.typeFunctions[40]["slot"] = TypeFunction(&DevkitCompiler::BuildSlot);
         fileManager.typeFunctions[40]["1stpersonmodel"] = TypeFunction(&DevkitCompiler::Set1stPersonWeaponModel);
-        fileManager.typeFunctions[40]["worldmodel"] = TypeFunction(&DevkitCompiler::SetModel);
+        fileManager.typeFunctions[40]["worldmodel"] = TypeFunction(&DevkitCompiler::SetWeaponWorldModel);
         fileManager.typeFunctions[40]["value"] = TypeFunction(&DevkitCompiler::SetValue);
         fileManager.typeFunctions[40]["weight"] = TypeFunction(&DevkitCompiler::SetWeight);
-
-        //Only on akimbos
-        fileManager.typeFunctions[222]["editorid"] = TypeFunction(&DevkitCompiler::BuildAkimboForm);
 
     }
 
@@ -151,7 +149,7 @@ namespace Kit {
                     std::istringstream iss(line);
                     std::string functionName;
                     if (!(iss >> functionName)) {
-                        std::cerr << "Error: Unable to extract function name from line: " << line << std::endl;
+                        //Console_Print( "Trait Error: Unable to extract function name from line: ", line);
                         continue;
                     }
 
@@ -173,6 +171,28 @@ namespace Kit {
             }
         }
 
+    }
+
+    void DevkitCompiler::compilePartials() {
+        for (Script* script : this->toCompile) {
+            CompileScriptAlt(script);
+        }
+    }
+
+    void DevkitCompiler::clearAnimGroups() {
+
+        for (StaticInstance* staticInst : AnimGroupsKeep) {
+            AnimGroups.erase(staticInst->parent);
+            staticInst->setParent(staticInst->parent);
+        }
+
+        for (TESForm* set : AnimGroups) {
+            PluginFunctions::RemoveFormAnimations(set);
+            set->Destroy(true);
+        }
+        AnimGroups.clear();
+        AnimGroupsKeep.clear();
+        AnimGroupLookup.clear();
     }
 
 }

@@ -2909,7 +2909,7 @@ UInt32 GetNextFreeFormID()
 
 UInt32 GetNextFreeFormID(UInt32 formId)
 {
-	while (LookupFormByID(++formId))
+	while (LookupFormByRefID(++formId))
 		;
 	return formId;
 }
@@ -2930,7 +2930,7 @@ Script *GetReferencedQuestScript(UInt32 refIdx, ScriptEventList *baseEventList)
 
 #endif
 
-//Added from JIP
+//Added from JIP Not used
 UInt32 __fastcall BGSSaveLoadGame::DecodeRefID(UInt32* pRefID)
 {
 
@@ -2944,7 +2944,7 @@ UInt32 __fastcall BGSSaveLoadGame::DecodeRefID(UInt32* pRefID)
 		//NiTPointerMap<UInt32>* map = this->referencesMap->map000;
 		//return *map->Lookup(result);
 	}
-
+	return 0;
 }
 /*
 __declspec(naked) UInt32 __fastcall BGSSaveLoadGame::EncodeRefID(UInt32* pRefID)

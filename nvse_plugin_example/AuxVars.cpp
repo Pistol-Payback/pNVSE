@@ -15,6 +15,11 @@
         type = kRetnType_Default;
         num = value;
     }
+    void AuxValue::SetValue(Float32 value) {
+        this->CleanUpUnion();
+        type = kRetnType_Float;
+        fNum = value;
+    }
     void AuxValue::SetValue(UInt32 value) {
         this->CleanUpUnion();
         type = kRetnType_Form;
@@ -37,7 +42,25 @@
         NVSEArray = CopyFromNVSEArray(value);
     }
 
+    UInt32* AuxValue::bitCast(Script* script) const {
+
+        switch (type) {
+        case kRetnType_String:
+            return std::bit_cast<UInt32*>(str);
+        case kRetnType_Float:
+            return std::bit_cast<UInt32*>(&fNum);
+        case kRetnType_Form:
+            return std::bit_cast<UInt32*>(LookupFormByRefID(refID));
+        case kRetnType_Array:
+            return std::bit_cast<UInt32*>(CopyToNVSEArray(script));
+        }
+        return 0;
+    }
+
     double AuxValue::GetValue(double value) {
+        return GetDouble();
+    }
+    Float32 AuxValue::GetValue(Float32 value) {
         return GetFlt();
     }
 
@@ -156,6 +179,12 @@
         num(num) {}
 
     AuxValue::AuxValue(
+        Float32 fNum)
+        :
+        type(kRetnType_Float),
+        num(fNum) {}
+
+    AuxValue::AuxValue(
         UInt32 refID)
         :
         type(kRetnType_Form),
@@ -240,79 +269,148 @@
                     NVSEArray = nullptr;
                 }
                 break;
+            case kRetnType_Float:
+                fNum = other.fNum;
             }
         }
         return *this;
     }
 
-    double CallLoopInfo::CallLoopFunction(Script* script, TESObjectREFR* callingObj, TESObjectREFR* container) {
+    bool AuxValue::operator==(const AuxValue& rhs) const {
+        if (type != rhs.type) return false; // Different types cannot be equal
+
+        switch (type) {
+        case kRetnType_Default:
+            return num == rhs.num;
+        case kRetnType_Form:
+            return refID == rhs.refID;
+        case kRetnType_String:
+            return strcmp(str, rhs.str) == 0;
+        case kRetnType_Array:
+            return NVSEArray == rhs.NVSEArray; // Simple pointer comparison, or deeper if needed
+        case kRetnType_Float:
+            return fNum == rhs.fNum;
+        default:
+            return false;
+        }
+    }
+
+    bool CallFunctionProxy(Script* script, TESObjectREFR* thisObj, const AuxVector& args, ArrayElementL* scriptReturn) {
+        switch (args.size()) {
+        case 0:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 0);
+        case 1:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 1, args[0].bitCast(script));
+        case 2:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 2, args[0].bitCast(script), args[1].bitCast(script));
+        case 3:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 3, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script));
+        case 4:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 4, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script));
+        case 5:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 5, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script));
+        case 6:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 6, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script));
+        case 7:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 7, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script));
+        case 8:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 8, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script));
+        case 9:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 9, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script));
+        case 10:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 10, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script));
+        case 11:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 11, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script));
+        case 12:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 12, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script));
+        case 13:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 13, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script));
+        case 14:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 14, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script));
+        case 15:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 15, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script), args[14].bitCast(script));
+        case 16:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 16, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script), args[14].bitCast(script), args[15].bitCast(script));
+        case 17:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 17, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script), args[14].bitCast(script), args[15].bitCast(script), args[16].bitCast(script));
+        case 18:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 18, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script), args[14].bitCast(script), args[15].bitCast(script), args[16].bitCast(script), args[17].bitCast(script));
+        case 19:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 19, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script), args[14].bitCast(script), args[15].bitCast(script), args[16].bitCast(script), args[17].bitCast(script), args[18].bitCast(script));
+        case 20:
+            return g_scriptInterface->CallFunction(script, thisObj, thisObj, scriptReturn, 20, args[0].bitCast(script), args[1].bitCast(script), args[2].bitCast(script), args[3].bitCast(script), args[4].bitCast(script), args[5].bitCast(script), args[6].bitCast(script), args[7].bitCast(script), args[8].bitCast(script), args[9].bitCast(script), args[10].bitCast(script), args[11].bitCast(script), args[12].bitCast(script), args[13].bitCast(script), args[14].bitCast(script), args[15].bitCast(script), args[16].bitCast(script), args[17].bitCast(script), args[18].bitCast(script), args[19].bitCast(script));
+        default:
+            return false;
+        }
+    }
+
+    double CallLoopInfo::CallFunctionProxyAlt() const {
 
         UInt8 numArgs = arguments.size();
 
         ArrayElementL scriptReturn;
-
-        auto it = arguments.begin();
+        TESObjectREFR* thisObj = (TESObjectREFR*)LookupFormByRefID(callingObj);
 
         switch (numArgs) {
         case 0:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs);
             break;
         case 1:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0]);
             break;
         case 2:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1]);
             break;
         case 3:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2]);
             break;
         case 4:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3]);
             break;
         case 5:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
             break;
         case 6:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5]);
             break;
         case 7:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6]);
             break;
         case 8:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7]);
             break;
         case 9:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8]);
             break;
         case 10:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9]);
             break;
         case 11:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10]);
             break;
         case 12:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11]);
             break;
         case 13:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12]);
             break;
         case 14:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13]);
             break;
         case 15:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14]);
             break;
         case 16:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15]);
             break;
         case 17:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16]);
             break;
         case 18:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17]);
             break;
         case 19:
-            g_scriptInterface->CallFunction(script, callingObj, container, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18]);
+            g_scriptInterface->CallFunction(script, thisObj, thisObj, &scriptReturn, numArgs, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18]);
             break;
         default:
             break;
@@ -320,4 +418,49 @@
 
         return scriptReturn.Number();
 
+    }
+
+    double CallLoopInfo::CallLoopFunction() const {
+
+        if (type == AUX) {
+            UInt8 numArgs = arguments.size();
+            ArrayElementL scriptReturn;
+            TESObjectREFR* thisObj = static_cast<TESObjectREFR*>(LookupFormByRefID(callingObj));
+            if (!CallFunctionProxy(script, thisObj, argumentsAux, &scriptReturn)) {
+                return -2;  // no return
+            }
+            return scriptReturn.Number();  // Return the numeric result
+        }
+        else if (type == VECT) {
+            return CallFunctionProxyAlt();
+        }
+        else {
+            return CallFunctionProxyAlt();
+        }
+    }
+
+    bool CallLoopInfo::operator==(const CallLoopInfo& other) const {
+
+        if (type != other.type || script != other.script || callingObj != other.callingObj)
+            return false;
+
+        switch (type) {
+        case AUX:
+            return argumentsAux == other.argumentsAux;
+        case VECT:
+            return arguments == other.arguments;
+        default:
+            return true;
+        }
+
+    }
+
+    void CallLoopInfo::clearInfo() {
+        if (type == AUX) {
+            argumentsAux.~AuxVector();
+        }
+        else if (type == VECT) {
+            arguments.~vector();
+        }
+        type = NONE;
     }

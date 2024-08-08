@@ -286,7 +286,7 @@ __declspec(naked) void TESObjectREFR::DeleteReference()
 			retn
 	}
 }
-
+/*
 __declspec(naked) NiNode* __fastcall TESObjectREFR::GetNode(const char* nodeName) const
 {
 	__asm
@@ -308,7 +308,7 @@ __declspec(naked) NiNode* __fastcall TESObjectREFR::GetNode(const char* nodeName
 		retn
 	}
 }
-
+*/
 void Actor::EquipItem(TESForm * objType, UInt32 equipCount, ExtraDataList* itemExtraList, UInt32 noMessage, bool lockEquip, UInt32 playsound)
 {
 	ThisStdCall(s_Actor_EquipItem, this, objType, equipCount, itemExtraList, noMessage, lockEquip, playsound);
@@ -360,7 +360,14 @@ ExtraContainerExtendDataArray	Actor::GetEquippedExtendDataList()
 	return outExtendData;
 }
 
-// Copied from JIP
+ContChangesEntry* Actor::GetEquippedWeaponInfo() const
+{
+	if (baseProcess) {
+		return baseProcess->GetWeaponInfo();
+	}
+	return NULL;
+}
+
 TESObjectWEAP* Actor::GetEquippedWeapon() const
 {
 	if (baseProcess) {
@@ -681,6 +688,117 @@ __declspec(naked) void TESObjectREFR::AddItemAlt(TESForm* form, UInt32 count, fl
 			pop		esi
 			leave
 			retn	0x14
+	}
+}
+
+__declspec(naked) SInt32 __fastcall GetFormCount(TESContainer::FormCountList* formCountList, ContChangesEntryList* objList, TESForm* form)
+{
+	__asm
+	{
+		push	esi
+		push	edi
+		mov		esi, [esp + 0xC]
+		xor edi, edi
+		ALIGN 16
+		contIter:
+		test	ecx, ecx
+			jz		xtraIter
+			mov		eax, [ecx]
+			mov		ecx, [ecx + 4]
+			test	eax, eax
+			jz		contIter
+			cmp[eax + 4], esi
+			jnz		contIter
+			add		edi, [eax]
+			jmp		contIter
+			ALIGN 16
+			xtraIter:
+		test	edx, edx
+			jz		done
+			mov		ecx, [edx]
+			mov		edx, [edx + 4]
+			test	ecx, ecx
+			jz		xtraIter
+			cmp[ecx + 8], esi
+			jnz		xtraIter
+			mov		esi, ecx
+			test	edi, edi
+			jz		noCont
+			call	ContChangesEntry::HasExtraLeveledItem
+			test	al, al
+			jnz		noCont
+			add		edi, [esi + 4]
+			js		retnZero
+			jmp		done
+			ALIGN 16
+			noCont:
+		mov		edi, [esi + 4]
+			test	edi, edi
+			jge		done
+			retnZero :
+		xor edi, edi
+			done :
+		mov		eax, edi
+			pop		edi
+			pop		esi
+			retn	4
+	}
+}
+
+__declspec(naked) SInt32 TESObjectREFR::GetItemCount(TESForm* form) const
+{
+	__asm
+	{
+		push	ebp
+		mov		ebp, esp
+		push	ecx
+		mov		ecx, [ecx + 0x20]
+		call	TESForm::GetContainer
+		test	eax, eax
+		jz		done
+		pop		ecx
+		add		eax, 4
+		push	eax
+		call	TESObjectREFR::GetContainerChangesList
+		mov		edx, eax
+		mov		eax, [ebp + 8]
+		test	eax, eax
+		jz		done
+		cmp		byte ptr[eax + 4], kFormType_BGSListForm
+		jz		itemList
+		push	eax
+		mov		ecx, [ebp - 4]
+		call	GetFormCount
+		done :
+		leave
+			retn	4
+			__asm _emit 0x66 __asm _emit 0x90
+		itemList :
+			push	edx
+			push	esi
+			push	edi
+			lea		esi, [eax + 0x18]
+			xor edi, edi
+			iterHead :
+		test	esi, esi
+			jz		iterEnd
+			mov		eax, [esi]
+			mov		esi, [esi + 4]
+			test	eax, eax
+			jz		iterHead
+			push	eax
+			mov		edx, [ebp - 8]
+			mov		ecx, [ebp - 4]
+			call	GetFormCount
+			add		edi, eax
+			jmp		iterHead
+			ALIGN 16
+			iterEnd:
+		mov		eax, edi
+			pop		edi
+			pop		esi
+			leave
+			retn	4
 	}
 }
 

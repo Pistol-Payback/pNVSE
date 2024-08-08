@@ -57,6 +57,31 @@ bool Actor::SilentEquip(ContChangesEntry* entry) {
 
 }
 
+__declspec(naked) void __fastcall DoFireWeaponEx(TESObjectREFR* refr, int, TESObjectWEAP* weapon)
+{
+	__asm
+	{
+		mov		edx, [ecx + 0x68]
+		push	dword ptr[edx + 0x118]
+		and dword ptr[edx + 0x118], 0
+		push	dword ptr[edx + 0x114]
+		and dword ptr[edx + 0x114], 0
+		push	edx
+		push	ecx
+		mov		ecx, [esp + 0x14]
+		__asm mov eax, 0x523150 __asm call eax
+		pop		eax
+		pop		dword ptr[eax + 0x114]
+		pop		dword ptr[eax + 0x118]
+		mov		ecx, [eax + 0x3D4]
+		test	ecx, ecx
+		jz		done
+		mov		byte ptr[ecx + 3], 1
+		done:
+		retn	4
+	}
+}
+
 
 TESObjectREFR* Actor::ReplaceInvObject(TESForm* form, InventoryRef* replace, UInt32 count, bool copy) {
 
@@ -113,15 +138,6 @@ TESObjectREFR* Actor::ReplaceInvObject(TESForm* form, InventoryRef* replace, UIn
 
 }
 
-UInt32 TESForm::GetModIndexAlt() const {
-	if (StaticInstance* staticInst = this->LookupStaticInstance()) {
-		return staticInst->edits[0];
-	}
-	else {
-		return (refID >> 24);
-	}
-}
-
 namespace Hooks
 {
 
@@ -145,16 +161,16 @@ namespace Hooks
 						if (scriptReturn.GetType() == 2) {	//Form
 
 							TESForm* form = scriptReturn.Form();
-							InventoryRef* invRef = InventoryRef::InventoryRefGetForID(form->refID);
+							InventoryRef* invRef = InventoryRef::InventoryRefGetForID(form->refID); //Check if is Inventory ref.
 
 							if (invRef) {
 
-								item = invRef->data.type;
+								item = invRef->data.type; //Equip this inv ref instead
 								xData = invRef->data.xData;
 								count = invRef->GetCount();
 
 							}
-							else if (form->typeID == item->typeID) {
+							else if (form->typeID == item->typeID) { //Same type
 
 								float health = 100.0F;
 								ExtraHealth* xHealth;
@@ -166,9 +182,12 @@ namespace Hooks
 								equipper->AddItemAlt(form, count, health);
 								equipper->RemoveItem(item, xData, count, 0, 0, nullptr, 0, 0, 1, 0);
 								item = form;
+								xData = equipper->GetContainerChangesEntry(item)->extendData->GetFirstItem();
 
 							}
-
+							else { //Not same type, console error
+								Console_Print("Error in script %s, OnEquipAlt passed a baseform not of the same type. Required type: %d, Got:", it->script->GetEditorID(), item->typeID, form->typeID);
+							}
 
 						}
 						else if (scriptReturn.GetType() == 1) {	//Num
@@ -187,23 +206,7 @@ namespace Hooks
 			}
 
 		}
-
-		if (equipper->IsPlayer() && item->typeID == 40) {
-
-			StaticInstance_WEAP* parent = nullptr;
-			if (item->IsInstancedForm()) {
-				parent = (StaticInstance_WEAP*)item->pLookupInstance()->baseInstance;
-			}
-			else if (item->IsStaticForm()) {
-				parent = (StaticInstance_WEAP*)item->LookupStaticInstance();
-			}
-
-			if (parent && !parent->FirstPersonModelPath.empty()) {
-				g_1stPersonWeapModel->model.SetPath(parent->FirstPersonModelPath.c_str());
-			}
-
-		}
-
+		const char* EDITORID = item->GetEditorID();
 		return ThisStdCall<int>(0x088C830, equipper, item, count, xData, noMessage, lockEquipment, playsound);
 
 	}

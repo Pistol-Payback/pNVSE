@@ -1,5 +1,6 @@
 #pragma once
 #include "ppNVSE.h"
+#include "SaveSystem.h"
 
 enum  //Memory Addresses
 {
@@ -19,6 +20,49 @@ enum  //Memory Addresses
 	kAddr_TileSetString = 0xA01350,
 	kAddr_InitFontInfo = 0xA12020,
 };
+
+UInt32 TESForm::GetModIndexAlt() const {
+    if (ExtendedBaseType* staticInst = this->LookupExtendedBase()) {
+        return staticInst->edits[0];
+    }
+    else {
+        return (refID >> 24);
+    }
+}
+
+std::vector<UInt32> TESForm::GetFormEdits(bool getParentEdits) const {
+    std::vector<UInt32> edits;
+    if (this->IsInstancedForm()) {
+
+        Instance* inst = this->pLookupInstance();
+        edits.push_back(inst->modIndex);
+
+        if (getParentEdits && inst->baseInstance) {
+            edits.insert(edits.end(), inst->baseInstance->edits.begin(), inst->baseInstance->edits.end());
+        }
+
+    }
+    else if (this->IsStaticForm()) {
+        StaticInstance* statInst = this->LookupStaticInstance();
+        if (statInst) {
+            edits = statInst->edits;  // This will use the copy assignment operator
+        }
+    }
+    return edits; // Return by value (uses move semantics if possible)
+}
+
+TESForm* TESForm::GetBaseObject()
+{
+    TESForm* form = this->IsReference() ? ((TESObjectREFR*)this)->baseForm : this;
+
+    if (form->IsInstancedForm()) {
+        TESForm* pform = form->GetStaticParent();
+        if (pform) {
+            return pform;
+        }
+    }
+    return form;
+}
 
 bool TESForm::IsBaseForm() const
 {
@@ -60,48 +104,37 @@ TESObjectREFR* TESForm::PlaceAtCell(TESForm* worldOrCell, float x, float y, floa
     return nullptr;
 }
 
-TESObjectREFR* TESObjectREFR::MoveToCell(TESForm* worldOrCell, float x, float y, float z, float xR, float yR, float zR)
+TESObjectREFR* TESForm::PlaceAtCellAlt(TESForm* worldOrCell, float x = 0, float y = 0, float z = 0, float xR = 0, float yR = 0, float zR = 0, ExtraDataList* xData = nullptr)
 {
     TESObjectCELL* targetCell = nullptr;
-
+    TESWorldSpace* targetWorld = nullptr;
     if (worldOrCell->typeID == kFormType_TESObjectCELL)
     {
         targetCell = static_cast<TESObjectCELL*>(worldOrCell);
     }
-    else
+    else if (worldOrCell->typeID == kFormType_TESWorldSpace)
     {
-        targetCell = static_cast<TESWorldSpace*>(worldOrCell)->cell;
+        targetWorld = static_cast<TESWorldSpace*>(worldOrCell);
+        targetCell = targetWorld->cell;
     }
-    /*
-    this->parentCell = targetCell;
-    this->posX = x;
-    this->posY = y;
-    this->posZ = z;
-    this->rotX = xR;
-    this->rotY = yR;
-    this->rotZ = zR;
-    */
-    this->parentCell = nullptr;
-    this->posX = x;
-    this->posY = y;
-    this->posZ = z;
-    this->rotX = xR;
-    this->rotY = yR;
-    this->rotZ = zR;
 
-    //this->MoveTo(&NiPoint3(x, y, z));
+    if (targetCell == nullptr) {
+        Console_Print("Error in PlaceAtCellAlt, Target Cell was null for object %s", this->GetEditorID());
+        return nullptr;
+    }
+    TESObjectREFR* ref = DataHandler::Get()->PlaceObject(this, new NiPoint3(x, y, z), new NiPoint3(xR, yR, zR), targetCell, targetWorld, nullptr, nullptr, xData);
+    if (xData) {
+        ref->extraDataList.Copy(xData);
+        xData->RemoveAll(true);
+        FormHeap_Free(xData);
+    }
+    ref->SetRefPersists(1);
 
-    this->posX = x;
-    this->posY = y;
-    this->posZ = z;
-    this->rotX = xR;
-    this->rotY = yR;
-    this->rotZ = zR;
+    return ref;
 
-    return nullptr;
 }
 
-TESForm* TESForm::CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex)
+TESForm* TESForm::CreateNewForm(UInt8 typeID, const char* editorID, bool bPersist, UInt32 offset)
 {
     TESForm* result = CreateFormInstance(typeID);
 
@@ -110,27 +143,26 @@ TESForm* TESForm::CreateNewForm(UInt8 typeID, const char* editorID, bool bPersis
         return nullptr;
     }
 
-    result->DoAddForm(result, bPersist);
+    result->DoAddForm(result, 0);
     result->SetRefID(GetNextFreeFormID(GetFirstFormIDForModIndex(offset)), true);
-    result->SetEditorID(editorID);
+    if (editorID) {
+        result->SetEditorID(editorID);
+    }
 
-    DynamicallyCreatedForms.insert(result->refID);
-
-    StaticInstance* staticInst = result->MarkAsStaticForm(kitIndex);
-    if (!staticInst) {
-        Console_Print("CreateNewForm failed, attempted to create %s from type %d in kit index %d", editorID, typeID, kitIndex);
+    if (bPersist) {
+        DynamicallyCreatedForms.insert(result->refID);
     }
 
     return result;
 }
 
-TESForm* TESForm::CreateNewForm(TESForm* copyFrom, const char* editorID, bool bPersist, UInt32 offset, UInt32 kitIndex, bool markStatic)
+TESForm* TESForm::CreateNewForm(TESForm* copyFrom, bool copyAnims, const char* editorID, bool bPersist, UInt32 offset)
 {
 
     TESForm* result = nullptr;
     if (copyFrom)
     {
-        result = copyFrom->CloneForm(bPersist);
+        result = copyFrom->CloneForm(0);
     }
 
     if (!result)
@@ -139,15 +171,16 @@ TESForm* TESForm::CreateNewForm(TESForm* copyFrom, const char* editorID, bool bP
     }
 
     result->SetRefID(GetNextFreeFormID(GetFirstFormIDForModIndex(offset)), true);
-    result->SetEditorID(editorID);
+    if (editorID) {
+        result->SetEditorID(editorID);
+    }
 
-    DynamicallyCreatedForms.insert(result->refID);
+    if (bPersist) {
+        DynamicallyCreatedForms.insert(result->refID);
+    }
 
-    if (markStatic) {
-        StaticInstance* staticInst = result->MarkAsStaticForm(kitIndex);
-        if (!staticInst) {
-            Console_Print("CreateNewForm failed, attempted to create %s from %s in kit index %d", editorID, copyFrom->GetEditorID(), kitIndex);
-        }
+    if (copyAnims && PluginFunctions::kNVSE) {
+        PluginFunctions::CopyAnimationsToForm(copyFrom, result);
     }
 
     return result;

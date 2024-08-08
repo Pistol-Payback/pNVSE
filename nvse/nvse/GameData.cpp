@@ -1,4 +1,5 @@
 #include "GameData.h"
+#include "GameExtraData.h"
 
 #if RUNTIME
 DataHandler* DataHandler::Get()
@@ -28,6 +29,11 @@ public:
 		return !StrCompare(modInfo->name, m_stringToFind);
 	}
 };
+
+TESObjectREFR* DataHandler::PlaceObject(TESForm* form, NiPoint3* pos, NiPoint3* rotation, TESObjectCELL* cell, TESWorldSpace* wrldSpc, Actor* container, void* primitive, ExtraDataList* xData)
+{
+	return ThisCall<TESObjectREFR*>(0x4698A0, this, form, pos, rotation, cell, wrldSpc, container, primitive, xData);
+}
 
 const ModInfo * DataHandler::LookupModByName(const char * modName)
 {

@@ -13,7 +13,7 @@ namespace SaveSystem {
 
 namespace PluginFunctions {
 
-	void initkNVSE();
+	void init_kNVSE();
 	void initJIP();
 
 }

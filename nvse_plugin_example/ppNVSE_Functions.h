@@ -14,13 +14,118 @@ static EquipData FindEquipped(TESObjectREFR* thisObj, FormMatcher& matcher) {
 	return (pContainerChanges) ? pContainerChanges->FindEquipped(matcher) : EquipData();
 }
 
+bool Cmd_GetPlayerCameraRotation_Execute(COMMAND_ARGS)
+{
+	double outX;
+	double outY;
+	double outZ;
+
+	PlayerCharacter* player = PlayerCharacter::GetSingleton();
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &outX, &outY, &outZ) && player->parentCell){
+
+		//NiMatrix33* angles = &g_mainCamera->WorldRotate();
+		//angles->data;
+		//outX = angles->data[0];
+		//outY = angles->data[1];
+		//outZ = angles->data[2];
+
+	}
+
+	return true;
+}
+
+bool Cmd_DisableKey_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	UInt32	keycode = 0;
+	UInt32	mask = 0;
+
+	if (ExtractArgs(EXTRACT_ARGS, &keycode, &mask))
+		g_keyInterface->SetKeyDisableState(keycode, true, mask);
+
+	return true;
+}
+
+bool Cmd_EnableKey_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	UInt32	keycode = 0;
+	UInt32	mask = 0;
+
+	if (ExtractArgs(EXTRACT_ARGS, &keycode, &mask))
+		g_keyInterface->SetKeyDisableState(keycode, false, mask);
+
+	return true;
+}
+
 //std::unordered_map<Script*, AuxVector> obsCallLoopMenu;
 //std::unordered_map<Script*, AuxVector> obsCallLoopGame;
-extern std::unordered_map<Script*, CallLoopInfo> obsCallLoopBoth;
-std::unordered_map<Script*, CallLoopInfo> obsCallLoopBoth;
+extern CallLoopHandler obsCallLoopBoth;
+CallLoopHandler obsCallLoopBoth;
 
 DEFINE_COMMAND_PLUGIN_EXP(CallLoop, "Like CallbackLoop", true, kNVSEParams_CallLoop);
 bool Cmd_CallLoop_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	Script* script = NULL;
+	double delay = 0;
+	TESForm* valueRef = NULL;
+	NVSEArrayVarInterface::Array* valueArr = NULL;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs()) {
+
+		delay = eval.GetNthArg(0)->GetFloat();
+		script = static_cast<Script*>(eval.GetNthArg(1)->GetTESForm());
+
+		if (!script) {
+			return true;
+		}
+
+		auto const numArgs = eval.NumArgs();
+
+		AuxVector arguments;
+		arguments.reserve(numArgs - 2);
+
+		for (UInt32 i = 2; i < numArgs; i++) {
+			PluginScriptToken* arg = eval.GetNthArg(i);
+			switch (arg->GetType()) {
+			case kTokenType_Number:
+			case kTokenType_NumericVar:
+				arguments.AddValue<Float32>(-1, arg->GetFloat()); //Convert to Float32 to later call bitcast.
+				break;
+			case kTokenType_Form:
+			case kTokenType_RefVar:
+				valueRef = arg->GetTESForm();  // Just assign here
+				if (valueRef) {
+					arguments.AddValue<UInt32>(-1, valueRef->refID);
+				}
+				break;
+			case kTokenType_String:
+			case kTokenType_StringVar:
+				arguments.AddValue<const char*>(-1, arg->GetString());
+				break;
+			case kTokenType_Array:
+			case kTokenType_ArrayVar:
+				valueArr = arg->GetArrayVar();
+				if (valueArr) {
+					arguments.AddValue<NVSEArrayVarInterface::Array*>(-1, valueArr);
+				}
+				break;
+			}
+		}
+
+		if (delay >= 0) {
+			obsCallLoopBoth.infos.emplace(CallLoopInfo{ delay, script, thisObj->refID, std::move(arguments) });
+		}else{
+			obsCallLoopBoth.removeInfo(CallLoopInfo{ delay, script, thisObj->refID, std::move(arguments) }); //Find matching info and remove it
+		}
+
+	}
+	return true;
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(CallLoopAlt, "Like CallbackLoop", true, kNVSEParams_CallLoop);
+bool Cmd_CallLoopAlt_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
@@ -37,14 +142,14 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 			return true;
 		}
 
-		CallLoopInfo& aux = obsCallLoopBoth[script] = CallLoopInfo{};
-
-		aux.delay = delay;
-		aux.callingObj = thisObj;
-
 		auto const numArgs = eval.NumArgs();
+
+		std::vector<UInt32> arguments;
+		arguments.reserve(numArgs - 2);
+
 		if (numArgs >= 2)
 		{
+
 			for (UInt32 i = 2; i < numArgs; i++)
 			{
 				PluginScriptToken* arg = eval.GetNthArg(i);
@@ -53,7 +158,7 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 				case kTokenType_NumericVar:
 				{
 					Float32 valueFlt = arg->GetFloat();
-					aux.arguments.push_back(*reinterpret_cast<UInt32*>(&valueFlt));
+					arguments.push_back(*reinterpret_cast<UInt32*>(&valueFlt));
 					break;
 				}
 				case kTokenType_Form:
@@ -61,7 +166,7 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 				{
 					TESObjectREFR* valueRef = (TESObjectREFR*)arg->GetTESForm();
 					if (valueRef) {
-						aux.arguments.push_back(*reinterpret_cast<UInt32*>(&valueRef));
+						arguments.push_back(*reinterpret_cast<UInt32*>(&valueRef));
 					}
 					break;
 				}
@@ -70,7 +175,7 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 				{
 					const char* valueStr = arg->GetString();
 					if (valueStr) {
-						aux.arguments.push_back(*reinterpret_cast<UInt32*>(&valueStr));
+						arguments.push_back(*reinterpret_cast<UInt32*>(&valueStr));
 					}
 					break;
 				}
@@ -79,12 +184,20 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 				{
 					NVSEArrayVarInterface::Array* valueArr = arg->GetArrayVar();
 					if (valueArr) {
-						//aux.arguments.push_back(valueArr);
+						arguments.push_back(*reinterpret_cast<UInt32*>(&valueArr));
 					}
 					break;
 				}
 				}
 			}
+
+		}
+
+		if (delay >= 0) {
+			obsCallLoopBoth.infos.emplace(CallLoopInfo{ delay, script, thisObj->refID, std::move(arguments) });
+		}
+		else {
+			obsCallLoopBoth.removeInfo(CallLoopInfo{ delay, script, thisObj->refID, std::move(arguments) }); //Find matching info and remove it
 		}
 
 	}
@@ -93,29 +206,51 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 
 }
 
-class MatchBySlot : public FormMatcher
+DEFINE_COMMAND_PLUGIN(SetSpeedMultAlt, "SetsSpeedMult", true, kParams_OneInt);
+bool Cmd_SetSpeedMultAlt_Execute(COMMAND_ARGS)
 {
-
-	UInt32 m_slotMask;
-
-public:
-	MatchBySlot(UInt32 slot) : m_slotMask(TESBipedModelForm::MaskForSlot(slot)) {}
-	bool Matches(TESForm* pForm) const {
-		UInt32 formMask = 0;
-		if (pForm) {
-			if (pForm->IsWeapon()) {
-				formMask = TESBipedModelForm::eSlot_Weapon;
-			}
-			else {
-				TESBipedModelForm* pBip = DYNAMIC_CAST(pForm, TESForm, TESBipedModelForm);
-				if (pBip) {
-					formMask = pBip->partMask;
-				}
+	UInt32 speedMult = 0;
+	if (IS_ACTOR(thisObj) && ExtractArgsEx(EXTRACT_ARGS_EX, &speedMult))
+	{
+		if (speedMult)
+			((Actor*)thisObj)->SetActorValueInt(0x15, speedMult);
+		if (BaseProcess* baseProc = ((Actor*)thisObj)->baseProcess; baseProc) {
+			if (AnimData* animData = baseProc->GetAnimData()) {
+				animData->movementSpeedMult = speedMult;
 			}
 		}
-		return (formMask & m_slotMask) != 0;
+
 	}
-};
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(GetWeaponClipRoundsAlt, GetClipSizeAlt, "Gets weapon clip rounds, but also accounts for mods.", true, kParams_OneOptionalForm_OneOptionalInt);
+bool Cmd_GetWeaponClipRoundsAlt_Execute(COMMAND_ARGS) {
+	*result = 0;
+	TESForm* form = nullptr;
+	UInt8 assumEffect = 0;
+
+	if (!ExtractArgs(EXTRACT_ARGS, &form, &assumEffect) || (form && form->typeID != kFormType_TESObjectWEAP)) {
+		return true;
+	}
+
+	TESObjectWEAP* weapon = nullptr;
+	UInt32 modFlags = 0;
+
+	if (form) {
+		weapon = static_cast<TESObjectWEAP*>(form->IsReference() ? static_cast<TESObjectREFR*>(form)->baseForm : form);
+	}
+	else if (thisObj && thisObj->baseForm && thisObj->baseForm->typeID == kFormType_TESObjectWEAP) {
+		weapon = static_cast<TESObjectWEAP*>(thisObj->baseForm);
+		modFlags = thisObj->GetWeaponModFlags();
+	}
+
+	if (weapon) {
+		*result = weapon->GetModdedClipSize(assumEffect ? UINT_MAX : modFlags);
+	}
+
+	return true;
+}
 
 /*
 
@@ -389,7 +524,6 @@ bool Cmd_SetWeaponModFlags_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 
-	TESObjectREFR* Weapon;
 	UInt32 flags = 0;
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &flags)) {

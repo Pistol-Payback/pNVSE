@@ -1,36 +1,47 @@
 #pragma once
 #include "WeaponSmith.h"
+#include "KitLoader.h"
 
 namespace SaveSystem {
 
 	class InstanceSaveManager;
+	class InstanceLoadManager;
 	struct SaveData;
 
 	struct SpawnQueue {
 
-		SpawnQueue(
-			TESForm* baseForm, TESObjectCELL* location = nullptr, ExtraDataList* xData = nullptr,
-			float x = 0, float y = 0, float z = 0,
-			float xR = 0, float yR = 0, float zR = 0
-		) :
-			baseForm(baseForm), location(location), xData(xData),
-			x(x), y(y), z(z),
-			xR(xR), yR(yR), zR(zR)
-		{
-		}
-
 		TESForm* baseForm;
-		TESObjectCELL* location;
+		TESForm* location;
 		ExtraDataList* xData;
+		SInt32 countDelta;
 		float x, y, z;
 		float xR, yR, zR;
+
+		SpawnQueue(TESForm* baseForm, TESForm* location = nullptr, ExtraDataList* xData = nullptr, SInt32 countDelta = 1,
+			float x = 0, float y = 0, float z = 0,
+			float xR = 0, float yR = 0, float zR = 0) :
+			baseForm(baseForm), location(location), xData(xData),
+			countDelta(countDelta), x(x), y(y), z(z), xR(xR), yR(yR), zR(zR) {}
+
+		SpawnQueue(const SpawnQueue& other) = default;
+		SpawnQueue(SpawnQueue&& other) noexcept = default;
+		SpawnQueue& operator=(const SpawnQueue& other) = default;
+		SpawnQueue& operator=(SpawnQueue&& other) noexcept = default;
+		~SpawnQueue() = default;
 
 	};
 
 	extern std::vector<SpawnQueue> queueToSpawn;
+	extern std::vector<TESObjectREFR*> queueToUpdate3d;
 
+	void LoadGameCallback(void*);
 	void SaveGameCallback(void*);
-	//void LoadGameCallback(void*);
+
+	//Old system used to place objects really early, and we had to update their 3d after the game loop started. 
+	// This would cause a crash in JIPs DoQueuedReferenceHook when leaving cells after reloading a save in an interior where objects had been placed. 
+	// -Crashed in doErase part of the function.
+	void ExecuteUpdate3dQueue();
+	void ExecuteSpawnQueue();
 
 	class SaveLoadManager {
 	public:
@@ -44,9 +55,9 @@ namespace SaveSystem {
 			return instance;
 		}
 
+		static InstanceLoadManager loadManager;
 		static InstanceSaveManager saveManager;
 
-		static void reset();
 
 	private:
 		SaveLoadManager() {}
@@ -75,6 +86,8 @@ namespace SaveSystem {
 		static UInt8(*ReadRecord8)();
 		static UInt16(*ReadRecord16)();
 		static UInt32(*ReadRecord32)();
+		static char* ReadRecordString();
+		static void SkipRecordString();
 
 		static float ReadRecordFloat();
 		static bool (*ResolveRefID)(UInt32 refID, UInt32* outRefID);
@@ -87,6 +100,8 @@ namespace SaveSystem {
 		static void (*WriteRecord32)(UInt32 inData);
 
 		static void WriteRecordFloat(float value);
+		static void WriteRecordString(std::string value);
+		static void WriteRecordString(const char* value);
 
 		static bool (*WriteRecordData)(const void* buf, UInt32 length);
 		static bool (*OpenRecord)(UInt32 type, UInt32 version);
@@ -98,15 +113,15 @@ namespace SaveSystem {
 
 	struct SaveDataLink {
 
-		TESForm* parent = nullptr;
+		UInt32 parentID;
 		Instance* instance = nullptr;
 
-		SaveDataLink(TESForm* parent, Instance* instance) : parent(parent), instance(instance) {
+		SaveDataLink(TESForm* parent, Instance* instance) : parentID(parent->refID), instance(instance) {
 			forceQueueToSave(parent);
 		}
 
 		bool operator==(const SaveDataLink& other) const {
-			return parent == other.parent;
+			return parentID == other.parentID;
 		}
 
 		void forceQueueToSave(TESForm* form);
@@ -127,23 +142,24 @@ namespace SaveSystem {
 
 	struct SaveDataEntry : SaveDataREFR {
 
-		SaveDataEntry(TESForm* parent, Instance* parentInst = nullptr, Instance* self = nullptr, ExtraDataList* xData = nullptr)
-		: SaveDataREFR(parent, parentInst, self), xData(xData) {
+		SaveDataEntry(TESForm* parent, Instance* parentInst = nullptr, Instance* self = nullptr, ExtraDataList* xData = nullptr, SInt32 countDelta = 1)
+		: SaveDataREFR(parent, parentInst, self), xData(xData), countDelta(countDelta){
 			type = 1;
 		}
 
-		ExtraDataList* xData;
+		SInt32 countDelta;
+		ExtraDataList* xData; //Free extra data, or reuse it
 
 	};
 
 	struct SaveDataWorldREFR : SaveDataEntry {
 
 
-		SaveDataWorldREFR(UInt32 worldRefID, TESForm* parent, Instance* parentInst = nullptr, Instance* self = nullptr, ExtraDataList* xData = nullptr,
+		SaveDataWorldREFR(UInt32 worldRefID, TESForm* parent, Instance* parentInst = nullptr, Instance* self = nullptr, ExtraDataList* xData = nullptr, SInt32 countDelta = 1,
 			float x = 0, float y = 0, float z = 0,
 			float xR = 0, float yR = 0, float zR = 0
 		) :
-			SaveDataEntry(parent, parentInst, self, xData),
+			SaveDataEntry(parent, parentInst, self, xData, countDelta),
 			x(x), y(y), z(z),
 			xR(xR), yR(yR), zR(zR),
 			worldRefID(worldRefID)
@@ -157,32 +173,59 @@ namespace SaveSystem {
 
 	};
 
+	struct InstanceComparator {
+		bool operator()(const Instance* lhs, const Instance* rhs) const {
+			if (!lhs || !rhs) return lhs < rhs;  // Handle potential null pointers
+			return lhs->baseInstance->extendedType < rhs->baseInstance->extendedType;
+		}
+	};
+
 	class InstanceSaveManager : public SaveData {
 
 	private:
-		std::unordered_map<TESForm*, UInt32> searchLocation;
-		std::vector<TESForm*> locations;
-		//std::unordered_map<ExtendedBaseType*, WorldReferences> combinedMap;
-		std::unordered_map<ExtendedBaseType*, std::unordered_map<Instance*, std::unordered_set<SaveDataREFR*>>> instanceRefs;
-		std::unordered_map<ExtendedBaseType*, std::unordered_set<SaveDataREFR*>> dynamicsRefs;
+
+		struct SaveQueue {
+
+			typedef UInt32 RefID;
+			typedef UInt32 VIndex;
+			std::unordered_map<RefID, VIndex> searchLocation;
+			std::vector<RefID> locations;
+			//std::unordered_map<ExtendedBaseType*, WorldReferences> combinedMap;
+			std::unordered_map<ExtendedBaseType*, std::unordered_set<SaveDataREFR*>> dynamicsRefs;
+
+			using InstancesToSave = std::unordered_map<Instance*, std::unordered_set<SaveDataREFR*>>;
+			using BaseTypesToSave = std::unordered_map<ExtendedBaseType*, InstancesToSave>;
+			using ExtDataToSave = std::map<UInt32, BaseTypesToSave>;
+
+			ExtDataToSave instanceRefs;
+
+			//All string EditorID locations
+			TESObjectREFR* queueToSave(TESObjectREFR* thisObj);
+			bool queueToSaveRefDirect(TESObjectREFR* thisObj);
+
+			bool queueToSave(TESForm* thisObj);
+
+			//For instances that save regardless
+			void queueToSave(ExtendedBaseType* thisObj);
+
+			//Store instances in blocks
+			bool queueToSave(Instance* thisObj, bool forceQueue);
+			void queueToSaveWEAP(Instance_WEAP* thisObj);
+			void queueToSaveAkimbo(Instance_Akimbo* thisObj);
+
+			void queueToSaveRef(Instance* instance, SaveDataREFR* worldRef);		//World reference derived from instances
+			void queueToSaveRef(ExtendedBaseType* base, SaveDataREFR* worldRef);	//Dynamics created with Devkit
+
+			bool isQueueToSave(Instance* instance);
+			void queueAllWithSaveBehavior();
+
+		};
 
 	public:
+
+		SaveQueue queue;
+
 		InstanceSaveManager() = default;
-
-		//All string EditorID locations
-		TESObjectREFR* queueToSave(TESObjectREFR* thisObj);
-		void queueToSave(TESForm* thisObj);
-
-		//For instances that save regardless
-		void queueToSave(ExtendedBaseType* thisObj);
-
-		//Store instances in blocks
-		void queueToSave(Instance* thisObj, bool forceQueue);
-		void queueToSave(Instance_WEAP* thisObj);
-		void queueToSave(Instance_Akimbo* thisObj);
-
-		void queueToSaveRef(Instance* instance, SaveDataREFR* worldRef);		//World reference derived from instances
-		void queueToSaveRef(ExtendedBaseType* base, SaveDataREFR* worldRef);	//Dynamics created with Devkit
 
 		//Saves all refs associated with a baseform/instance
 		void SaveRefsList(const std::unordered_set<SaveDataREFR*>& refList);
@@ -194,25 +237,27 @@ namespace SaveSystem {
 		void Save(StaticInstance* thisObj);
 		void Save(StaticInstance_Akimbo* thisObj);
 
+		void Save(Kit::KitData* thisObj);
+		void SaveUninstaller(Script* thisObj);
 		void Save(Instance* thisObj);
 		void Save(Instance_WEAP* thisObj);
 		void Save(Instance_Akimbo* thisObj);
+		void SaveLifecycle(LifecycleManager& thisObj);
 
 		void Save(const SaveDataREFR& thisObj);
 		void Save(const SaveDataEntry& thisObj);
-		void RestorEntryRefs(const SaveDataEntry& thisObj);
-
 		void Save(const SaveDataWorldREFR& thisObj);
+		void RestoreEntryRefs(const SaveDataEntry& thisObj);
+		void RestoreWorldRefs(const SaveDataWorldREFR& thisObj);
+
 		void Save(TESForm* thisObj);
 		void Save(TESObjectREFR* thisObj);
 		void SaveExtraData(ExtraDataList* xDataList);
 
 		void SaveLink(const SaveDataLink& thisObj);
-		UInt32 GetSaveIndex(TESForm* thisObj);
+		void SaveLinkType(UInt8 type, const UInt32* ID32, const UInt16* ID16 = nullptr);
+		UInt32* GetSaveIndex(UInt32 thisObj);
 
-		bool isQueueToSave(Instance* instance);
-
-		void queueAllWithSaveBehavior();
 		void saveAll();
 
 		void reset();
@@ -224,8 +269,9 @@ namespace SaveSystem {
 		TESForm* parent = nullptr;
 		UInt16 instID = InvalidInstID;	//Invalid
 		UInt32 refID = 0;
+		UInt8 saveType = 0;
 
-		LoadDataLink(TESForm* parent, UInt32 refID, UInt16 instID) : parent(parent), refID(refID), instID(instID) {}
+		LoadDataLink(TESForm* parent, UInt32 refID, UInt16 instID, UInt8 saveType) : parent(parent), refID(refID), instID(instID), saveType(saveType){}
 
 	};
 
@@ -240,20 +286,21 @@ namespace SaveSystem {
 
 	struct LoadDataEntry : LoadDataREFR {
 
-		LoadDataEntry(TESForm* baseform, LoadDataLink location, ExtraDataList* xData = nullptr)
-			: LoadDataREFR(baseform, location), xData(xData) {}
+		LoadDataEntry(TESForm* baseform, LoadDataLink location, ExtraDataList* xData = nullptr, SInt32 countDelta = 1)
+			: LoadDataREFR(baseform, location), xData(xData), countDelta(countDelta) {}
 
+		SInt32 countDelta;
 		ExtraDataList* xData;
 
 	};
 
 	struct LoadDataWorldREFR : LoadDataEntry {
 
-		LoadDataWorldREFR(TESForm* baseform, LoadDataLink location, ExtraDataList* xData = nullptr, UInt32 worldRefID = 0,
+		LoadDataWorldREFR(TESForm* baseform, LoadDataLink location, ExtraDataList* xData = nullptr, SInt32 countDelta = 1, UInt32 worldRefID = 0,
 			float x = 0, float y = 0, float z = 0,
 			float xR = 0, float yR = 0, float zR = 0
 		) :
-			LoadDataEntry(baseform, location, xData),
+			LoadDataEntry(baseform, location, xData, countDelta),
 			x(x), y(y), z(z),
 			xR(xR), yR(yR), zR(zR),
 			worldRefID(worldRefID)
@@ -277,27 +324,31 @@ namespace SaveSystem {
 
 	struct FailedAkimboLink {
 
-		FailedAkimboLink(Instance_Akimbo* weap, UInt32 leftID, UInt32 rightID) : weap(weap), leftID(leftID), rightID(rightID) {}
+		FailedAkimboLink(Instance_Akimbo* weap, LoadDataLink left, LoadDataLink right) : weap(weap), left(left), right(right) {}
 
 		Instance_Akimbo* weap;
-		UInt32 leftID;
-		UInt32 rightID;
+		LoadDataLink left;
+		LoadDataLink right;
 	};
 
 	class InstanceLoadManager : public SaveData {
 
 	private:
 
-		std::unordered_map<UInt32, TESForm*> baseLocations;
-		std::unordered_map<UInt32, TESObjectREFR*> refLocations;
+		TESForm* replacement = nullptr;
 
-		//Instances that rely on other instances
+		std::unordered_map<UInt32, Kit::KitData*> reverseKitDataMap;
+		std::unordered_map<UInt32, TESForm*> baseLocations; //Locations where REFR are, either containers or world spaces.
+		std::unordered_map<UInt32, TESObjectREFR*> refLocations; //Objects to be placed in the world.
+
+		//Instances that rely on other instances, not used anymore
 		std::vector<FailedWeaponLink*> failedLinks_WEAP;
 		std::vector<FailedAkimboLink*> failedLinks_Akimbo;
+		//std::vector<Instance*> reconstructEvent;
 
 		std::vector<LoadDataWorldREFR*> worldRefs;
 		std::vector<LoadDataEntry*> entries;
-		std::vector<LoadDataREFR*> linkRefs; //Not used
+		std::vector<LoadDataREFR*> linkRefs; //Not used atm
 
 	public:
 
@@ -305,16 +356,24 @@ namespace SaveSystem {
 
 		void LoadStaticLocations(UInt32 index);
 
+		//ESPs
+			void LoadESPData();
+
+		//Kit data
+			Kit::KitData* LoadKitData();
+			UInt32* resolveModIndex(UInt32 oldIndex);
+
 		//Instances
 
-			Instance* LoadInstance(ExtendedBaseType* baseInstance);
+			Instance* LoadInstance(ExtendedBaseType* baseInstance, UInt32 modIndex);
 
-			Instance* LoadInstanceData(StaticInstance* baseInstance);
-			Instance_WEAP* LoadInstanceDataWEAP(StaticInstance_WEAP* baseInstance);
-			Instance_Akimbo* LoadInstanceDataAkimbo(StaticInstance_Akimbo* baseInstance);
+			Instance* LoadInstanceData(StaticInstance* baseInstance, UInt32 modIndex);
+			Instance_WEAP* LoadInstanceDataWEAP(StaticInstance_WEAP* baseInstance, UInt32 modIndex);
+			Instance_Akimbo* LoadInstanceDataAkimbo(StaticInstance_Akimbo* baseInstance, UInt32 modIndex);
+			LifecycleManager* LoadLifecycle();
 
 			void					LoadInstanceLinksWEAP();
-			void					LoadInstanceLinksAkimbo();
+			//void					LoadInstanceLinksAkimbo();
 
 		//Statics
 
@@ -336,7 +395,6 @@ namespace SaveSystem {
 		//Placement
 			void PlaceWorldRefs();
 			void PlaceEntryRefs();
-			void LinkRefs(); //Not used
 
 			LoadDataLink LoadLink();
 
@@ -352,18 +410,22 @@ namespace SaveSystem {
 			void LoadWorldRef_Skip();
 			void LoadExtraDataList_Skip();
 			void LoadLink_Skip();
+			void LoadLifecycle_Skip();
 
 		//Utility
 
 			TESForm* LoadFromIndex(UInt32 index);
 			TESObjectREFR* LoadFromRefID(UInt32 refID);
 
+			void clearInstances();
 			void loadAll();
 			void reset();
+			//void ReconstructEvent();
+			bool ReconstructEvent(Instance* inst);
 
 			//For situations where we are unsure what the link data could be.
 			TESForm* deduceLinkToForm(LoadDataLink* link);
-
+			
 	};
 
 }

@@ -2,12 +2,99 @@
 
 namespace Kit {
 
-    void DevkitCompiler::BreakFromTemplate(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::skipFunction(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        return;
+    }
+
+    void DevkitCompiler::skipNestedFunction(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        if (isNested) {
+            skipNested(it, argStream);
+        }
+        return;
+    }
+
+    void DevkitCompiler::skipNested(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        std::string command;
+
+        while (it != this->fileManager.currentFile->end()) {
+            ++it;
+            argStream.str(*it);
+            argStream.clear(); // Clear any error flags
+
+            if (!(argStream >> command)) {
+                continue;
+            }
+
+            char commandType = tolower(command[0]);
+            switch (commandType) {
+            case '}':
+                --it;
+                return;
+            }
+
+        }
+
+    }
+
+    void DevkitCompiler::RunOperatorOverloads(const char* m_operator, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        if (!this->fileManager.operatorOverload.empty()) {
+            auto functIt = this->fileManager.operatorOverload.find(m_operator);
+            if (functIt != this->fileManager.operatorOverload.end()) {
+                auto funct = functIt->second;
+                if (funct.type == 1) {
+                    (this->*(funct.functIter))(it, argStream);
+                }
+                else {
+                    (this->*(funct.functSelf))(funct, argStream);
+                }
+            }
+        }
+
+    }
+
+    void DevkitCompiler::EnterNestedState() {
+
+        this->nested.push_back(new NestedState{ form, templateForm, slot, staticParent, templateEXB, fileManager.type });
+        //RunOperatorOverloads("{", it, argStream);
+
+    }
+
+    void DevkitCompiler::ExitNestedState() {
+
+        NestedState* nest = this->nested.back();
+        this->fileManager.type = nest->type;
+        this->templateForm = nest->templateForm;
+        this->templateEXB = nest->templateEXB;
+        this->staticParent = nest->staticParent;
+        this->form = nest->form;
+        this->slot = nest->slot;
+        this->nested.pop_back();
+        delete nest;
+
+       // RunOperatorOverloads("}", it, argStream);
+
+    }
+
+    void DevkitCompiler::ClearNestedState() {
+        while (!this->nested.empty()) {
+            NestedState* nest = this->nested.back();
+            this->nested.pop_back();
+            delete nest;
+        }
+    }
+
+    void DevkitCompiler::EndOfDocument(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         this->templateForm = nullptr;
+        this->templateEXB = nullptr;
         this->staticParent = nullptr;
         this->form = nullptr;
         this->slot = "null";
+        this->fileManager.operatorOverload.clear();
+
+        ClearNestedState();
 
     }
 
@@ -19,13 +106,14 @@ namespace Kit {
         }
 
         this->templateForm = nullptr;
+        this->templateEXB = nullptr;
         this->staticParent = nullptr;
         this->form = nullptr;
         this->slot = "null";
 
     }
 
-    void DevkitCompiler::SetTemplate(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::SetTemplate(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string argument;
 
@@ -58,18 +146,20 @@ namespace Kit {
         // Process each argument based on its type
         const char* trait = function.name.c_str();
         AuxVector* aux;
+        ExtendedBaseType* staticObject = nullptr;
 
-        if (!form) {
-            return;
+        if (form) {
+            staticObject = form->LookupExtendedBase();
         }
-
-        StaticInstance* staticObject = form->LookupStaticInstance();
 
         if (staticParent) {
             aux = staticParent->SetTrait(trait, staticObject, slot);
         }
-        else {
+        else if (staticObject){
             aux = staticObject->SetTrait(trait);
+        }
+        else {
+            return;
         }
 
         int numArguments = function.argumentTypes.size();
@@ -78,13 +168,18 @@ namespace Kit {
 
         while (i < numArguments && function.argumentTypes[i]) {
 
-            switch (function.argumentTypes[i] & ~function.allowDuplicate) {
+            bool allowDuplicate = (function.argumentTypes[i] & function.allowDuplicate) != 0;
+            bool isOptional = (function.argumentTypes[i] & function.optional) != 0;
+            UInt8 argTypeCode = function.argumentTypes[i] & ~(function.allowDuplicate | function.optional);
+
+            switch (argTypeCode) {
             case 1: { // 'r' argument type
                 std::string arg;
                 if (argStream >> arg) {
+
                     TESForm* reference = LookupEditorID<TESForm*>(arg.c_str());
 
-                    if (function.argumentTypes[i] & function.allowDuplicate) {
+                    if (allowDuplicate) {
 
                         if (!reference) {
                             PrintKitError("Trait [" + function.name + "] failed to compile, " + arg + " does not exist for argument " + std::to_string(i), argStream.str());
@@ -102,27 +197,28 @@ namespace Kit {
                     aux->AddValue(iOffset, reference->refID);
 
                 }
+                else if (isOptional) {
+                    aux->AddEmptyValue(iOffset);
+                }
                 else {
                     PrintKitError("Trait [" + function.name + "] failed to compile, could not extract ref argument " + std::to_string(i), argStream.str());
                     aux->AddEmptyValue(iOffset);
                 }
                 break;
             }
-            case 2: { // 'i' argument type
-                double arg;
-                if (argStream >> arg) {
-                    aux->AddValue(iOffset, arg);
-                }
-                else {
-                    PrintKitError("Trait [" + function.name + "] failed to compile, could not extract float argument " + std::to_string(i), argStream.str());
-                    aux->AddEmptyValue(iOffset);
-                }
-                break;
-            }
+            case 2: // 'i' argument type
             case 3: { // 'f' argument type
                 double arg;
                 if (argStream >> arg) {
+
+                    if (allowDuplicate) {
+                        iOffset = aux->Find(arg);
+                    }
                     aux->AddValue(iOffset, arg);
+
+                }
+                else if (isOptional) {
+                    aux->AddEmptyValue(iOffset);
                 }
                 else {
                     PrintKitError("Trait [" + function.name + "] failed to compile, could not extract float argument " + std::to_string(i), argStream.str());
@@ -132,21 +228,20 @@ namespace Kit {
             }
             case 4: { // 's' argument type
                 std::string arg;
-                if (!(getQuotedString(argStream, arg))) {
-                    PrintKitError("Trait [" + function.name + "] missing quotation marks, could not extract string argument " + std::to_string(i), argStream.str());
-                }
-                if (!arg.empty()) {
+                if (getQuotedString(argStream, arg)) {
 
-                    if (function.argumentTypes[i] & function.allowDuplicate) {
+                    if (allowDuplicate) {
                         iOffset = aux->Find(arg.c_str());
                     }
-
                     aux->AddValue(iOffset, arg.c_str());
 
                 }
-                else {
-                    PrintKitError("Trait [" + function.name + "] failed to compile, could not extract string argument " + std::to_string(i), argStream.str());
+                else if (isOptional) {
                     aux->AddEmptyValue(iOffset);
+                }
+                else {
+                    PrintKitError("Trait [" + function.name + "] missing quotation marks, could not extract string argument " + std::to_string(i), argStream.str());
+                    aux->AddValue(iOffset, "");
                 }
                 break;
             }
@@ -289,19 +384,90 @@ namespace Kit {
 
     }
 
+    void DevkitCompiler::SetTextureSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        TESModelTextureSwap* modelSwap = DYNAMIC_CAST(form, TESForm, TESModelTextureSwap);
+        if (!modelSwap) {
+            return;
+        }
+
+        std::string path;
+        if (!(argStream >> path)) {
+            PrintKitError("TextureSet missing index or path.", argStream.str());
+            return;
+        }
+
+        if (StringUtils::isNumber(path)) { // Path is an index
+
+            int index = std::stoi(path);
+
+            if (index == -1) {
+                modelSwap->textureList.RemoveAll();
+                return;
+            }
+
+            auto iter = modelSwap->find(index);
+            if (argStream >> path) { // There is a path to replace the texture set
+
+                BGSTextureSet* newTextureSet = LookupEditorID<BGSTextureSet*>(path.c_str());
+                if (!newTextureSet) {
+                    PrintKitError("TextureSet not valid for second argument.", argStream.str());
+                    return;
+                }
+                if (iter) {
+                    iter->data->textureID = newTextureSet;
+                    iter->data->textureName[0] = '\0';
+                }
+                else {
+                    modelSwap->insert(index, newTextureSet);
+                }
+
+            }
+            else if (iter) { // No path provided, remove the existing texture set
+                modelSwap->textureList.Remove(iter->data);
+            }
+
+        }
+        else { // Path is a texture set form
+            BGSTextureSet* toReplace = LookupEditorID<BGSTextureSet*>(path.c_str());
+            if (!toReplace) {
+                PrintKitError("First argument is not a valid form.", argStream.str());
+                return;
+            }
+            auto iter = modelSwap->find(toReplace);
+            if (iter && (argStream >> path)) { // Replace found texture set with new path
+                BGSTextureSet* newTextureSet = LookupEditorID<BGSTextureSet*>(path.c_str());
+                if (newTextureSet) {
+                    iter->data->textureID = newTextureSet;
+                }
+                else {
+                    PrintKitError("TextureSet not valid for second argument.", argStream.str());
+                }
+            }
+            else if (iter) { // No replacement path provided, remove the texture set
+                modelSwap->textureList.Remove(iter->data);
+            }
+            else {
+                PrintKitError("Texture set not found in texture set list.", argStream.str());
+            }
+        }
+    }
+    
+
     void DevkitCompiler::skipForm(std::vector<std::string>::const_iterator& it) {
 
         std::string argument;
 
-        while (it != this->fileManager.currentKitFile->file.end()) {
+        while (it != this->fileManager.currentFile->end()) {
 
-            std::istringstream iss(*(++it));
+            ++it;
+            std::istringstream iss(*it);
             if (!(iss >> argument)) {
                 continue;
             }
 
             argument = StringUtils::toLowerCase(argument);
-            if (argument == "editorid:" || argument == "}clear") {
+            if (argument == "editorid:" || argument == "}clear" || argument == "template:") {
                 --it;
                 return;
             }
@@ -323,12 +489,11 @@ namespace Kit {
         if (!form) {
 
             if (templateForm && templateForm->typeID == this->fileManager.type) {
-                form = TESForm::CreateNewForm(templateForm, argument.c_str(), false, 0, this->fileManager.currentKitFile->data->index);
+                form = TESForm::CreateNewForm(templateForm, true, argument.c_str(), true);
             }
             else {
-                form = TESForm::CreateNewForm(this->fileManager.type, argument.c_str(), false, 0, this->fileManager.currentKitFile->data->index);
+                form = TESForm::CreateNewForm(this->fileManager.type, argument.c_str(), true);
             }
-
 
             if (!form) {
                 PrintKitError("Failed to create a new form from template or by type.", argStream.str());
@@ -341,6 +506,9 @@ namespace Kit {
                 this->skipForm(it);
                 return;
             }
+
+            staticParent = form->MarkAsStaticForm(this->fileManager.currentKitFile->data->index);
+
         }
         else {
 
@@ -371,10 +539,7 @@ namespace Kit {
         }
 
         if (!(argStream >> rightID)) {
-            //PrintKitError("Akimbo right EditorID missing for the second argument.", argStream.str());
             rightID = leftID;
-           // this->skipForm(it);
-           // return;
         }
 
         TESForm* left = LookupEditorID<TESForm*>(leftID.c_str());
@@ -388,20 +553,71 @@ namespace Kit {
 
         auto currentKitIndex = this->fileManager.currentKitFile->data->index;
 
-        if (staticParent = StaticInstance_Akimbo::LookupAkimboSet(left, right)) {
+        if (staticParent = StaticInstance_Akimbo::LookupAkimboSet(left, right)) { //Existing set
 
+            if (templateEXB) {
+                staticParent->parent = templateEXB->parent;
+                staticParent->linkedTraits = templateEXB->linkedTraits;
+                staticParent->traits = templateEXB->traits;
+            }
             staticParent->MarkAsEdit(currentKitIndex);
+            form = staticParent->parent;
 
         }
-        else {
+        else if (templateEXB) { //Template set
 
             staticParent = new StaticInstance_Akimbo(
+                templateEXB->parent,
                 currentKitIndex, 
-                (StaticInstance_WEAP*)left->LookupStaticInstance(), 
-                (StaticInstance_WEAP*)right->LookupStaticInstance()
+                left, 
+                right,
+                templateEXB->traits,
+                templateEXB->linkedTraits
             );
 
         }
+        else { //New set
+
+            staticParent = new StaticInstance_Akimbo(
+                nullptr,
+                currentKitIndex,
+                left,
+                right
+            );
+
+        }
+
+    }
+
+    void DevkitCompiler::SetAkimboTemplate(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        std::string argument;
+
+        std::string leftID, rightID;
+        if (!(argStream >> leftID)) {
+            PrintKitError("Akimbo Template left EditorID missing for the first argument.", argStream.str());
+            return;
+        }
+
+        if (!(argStream >> rightID) || (isNested && rightID == "{")) {
+            rightID = leftID;
+        }
+
+        TESForm* left = LookupEditorID<TESForm*>(leftID.c_str());
+        TESForm* right = LookupEditorID<TESForm*>(rightID.c_str());
+
+        if (!left || !right || left->typeID != 40 || right->typeID != 40) {
+            PrintKitError("Akimbo Template, both forms must be a weapon.", argStream.str());
+            return;
+        }
+
+        templateEXB = StaticInstance_Akimbo::LookupAkimboSet(left, right);
+        if (!templateEXB) {
+            PrintKitError("Akimbo, template does not exist.", argStream.str());
+        }
+
+        return;
+
     }
 
     void DevkitCompiler::SetQuestItem(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {

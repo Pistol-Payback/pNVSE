@@ -103,7 +103,9 @@ enum CommandReturnType : UInt8
 	kRetnType_ArrayIndex,
 	kRetnType_Ambiguous,
 
-	kRetnType_Max
+	kRetnType_Max,
+	kRetnType_Float
+
 };
 
 struct ParamInfo
@@ -213,6 +215,7 @@ bool Cmd_Default_Execute(COMMAND_ARGS);
 
 typedef bool (* Cmd_Parse)(UInt32 numParams, ParamInfo * paramInfo, ScriptLineBuffer * lineBuf, ScriptBuffer * scriptBuf);
 bool Cmd_Default_Parse(UInt32 numParams, ParamInfo * paramInfo, ScriptLineBuffer * lineBuf, ScriptBuffer * scriptBuf);
+
 const Cmd_Parse Cmd_Expression_Plugin_Parse = (Cmd_Parse)0x08000000;
 
 typedef bool (* Cmd_Eval)(COMMAND_ARGS_EVAL);

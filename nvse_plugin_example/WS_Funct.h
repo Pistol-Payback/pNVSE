@@ -83,6 +83,15 @@ static ParamInfo kParams_CreateWeaponInstance[4] =
 	{	"form",	kParamType_AnyForm,	1	}
 };
 
+static ParamInfo kParams_CreateAkimboInstance[5] =
+{
+	{	"form",	kParamType_AnyForm,	0	},
+	{	"form",	kParamType_AnyForm,	0	},
+	{	"string", kParamType_String, 0	},
+	{	"form",	kParamType_AnyForm,	1	},
+	{	"form",	kParamType_AnyForm,	1	}
+};
+
 DEFINE_COMMAND_ALT_PLUGIN(CreateFormInstance, CreateFormInst, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_CreateWeaponInstance);
 bool Cmd_CreateFormInstance_Execute(COMMAND_ARGS)
 {
@@ -100,7 +109,7 @@ bool Cmd_CreateFormInstance_Execute(COMMAND_ARGS)
 
 			if (key[0] != '\0') {
 
-				form = form->CreateInst(key);
+				form = form->CreateInst(key, scriptObj->GetModIndexAlt());
 				if (!form) {
 					return true;
 				}
@@ -129,40 +138,36 @@ bool Cmd_CreateFormInstance_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(GetAkimboWeapons, GetAkimboWeapons, "Creates a new akimbo instance", false, kParams_CreateWeaponInstance);
+DEFINE_COMMAND_ALT_PLUGIN(GetAkimboWeapons, GetAkimboWeapons, "Gets base akimbo instance", false, kParams_OneForm_OneInt);
 bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
 	UInt32* refResult = (UInt32*)result;
 	TESForm* form = NULL;
-	bool bRightLeft = false;
-	ExtraDataList* xData;
-	Actor* actor;
+	UInt32 bRightLeft = false;
+	Instance* akimbo = nullptr;
+	InventoryRef* invRef = nullptr;
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &bRightLeft)) {
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &bRightLeft)) {
 
-		InventoryRef* invRef = InventoryRef::InventoryRefGetForID(thisObj->refID);
+		TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
 
-		if (!invRef) {
-			return true;
+		if (baseForm->IsStaticForm(222)) {
+			Console_Print("Error in %s, GetAkimboWeapons requires an akimbo instance, not a baseform.", scriptObj->GetEditorID());
 		}
 
-		Instance* akimbo = invRef->data.type->pLookupInstance();
+		akimbo = baseForm->pLookupInstance();
 
 		if (akimbo && akimbo->baseInstance->extendedType == 222) {
 
 			TESObjectREFR* weap = nullptr;
 
 			if (bRightLeft) {
-				weap = InventoryRef::InventoryRefCreateEntry(invRef->containerRef, ((Instance_Akimbo*)akimbo)->left->clone, 1, ((Instance_Akimbo*)akimbo)->xDataLeft);
+				*refResult = ((Instance_Akimbo*)akimbo)->left;
 			}
 			else {
-				weap = InventoryRef::InventoryRefCreateEntry(invRef->containerRef, ((Instance_Akimbo*)akimbo)->right->clone, 1, ((Instance_Akimbo*)akimbo)->xDataRight);
-			}
-
-			if (weap) {
-				*refResult = weap->refID;
+				*refResult = ((Instance_Akimbo*)akimbo)->right;
 			}
 
 		}
@@ -172,7 +177,60 @@ bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(IsAkimboForm, IsAkimbo, "Creates a new akimbo instance", false, kParams_CreateWeaponInstance);
+DEFINE_COMMAND_PLUGIN(GetStaticAkimbo, "Gets a static akimbo baseform", false, kParams_TwoForms);
+bool Cmd_GetStaticAkimbo_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+
+	TESForm* leftForm = NULL;
+	TESForm* rightForm = NULL;
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &rightForm, &leftForm)) {
+		return true;
+	}
+
+	if (rightForm && leftForm) {
+		leftForm = leftForm->IsReference() ? ((TESObjectREFR*)leftForm)->baseForm : leftForm;
+		rightForm = rightForm->IsReference() ? ((TESObjectREFR*)rightForm)->baseForm : rightForm;
+		StaticInstance_Akimbo* akimbo = StaticInstance_Akimbo::LookupAkimboSet(leftForm, rightForm);
+		if (akimbo) {
+			*refResult = akimbo->parent->refID;
+			Console_Print("GetStaticAkimbo >> %d (%s) (%s)", akimbo->parent->refID, GetFullName(akimbo->parent), akimbo->parent->GetEditorID());
+		}
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(HasAkimboSet, "Gets a static akimbo baseform", false, kParams_TwoForms);
+bool Cmd_HasAkimboSet_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+
+	TESForm* leftForm = NULL;
+	TESForm* rightForm = NULL;
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &rightForm, &leftForm)) {
+		return true;
+	}
+
+	if (rightForm && leftForm) {
+		leftForm = leftForm->GetBaseObject();
+		rightForm = rightForm->GetBaseObject();
+		StaticInstance_Akimbo* akimbo = StaticInstance_Akimbo::LookupAkimboSet(leftForm, rightForm);
+		if (akimbo) {
+			*result = 1;
+		}
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(IsAkimboForm, IsAkimbo, "Checks if instance is an akimbo", false, kParams_OneForm);
 bool Cmd_IsAkimboForm_Execute(COMMAND_ARGS) {
 
 	*result = 0;
@@ -183,25 +241,16 @@ bool Cmd_IsAkimboForm_Execute(COMMAND_ARGS) {
 	}
 
 	TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
-
-	if (baseForm->IsStaticForm()) {
-		auto staticInstance = StaticLinker[kFormType_TESObjectWEAP][baseForm->refID];
-		if (staticInstance && staticInstance->extendedType == 222) {
-			*result = 1;
-		}
-	}
-	else if (baseForm->IsInstancedForm()) {
-		auto instance = InstanceLinker[kFormType_TESObjectWEAP][baseForm->refID];
-		if (instance && instance->baseInstance->extendedType == 222) {
-			*result = 1;
-		}
+	auto staticInstance = baseForm->LookupExtendedBase();
+	if (staticInstance && staticInstance->extendedType == 222) {
+		*result = 1;
 	}
 
 	return true;
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(CreateAkimboInstance, CreateAkimbo, "Creates a new akimbo instance", false, kParams_CreateWeaponInstance);
+DEFINE_COMMAND_ALT_PLUGIN(CreateAkimboInstance, CreateAkimbo, "Creates a new akimbo instance", false, kParams_CreateAkimboInstance);
 bool Cmd_CreateAkimboInstance_Execute(COMMAND_ARGS)
 {
 
@@ -211,20 +260,31 @@ bool Cmd_CreateAkimboInstance_Execute(COMMAND_ARGS)
 	Script* reconstruct = nullptr;
 	Script* deconstruct = nullptr;
 
-	TESObjectREFR* leftForm = NULL;
-	TESObjectREFR* rightForm = NULL;
+	TESForm* leftForm = NULL;
+	TESForm* rightForm = NULL;
+
+	TESObjectREFR* leftFormRef = NULL;
+	TESObjectREFR* rightFormRef = NULL;
+
 	char key[0x50];
 
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &rightForm, &leftForm, &key, &reconstruct, &deconstruct)) {
 
 		if (key[0] != '\0') {
 
-			StaticInstance_Akimbo* akimbo = StaticInstance_Akimbo::LookupAkimboSet(rightForm->baseForm, leftForm->baseForm);
+			if (!leftForm->IsReference() || !rightForm->IsReference()) {
+				return true;
+			}
+
+			rightFormRef = (TESObjectREFR*)rightForm;
+			leftFormRef = (TESObjectREFR*)leftForm;
+
+			StaticInstance_Akimbo* akimbo = StaticInstance_Akimbo::LookupAkimboSet(rightFormRef->GetBaseObject(), leftFormRef->GetBaseObject());
 			if (!akimbo) {
 				return true;
 			}
 
-			TESForm* form = akimbo->newInstance(rightForm, leftForm, key);
+			TESForm* form = akimbo->newInstance(rightFormRef, leftFormRef, scriptObj->GetModIndexAlt(), key);
 
 			*refResult = form->refID;
 
@@ -250,7 +310,263 @@ bool Cmd_CreateAkimboInstance_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(DeleteAkimboInstance, DeleteInstance, "Creates a new weapon instance aka new baseform for a weapon", false, kParams_OneForm_OneOptionalInt);
+DEFINE_COMMAND_PLUGIN(GetWeaponAmmoType, "Gets the current ammo inside the gun", true, 0);
+bool Cmd_GetWeaponAmmoType_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+
+	ExtraAmmo* xData = (ExtraAmmo*)thisObj->extraDataList.GetByType(kExtraData_Ammo);
+	if (xData) {
+		*refResult = xData->ammo->refID;
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(SetWeaponAmmoType, "Sets the current ammo inside the gun", true, kParams_OneForm);
+bool Cmd_SetWeaponAmmoType_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	TESForm* form = NULL;
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form) || !form || form->typeID != kFormType_TESAmmo) {
+		return true;
+	}
+
+	ExtraAmmo* xData = (ExtraAmmo*)thisObj->extraDataList.GetByType(kExtraData_Ammo);
+	if (xData) {
+		xData->ammo = static_cast<TESAmmo*>(form);
+	}
+	else{
+		thisObj->extraDataList.Add(ExtraAmmo::Create(static_cast<TESAmmo*>(form), 0));
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(GetWeaponAmmoCount, "Gets the current ammo count inside the gun", true, 0);
+bool Cmd_GetWeaponAmmoCount_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+
+	ExtraAmmo* xData = (ExtraAmmo*)thisObj->extraDataList.GetByType(kExtraData_Ammo);
+	if (xData) {
+		*result = xData->count;
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(SetWeaponAmmoCount, "Sets the current ammo count inside the gun", true, kParams_OneInt);
+bool Cmd_SetWeaponAmmoCount_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	SInt32 count;
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &count)) {
+		return true;
+	}
+
+	ExtraAmmo* xData = (ExtraAmmo*)thisObj->extraDataList.GetByType(kExtraData_Ammo);
+	if (xData) {
+		xData->count = count;
+		if (count < 0) {
+			thisObj->extraDataList.RemoveByType(kExtraData_Ammo);
+		}
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN(FindWeaponAmmo, "Searches an actor for a matching ammo", true, kParams_OneForm_OneOptionalForm);
+bool Cmd_FindWeaponAmmo_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+	TESForm* weapon = NULL;
+	TESForm* ammoForm = NULL;
+
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &weapon, &ammoForm) || !weapon) {
+		return true;
+	}
+
+	TESForm* baseForm = weapon->IsReference() ? ((TESObjectREFR*)weapon)->baseForm : weapon;
+	TESObjectWEAP* weaponBase = static_cast<TESObjectWEAP*>(baseForm);
+
+	if (ammoForm && ammoForm->typeID == kFormType_TESAmmo) {
+		ammoForm = thisObj->CycleAmmoType(weaponBase, static_cast<TESAmmo*>(ammoForm));
+		if (ammoForm) {
+			*refResult = ammoForm->refID;
+		}
+	}
+	else {
+		ammoForm = thisObj->FindAmmoType(weaponBase).first;
+		if (ammoForm) {
+			*refResult = ammoForm->refID;
+		}
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(GetInventoryFromList, "Gets all the inventory items from a list", true, kNVSEParams_OneBasicType);
+bool Cmd_GetInventoryFromList_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+		if (!thisObj) {
+			Console_Print("GetInventoryFromList requires a reference");
+			return true;
+		}
+		PluginScriptToken* arg = eval.GetNthArg(0);
+		NVSEArrayVarInterface::Array* resultArr = g_arrInterface->CreateArray(nullptr, 0, scriptObj);
+
+		switch (arg->GetType()) {
+		case kTokenType_Form:
+		case kTokenType_RefVar:
+		{
+			TESForm* valueRef = arg->GetTESForm();
+			if (valueRef->typeID == kFormType_BGSListForm) {
+				BGSListForm* list = static_cast<BGSListForm*>(valueRef);
+				for (auto iter = list->list.Head(); iter; iter = iter->next) {
+					TESForm* entry = static_cast<TESForm*>(iter->data);
+					if (entry) {
+						UInt32 count = thisObj->GetItemCount(entry);
+						if (count > 0) {
+							g_arrInterface->AppendElement(resultArr, ArrayElementL(entry));
+						}
+					}
+				}
+			}
+			break;
+		}
+		case kTokenType_Array:
+		case kTokenType_ArrayVar:
+		{
+			NVSEArrayVarInterface::Array* valueArr = arg->GetArrayVar();
+			const auto& arrData = ArrayData(valueArr, true);
+			for (UInt32 idx = 0; idx < arrData.size; idx++) {
+				if (arrData.vals[idx].type == NVSEArrayVarInterface::kType_Form) {
+					if (auto entry = arrData.vals[idx].Form()) {
+						UInt32 count = thisObj->GetItemCount(entry);
+						if (count > 0) {
+							g_arrInterface->AppendElement(resultArr, ArrayElementL(entry));
+						}
+					}
+				}
+			}
+			break;
+		}
+		}
+
+		g_arrInterface->AssignCommandResult(resultArr, result);
+
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(LoadWeaponWithAmmo, "Loads a weapon, optionally using a specific actor, with an optional specific ammo and count", true, kNVSEParams_OneForm_OneOptionalForm_OneOptionalInt);
+bool Cmd_LoadWeaponWithAmmo_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	TESForm* ammoForm = nullptr;
+	TESForm* weapon = nullptr;
+	SInt32 ammoCount = -1;
+
+	*result = 0;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs()) {
+		weapon = eval.GetNthArg(0)->GetTESForm();
+
+		if (!weapon) {
+			return true;
+		}
+
+		if (eval.NumArgs() > 1) {
+			ammoForm = eval.GetNthArg(1)->GetTESForm();
+			if (eval.NumArgs() > 2) {
+				ammoCount = eval.GetNthArg(2)->GetInt();
+			}
+		}
+
+		TESObjectREFR* weaponRef = static_cast<TESObjectREFR*>(weapon);
+		TESObjectWEAP* weaponBase = static_cast<TESObjectWEAP*>(weaponRef->baseForm);
+		ExtraAmmo* xData = static_cast<ExtraAmmo*>(weaponRef->extraDataList.GetByType(kExtraData_Ammo));
+
+		if (thisObj && IS_ACTOR(thisObj) && weaponBase) {
+			UInt32 itemCount = 0;
+
+			if (!ammoForm || ammoForm->typeID != kFormType_TESAmmo) {
+				std::pair<TESAmmo*, UInt32> ammoPair = thisObj->FindAmmoType(weaponBase);
+				ammoForm = ammoPair.first;
+				itemCount = ammoPair.second;
+				if (!ammoForm) {
+					return true; // No suitable ammo found
+				}
+			}
+			else {
+				itemCount = thisObj->GetItemCount(ammoForm);
+				if (itemCount < 1) {
+					std::pair<TESAmmo*, UInt32> ammoPair = thisObj->FindAmmoType(weaponBase);
+					ammoForm = ammoPair.first;
+					itemCount = ammoPair.second;
+					if (!ammoForm) {
+						return true; // Actor has no ammo of this type
+					}
+				}
+			}
+
+			UInt8 clipSize = weaponBase->GetModdedClipSize(weaponRef->GetWeaponModFlags());
+			UInt8 neededRounds = clipSize;
+
+			if (xData && xData->ammo == ammoForm) {
+				neededRounds -= xData->count;  // Subtract current loaded rounds
+			}
+			else if (xData) {
+				thisObj->AddItem(xData->ammo, nullptr, xData->count); // Return existing ammo back to inventory
+			}
+
+			if (neededRounds == 0) {
+				*result = 1; // Weapon already full
+				return true;
+			}
+
+			UInt32 ammoToRemove = ammoCount;
+			if (ammoCount == -1 || itemCount < ammoCount) { //Fill ammo
+				ammoToRemove = min(neededRounds, itemCount);
+				ammoCount = min(clipSize, itemCount);
+			}
+
+			if (ammoToRemove > 0) {
+				thisObj->RemoveItem(ammoForm, nullptr, ammoToRemove, true, false, nullptr, 0, 0, true, false);
+			}
+		}
+
+		if (!ammoForm || ammoForm->typeID != kFormType_TESAmmo) {
+			return true;
+		}
+
+		if (xData) {
+			xData->ammo = static_cast<TESAmmo*>(ammoForm);
+			xData->count = ammoCount;
+		}
+		else {
+			weaponRef->extraDataList.Add(ExtraAmmo::Create(static_cast<TESAmmo*>(ammoForm), ammoCount));
+		}
+	}
+	*result = 1; // Successfully loaded weapon
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN(DeleteAkimboInstance, DeleteAkimbo, "Deletes akimbos, faster than regular DeleteInstance function", false, kParams_OneForm_OneOptionalInt);
 bool Cmd_DeleteAkimboInstance_Execute(COMMAND_ARGS)
 {
 
@@ -335,7 +651,7 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 
 		if (baseForm->IsInstancedForm()) {
 
-			TESInstance* rInstance = form->pLookupInstance();
+			Instance* rInstance = form->pLookupInstance();
 			if (rInstance) {
 
 				AuxVector filter{ rInstance->key.c_str() };
@@ -368,11 +684,20 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 										if (replace) {
 
 											if (rInstance->baseInstance->extendedType <= 120) {
-												refObject->baseForm = ((StaticInstance*)rInstance->baseInstance)->parent;
+												refObject->baseForm = rInstance->baseInstance->parent;
 											}
 											else if (rInstance->baseInstance->extendedType == 222) {
-												refObject->baseForm = ((StaticInstance_Akimbo*)rInstance->baseInstance)->right->parent;
-												refObject->baseForm = ((StaticInstance_Akimbo*)rInstance->baseInstance)->left->parent;
+
+												if (((StaticInstance_Akimbo*)rInstance->baseInstance)->right) {
+													refObject->baseForm = ((StaticInstance_Akimbo*)rInstance->baseInstance)->right;
+												}
+												else if (((StaticInstance_Akimbo*)rInstance->baseInstance)->left) {
+													refObject->baseForm = ((StaticInstance_Akimbo*)rInstance->baseInstance)->left;
+												}
+												else {
+													refObject->DeleteReference();
+												}
+
 											}
 
 										}
@@ -382,6 +707,47 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 
 										}
 
+									}
+									else {
+
+										ContChangesEntryList* entryList = refObject->GetContainerChangesList();
+
+										if (entryList) {
+
+											ContChangesEntry* entry;
+
+											for (auto iter = entryList->Begin(); !iter.End(); ++iter) {
+
+												entry = iter.Get();
+
+												if (entry && (entry->type == rInstance->clone)) {
+
+													UInt32 objectsToRemove = entry->countDelta;
+													while (objectsToRemove > 0) {
+
+														ExtraDataList* xData = nullptr;
+														ExtraDataList* xDataSave = nullptr;
+														if (entry->extendData) {
+															xData = entry->extendData->GetFirstItem();
+															if (xData) {
+																xDataSave = xData->CreateCopy();
+																if (xData->HasType(kExtraData_Worn)) {
+																	(static_cast<Actor*>(refObject))->UnequipItem(entry->type, 1, xData, 1, 0, 0);
+																}
+															}
+														}
+
+														entry->Remove(xData, 1);
+														objectsToRemove--;
+
+													}
+
+												}
+
+
+											}
+
+										}
 									}
 
 								}
@@ -422,11 +788,11 @@ bool Cmd_SetWeaponMod_Execute(COMMAND_ARGS) {
 	std::unordered_map<std::string, UInt32>* attachments = nullptr;
 
 	if (baseForm->IsStaticForm()) {
-		staticInstance = static_cast<StaticInstance_WEAP*>(StaticLinker[kFormType_TESObjectWEAP][baseForm->refID]);
+		staticInstance = static_cast<StaticInstance_WEAP*>(baseForm->LookupStaticInstance());
 		attachments = &staticInstance->aBaseAttachments;
 	}
-	else if (baseForm->IsInstancedForm()) {
-		Instance_WEAP* instanceWEAP = static_cast<Instance_WEAP*>(InstanceLinker[kFormType_TESObjectWEAP][baseForm->refID]);
+	else if (baseForm->IsInstancedForm(40)) {
+		Instance_WEAP* instanceWEAP = (Instance_WEAP*)baseForm->pLookupInstance();
 		attachments = &instanceWEAP->aAttachments;
 		staticInstance = static_cast<StaticInstance_WEAP*>(instanceWEAP->baseInstance);
 	}
@@ -494,7 +860,7 @@ bool Cmd_GetAllAttachedWeaponMods_Execute(COMMAND_ARGS) {
 		staticWeapon = static_cast<StaticInstance_WEAP*>(StaticLinker[kFormType_TESObjectWEAP][baseForm->refID]);
 		attachmentMap = &staticWeapon->aBaseAttachments;
 	}
-	else if (baseForm->IsInstancedForm()) {
+	else if (baseForm->IsInstancedForm(40)) {
 		Instance_WEAP* instanceWEAP = static_cast<Instance_WEAP*>(InstanceLinker[kFormType_TESObjectWEAP][baseForm->refID]);
 		attachmentMap = &instanceWEAP->aAttachments;
 		staticWeapon = static_cast<StaticInstance_WEAP*>(instanceWEAP->baseInstance);
@@ -521,7 +887,7 @@ bool Cmd_GetAllAttachedWeaponMods_Execute(COMMAND_ARGS) {
 				TESObjectIMOD* pItemMod = static_cast<TESObjectWEAP*>(baseForm)->GetItemMod(iSlot);
 				if (pItemMod) {
 					std::string key = std::to_string(iSlot);
-					g_arrInterface->SetElement(aAttachments, ArrayElementL(key.c_str()), ArrayElementL(pItemMod->refID));
+					g_arrInterface->SetElement(aAttachments, ArrayElementL(key.c_str()), ArrayElementL(pItemMod));
 				}
 			}
 		}
@@ -553,7 +919,7 @@ bool Cmd_GetWeaponMod_Execute(COMMAND_ARGS) {
 			return true;
 		}
 	}
-	else if (baseForm->IsInstancedForm()) {
+	else if (baseForm->IsInstancedForm(40)) {
 		Instance_WEAP* instanceWEAP = static_cast<Instance_WEAP*>(InstanceLinker[kFormType_TESObjectWEAP][baseForm->refID]);
 		auto it = instanceWEAP->aAttachments.find(sSlot);
 		if (it != instanceWEAP->aAttachments.end()) {
@@ -594,7 +960,7 @@ bool Cmd_GetAllWeaponMods_Execute(COMMAND_ARGS) {
 	if (baseForm->IsStaticForm()) {
 		staticInst = static_cast<StaticInstance_WEAP*>(StaticLinker[kFormType_TESObjectWEAP][baseForm->refID]);
 	}
-	else if (baseForm->IsInstancedForm()) {
+	else if (baseForm->IsInstancedForm(40)) {
 		staticInst = static_cast<StaticInstance_WEAP*>(InstanceLinker[kFormType_TESObjectWEAP][baseForm->refID]->baseInstance);
 	}
 
@@ -655,21 +1021,7 @@ bool Cmd_HasExtendedWeaponMods_Execute(COMMAND_ARGS)
 		return true;
 
 	TESForm* baseForm = ref->IsBaseForm() ? ref : (static_cast<TESObjectREFR*>(ref))->baseForm;
-
-	StaticInstance_WEAP* staticInst = nullptr;
-
-	if (baseForm->IsStaticForm()) {
-
-		staticInst = (StaticInstance_WEAP*)StaticLinker[40][baseForm->refID];
-		*result = staticInst->aAllAttachments.size();
-
-	}
-	else if (baseForm->IsInstancedForm()) {
-
-		staticInst = (StaticInstance_WEAP*)InstanceLinker[40][baseForm->refID]->baseInstance;
-		*result = staticInst->aAllAttachments.size();
-
-	}
+	*result = baseForm->HasExtendedMods();
 
 	return true;
 }
@@ -729,46 +1081,6 @@ bool Cmd_GetStaticForm_Execute(COMMAND_ARGS)
 
 }
 
-bool Hook_GetBaseObject_Execute(COMMAND_ARGS)
-{
-	UInt32* refResult = (UInt32*)result;
-	*refResult = 0;
-
-	if (thisObj && thisObj->baseForm) {
-
-		TESForm* form = thisObj->baseForm;
-
-		if (form->IsInstancedForm()) {
-
-			form = form->GetStaticParent();
-			if (form) {
-				*refResult = form->refID;
-			}
-			return true;
-
-		}
-
-		*refResult = form->refID;
-
-		if (IsConsoleMode())
-			Console_Print("GetBaseObject >> %08x (%s) (%s)", form->refID, GetFullName(form), form->GetEditorID());
-
-	}
-	return true;
-
-}
-
-namespace Hooks
-{
-	void CMDPatchHooks()
-	{
-
-		CommandInfo* cmdInfo = g_cmdTableInterface.GetByOpcode(0x1403);
-		cmdInfo->execute = Hook_GetBaseObject_Execute;
-
-	}
-}
-
 DEFINE_COMMAND_ALT_PLUGIN(GetBaseInstance, GBI, "Acts like GetBaseForm or GetBaseObject", true, nullptr);
 bool Cmd_GetBaseInstance_Execute(COMMAND_ARGS)
 {
@@ -804,38 +1116,107 @@ bool Cmd_GetFormInstanceID_Execute(COMMAND_ARGS)
 	return true;
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(GetAllFormInstances, GetAllFormInsts, "Gets Instances for a static form.", false, kParams_OneForm_OneOptionalInt);
-bool Cmd_GetAllFormInstances_Execute(COMMAND_ARGS)
-{
+DEFINE_COMMAND_PLUGIN_EXP(GetObjectInstances, "Gets all Instances for a static form.", false, kNVSEParams_OneForm_OneOptionalInt);
+bool Cmd_GetObjectInstances_Execute(COMMAND_ARGS) {
+
 	*result = 0;
 	TESForm* form = NULL;
 	UInt32 index = 0;
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &index)) {
+	PluginExpressionEvaluator eval(PASS_COMMAND_ARGS);
+	if (!eval.ExtractArgs()) return true;
 
-		if (!form->IsBaseForm()) {
-			form = ((TESObjectREFR*)form)->baseForm;
+	form = eval.GetNthArg(0)->GetTESForm();
+	if (!form) return true;
+
+	form = form->GetBaseObject();
+	if (!form || !form->IsStaticForm()) return true;
+
+	InstanceVector* instVect = &form->LookupStaticInstance()->aInstances;
+	if (!instVect || instVect->empty()) return true;
+
+	NVSEArrayVar* resultArray = g_arrInterface->CreateArray(nullptr, 0, scriptObj);
+
+	if (eval.NumArgs() > 1) {
+		index = eval.GetNthArg(1)->GetInt();
+		if (index < instVect->size()) {
+			Instance* inst = (*instVect)[index];
+			g_arrInterface->AppendElement(resultArray, ArrayElementL(inst->clone));
 		}
-
-		if (form->IsStaticForm()) {
-
-			auto aResult = g_arrInterface->CreateArray(nullptr, 0, scriptObj);	//Create an empty array
-			auto* instanceVector = &form->LookupStaticInstance()->aInstances;
-
-			for (auto it = instanceVector->begin(); it != instanceVector->end(); ++it) {
-				Instance* inst = *it;
-				ArrayElementL rElem = LookupFormByRefID(inst->clone->refID);
-				g_arrInterface->AppendElement(aResult, rElem);
-			}
-
-			g_arrInterface->AssignCommandResult(aResult, result);	//Return array
-
+	}
+	else {
+		for (Instance* inst : *instVect) {
+			g_arrInterface->AppendElement(resultArray, ArrayElementL(inst->clone));
 		}
-
 	}
 
+	g_arrInterface->AssignCommandResult(resultArray, result);
 	return true;
+}
 
+DEFINE_COMMAND_PLUGIN_EXP(GetAllBaseInstances, "Gets Instances all instances with optional filters.", false, kNVSE_OneOptionalString_OneOptionalInt_OneOptionalForm);
+bool Cmd_GetAllBaseInstances_Execute(COMMAND_ARGS) {
+
+	*result = 0;
+	const char* key = nullptr;
+	UInt32 type = 0;
+	TESForm* form = nullptr;
+
+	PluginExpressionEvaluator eval(PASS_COMMAND_ARGS);
+	if (!eval.ExtractArgs()) return true;
+
+	key = eval.GetNthArg(0)->GetString();
+	if (eval.NumArgs() > 1) type = eval.GetNthArg(1)->GetInt();
+	if (eval.NumArgs() > 2) form = eval.GetNthArg(2)->GetTESForm();
+
+	auto aResult = g_arrInterface->CreateArray(nullptr, 0, scriptObj); // Create an empty array
+
+	switch (eval.NumArgs()) {
+	case 3: // Form, type, and key are specified
+		if (form) {
+			form = form->GetBaseObject();
+			if (form->IsStaticForm()) {
+				auto& instances = form->LookupStaticInstance()->aInstances;
+				if (!instances.empty()) {
+					for (Instance* inst : instances) {
+						if (inst->key == key) {
+							g_arrInterface->AppendElement(aResult, ArrayElementL(inst->clone));
+						}
+					}
+				}
+			}
+		}
+		break;
+
+	case 2: // Type and key are specified
+		for (auto& [refID, inst] : InstanceLinker[type]) {
+			if (inst->key == key) {
+				g_arrInterface->AppendElement(aResult, ArrayElementL(inst->clone));
+			}
+		}
+		break;
+
+	case 1: // Only key is specified
+		for (const auto& [type, instanceList] : InstanceLinker) {
+			for (const auto& [refID, inst] : instanceList) {
+				if (inst->key == key) {
+					g_arrInterface->AppendElement(aResult, ArrayElementL(inst->clone));
+				}
+			}
+		}
+		break;
+
+	default: // No arguments specified, return all instances
+		for (const auto& [type, instanceList] : InstanceLinker) {
+			for (const auto& [refID, inst] : instanceList) {
+				g_arrInterface->AppendElement(aResult, ArrayElementL(inst->clone));
+			}
+		}
+		break;
+	}
+
+	g_arrInterface->AssignCommandResult(aResult, result); // Return array
+	return true;
 }
 
 DEFINE_COMMAND_PLUGIN(IsStaticForm, "Checks if a ref is registered.", false, kParams_OneForm);
@@ -928,7 +1309,7 @@ bool Cmd_SetOnInstanceDeconstruct_Execute(COMMAND_ARGS)
 	return true;
 }
 
-DEFINE_COMMAND_PLUGIN(SetOnAttachWeaponMod, "Dispatch when a weapon mod is attached", false, kParams_Event_OneForm_TwoFormsF);
+DEFINE_COMMAND_PLUGIN_EXP(SetOnAttachWeaponMod, "Dispatch when a weapon mod is attached", false, kNVSE_Event_OneForm_TwoFormsF);
 bool Cmd_SetOnAttachWeaponMod_Execute(COMMAND_ARGS)
 {
 	SInt32 priority = 1;
@@ -981,7 +1362,7 @@ bool Cmd_SetOnAttachWeaponMod_Execute(COMMAND_ARGS)
 	return true;
 }
 
-DEFINE_COMMAND_PLUGIN(SetOnDetachWeaponMod, "When instances is loaded in", false, kParams_Event_OneForm_TwoFormsF);
+DEFINE_COMMAND_PLUGIN_EXP(SetOnDetachWeaponMod, "When instances is loaded in", false, kNVSE_Event_OneForm_TwoFormsF);
 bool Cmd_SetOnDetachWeaponMod_Execute(COMMAND_ARGS)
 {
 	SInt32 priority;
@@ -1097,12 +1478,12 @@ bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
 
 	*result = 0;
 	UInt32* refResult = (UInt32*)result;
-	SInt32 index = -1;
+	SInt32 index = 0;
 	TESForm* baseForm = NULL;
 	TESForm* linkedForm = NULL;
 	const char* trait = NULL;
 
-	StaticInstance* linkedObj = nullptr;
+	ExtendedBaseType* linkedObj = nullptr;
 	const char* sSlot = "null";
 	UInt8 priority = 0;
 
@@ -1110,15 +1491,19 @@ bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
 
+		index = eval.GetNthArg(0)->GetFloat();
+		baseForm = eval.GetNthArg(1)->GetTESForm();
+		trait = eval.GetNthArg(2)->GetString();
+
 		int numArgs = eval.NumArgs();
 		if (numArgs >= 4) {
 
 			TESForm* linkedForm = eval.GetNthArg(3)->GetTESForm();
 			if (!linkedForm) {
-				Console_Print("Error, linked Form invalid");
+				//Console_Print("Error, linked Form invalid");
 				return true;
 			}
-			linkedObj = linkedForm->LookupStaticInstance();
+			linkedObj = linkedForm->LookupExtendedBase();
 
 			if (numArgs >= 5) {
 				sSlot = eval.GetNthArg(4)->GetString();
@@ -1128,15 +1513,11 @@ bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
 			}
 		}
 
-		index = eval.GetNthArg(0)->GetFloat();
-		baseForm = eval.GetNthArg(1)->GetTESForm();
-		trait = eval.GetNthArg(2)->GetString();
-
 		if (!baseForm) {
 			return true;
 		}
 
-		if (StaticInstance* baseObj = baseForm->LookupStaticInstance()) {
+		if (ExtendedBaseType* baseObj = baseForm->LookupExtendedBase()) {
 
 			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
 
@@ -1144,22 +1525,26 @@ bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
 				return true;
 			}
 
-			eval.SetExpectedReturnType((CommandReturnType)(*aux)[index].type);
+			if ((*aux)[index].type != -1 ) {
+				eval.SetExpectedReturnType((CommandReturnType)(*aux)[index].type);
 
-			switch ((*aux)[index].type) {
-			case kRetnType_Default:
-				*result = (*aux)[index].num;
-				break;
-			case kRetnType_Form:
-				*refResult = (*aux)[index].refID;
-				break;
-			case kRetnType_String:
-				AssignString(PASS_COMMAND_ARGS, (*aux)[index].str);
-				break;
-			case kRetnType_Array:
-				g_arrInterface->AssignCommandResult((*aux)[index].CopyToNVSEArray(scriptObj), result);
-				break;
+				switch ((*aux)[index].type) {
+				case kRetnType_Default:
+					*result = (*aux)[index].num;
+					break;
+				case kRetnType_Form:
+					*refResult = (*aux)[index].refID;
+					break;
+				case kRetnType_String:
+					AssignString(PASS_COMMAND_ARGS, (*aux)[index].str);
+					break;
+				case kRetnType_Array:
+					g_arrInterface->AssignCommandResult((*aux)[index].CopyToNVSEArray(scriptObj), result);
+					break;
+				}
+
 			}
+
 		}
 
 	}
@@ -1184,6 +1569,10 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
+		PluginScriptToken* arg = eval.GetNthArg(0);
+		index = eval.GetNthArg(1)->GetFloat();
+		baseForm = eval.GetNthArg(2)->GetTESForm();
+		trait = eval.GetNthArg(3)->GetString();
 
 		int numArgs = eval.NumArgs();
 		if (numArgs >= 5) {
@@ -1198,19 +1587,13 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 			}
 		}
 
-		PluginScriptToken* arg = eval.GetNthArg(0);
-		index = eval.GetNthArg(1)->GetFloat();
-		baseForm = eval.GetNthArg(2)->GetTESForm();
-		trait = eval.GetNthArg(3)->GetString();
-
-
 		if (!baseForm) {
 			return true;
 		}
 
-		StaticInstance* baseObj = baseForm->LookupStaticInstance();
+		ExtendedBaseType* baseObj = baseForm->LookupExtendedBase();
 		if (!baseObj) {
-			Console_Print("Error: object is not static");
+			//Console_Print("Error: object is not extended");
 			return true;
 		}
 
@@ -1218,9 +1601,9 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 
 		if (linkedForm) {
 
-			StaticInstance* linkedObj = linkedForm->LookupStaticInstance();
+			ExtendedBaseType* linkedObj = linkedForm->LookupExtendedBase();
 			if (!linkedObj) {
-				Console_Print("Error, linked form is not static");
+				//Console_Print("Error, linked form is not static");
 				return true;
 			}
 
@@ -1290,13 +1673,15 @@ bool Cmd_GetFormTraitListSize_Execute(COMMAND_ARGS)
 	TESForm* baseForm = NULL;
 	const char* trait = NULL;
 
-	StaticInstance* linkedObj = nullptr;
+	ExtendedBaseType* linkedObj = nullptr;
 	const char* sSlot = "null";
 	UInt8 priority = 0;
 
 
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
+		baseForm = eval.GetNthArg(0)->GetTESForm();
+		trait = eval.GetNthArg(1)->GetString();
 
 		int numArgs = eval.NumArgs();
 		if (numArgs >= 3) {
@@ -1305,7 +1690,7 @@ bool Cmd_GetFormTraitListSize_Execute(COMMAND_ARGS)
 			if (!linkedForm) {
 				return true;
 			}
-			linkedObj = linkedForm->LookupStaticInstance();
+			linkedObj = linkedForm->LookupExtendedBase();
 
 			if (numArgs >= 4) {
 				sSlot = eval.GetNthArg(3)->GetString();
@@ -1315,14 +1700,11 @@ bool Cmd_GetFormTraitListSize_Execute(COMMAND_ARGS)
 			}
 		}
 
-		baseForm = eval.GetNthArg(0)->GetTESForm();
-		trait = eval.GetNthArg(1)->GetString();
-
 		if (!baseForm) {
 			return true;
 		}
 
-		if (StaticInstance* baseObj = baseForm->LookupStaticInstance()) {
+		if (ExtendedBaseType* baseObj = baseForm->LookupExtendedBase()) {
 
 			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
 			if (aux) {
@@ -1346,13 +1728,16 @@ bool Cmd_HasFormTrait_Execute(COMMAND_ARGS)
 	TESForm* baseForm = NULL;
 	const char* trait = NULL;
 
-	StaticInstance* linkedObj = nullptr;
+	ExtendedBaseType* linkedObj = nullptr;
 	const char* sSlot = "null";
 	UInt8 priority = 0;
 
 
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
+
+		baseForm = eval.GetNthArg(0)->GetTESForm();
+		trait = eval.GetNthArg(1)->GetString();
 
 		int numArgs = eval.NumArgs();
 		if (numArgs >= 3) {
@@ -1361,7 +1746,7 @@ bool Cmd_HasFormTrait_Execute(COMMAND_ARGS)
 			if (!linkedForm) {
 				return true;
 			}
-			linkedObj = linkedForm->LookupStaticInstance();
+			linkedObj = linkedForm->LookupExtendedBase();
 
 			if (numArgs >= 4) {
 				sSlot = eval.GetNthArg(3)->GetString();
@@ -1371,14 +1756,11 @@ bool Cmd_HasFormTrait_Execute(COMMAND_ARGS)
 			}
 		}
 
-		baseForm = eval.GetNthArg(0)->GetTESForm();
-		trait = eval.GetNthArg(1)->GetString();
-
 		if (!baseForm) {
 			return true;
 		}
 
-		if (StaticInstance* baseObj = baseForm->LookupStaticInstance()) {
+		if (ExtendedBaseType* baseObj = baseForm->LookupExtendedBase()) {
 
 			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
 			if (aux) {
@@ -1403,15 +1785,19 @@ bool Cmd_GetFormTraitType_Execute(COMMAND_ARGS)
 	TESForm* formBase = NULL;
 	const char* trait = NULL;
 
-	StaticInstance* linkedObj = nullptr;
+	ExtendedBaseType* linkedObj = nullptr;
 	const char* sSlot = "null";
 	UInt8 priority = 0;
 
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
+		index = eval.GetNthArg(0)->GetFloat();
+		formBase = eval.GetNthArg(1)->GetTESForm();
+		trait = eval.GetNthArg(2)->GetString();
+
 		int numArgs = eval.NumArgs();
 		if (numArgs >= 4) {
-			linkedObj = eval.GetNthArg(3)->GetTESForm()->LookupStaticInstance();
+			linkedObj = eval.GetNthArg(3)->GetTESForm()->LookupExtendedBase();
 			if (numArgs >= 5) {
 				sSlot = eval.GetNthArg(4)->GetString();
 			}
@@ -1420,15 +1806,11 @@ bool Cmd_GetFormTraitType_Execute(COMMAND_ARGS)
 			}
 		}
 
-		index = eval.GetNthArg(0)->GetFloat();
-		formBase = eval.GetNthArg(1)->GetTESForm();
-		trait = eval.GetNthArg(2)->GetString();
-
 		if (!formBase) {
 			return true;
 		}
 
-		if (StaticInstance* baseObj = formBase->LookupStaticInstance()) {
+		if (ExtendedBaseType* baseObj = formBase->LookupExtendedBase()) {
 
 			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
 

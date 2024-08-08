@@ -9,6 +9,8 @@ namespace Hooks
 	int __fastcall StopAnimationType(AnimData* animData, void* edx, UInt16 GroupID, int a3, float a4, int a5);
 	int __fastcall OnEquipAlt(TESObjectREFR* equipper, void* edx, TESForm* item, SInt32 count, ExtraDataList* xData, int noMessage, bool lockEquipment, bool playsound);
 
+	int __fastcall SetPersistentHook(TESForm* form);
+
 	//int __fastcall OnActorEquipAlt(TESObjectREFR* a1);
 	//int __cdecl OnActorEquipAlt2(TESForm* a1, TESForm* a2, TESForm* a3);
 	//int __fastcall GetType(ExtraDataList* a1);
@@ -67,7 +69,9 @@ namespace Hooks
 		WriteRelCall(0x0943E20, (UInt32)OnEquipAlt);
 		WriteRelCall(0x097F13B, (UInt32)OnEquipAlt);
 
-		WriteRelCall(0x0847A20, (UInt32)SaveData);		//
+		WriteRelCall(0x0847A20, (UInt32)SaveData);
+
+		WriteRelCall(0x056549F, (UInt32)SetPersistentHook);
 		
 		WriteRelCall(0x089738D, (UInt32)StopAnimationType); //Third Person
 		WriteRelCall(0x09521C0, (UInt32)StopAnimationType); //First Person anim

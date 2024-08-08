@@ -73,6 +73,28 @@ TESFullName *TESForm::GetFullName() const
 	return DYNAMIC_CAST(baseForm, TESForm, TESFullName);
 }
 
+__declspec(naked) TESContainer* TESForm::GetContainer() const
+{
+	__asm
+	{
+		test	ecx, ecx
+		jz		retnNULL
+		cmp		byte ptr[ecx + 4], kFormType_TESObjectCONT
+		jz		isContainer
+		mov		eax, [ecx]
+		cmp		dword ptr[eax + 0xF8], 0x8D0360
+		jnz		retnNULL
+		lea		eax, [ecx + 0x64]
+		retn
+		isContainer :
+		lea		eax, [ecx + 0x30]
+		retn
+		retnNULL :
+		xor eax, eax
+		retn
+	}
+}
+
 const char *TESForm::GetTheName()
 {
 	TESFullName *fullName = GetFullName();

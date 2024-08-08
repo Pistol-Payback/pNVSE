@@ -1,31 +1,43 @@
 #pragma once
-#include <thread>
 #include "SaveSystem.h"
 
 namespace SaveSystem {
 
+	InstanceLoadManager SaveLoadManager::loadManager;
+
+	void LoadGameCallback(void*)
+	{
+		UInt32 type, version, length;
+
+		SaveLoadManager::loadManager.clearInstances();
+
+		while (SaveData::GetNextRecordInfo(&type, &version, &length)) {
+			SaveLoadManager::loadManager.loadAll();
+		}
+	}
+
 	void InstanceLoadManager::reset() {
+
 		baseLocations.clear();
 		refLocations.clear();
 
 		failedLinks_WEAP.clear();
 		failedLinks_Akimbo.clear();
+		//reconstructEvent.clear();
 
 		worldRefs.clear();
 		entries.clear();
 		linkRefs.clear();
+
 	}
 
 	void InstanceLoadManager::LoadStaticLocations(UInt32 index) {
 
-		UInt32 length = ReadRecord32();
-		char* EditorID = new char[length + 1];
-		ReadRecordData(EditorID, length);
-		EditorID[length] = '\0';
+		char* EditorID = ReadRecordString();
 		UInt8 type = SaveData::ReadRecord8();
 
 		TESForm* form = LookupEditorID<TESForm*>(EditorID);
-		if (type == form->typeID) {
+		if (form && type == form->typeID) {
 			baseLocations[index] = form;
 		}
 		else {
@@ -66,9 +78,13 @@ namespace SaveSystem {
 
 	StaticInstance* InstanceLoadManager::LoadStatic() {
 
-		LoadDataLink staticInst = LoadLink();
-		if (staticInst.parent) {
-			return staticInst.parent->LookupStaticInstance();
+		LoadDataLink link = LoadLink();
+		TESForm* form = deduceLinkToForm(&link);
+		if (form && form->IsStaticForm()) {
+			return form->LookupStaticInstance();
+		}
+		else {
+			replacement = form;
 		}
 		return nullptr;
 
@@ -78,9 +94,18 @@ namespace SaveSystem {
 
 		LoadDataLink right = LoadLink();
 		LoadDataLink left = LoadLink();
-		if (right.parent && left.parent) {
-			return StaticInstance_Akimbo::LookupAkimboSet(right.parent, left.parent);
+		TESForm* rightForm = deduceLinkToForm(&right);
+		TESForm* leftForm = deduceLinkToForm(&left);
+		if (rightForm && leftForm) {
+			return StaticInstance_Akimbo::LookupAkimboSet(rightForm, leftForm);
 		}
+		else if (rightForm) {
+			replacement = rightForm;
+		}
+		else if (leftForm) {
+			replacement = leftForm;
+		}
+
 		return nullptr;
 
 	}
@@ -93,29 +118,62 @@ namespace SaveSystem {
 
 		UInt8 saveType = ReadRecord8();
 
-		if (saveType == 0) { //Vanilla
+		if (saveType == 1) { //vanilla
 			refID = ReadRecord32();
 		}
-		else if (saveType == 1){ //ref dynamic
+		else if (saveType == 2) {  //baseform vanilla
+			refID = ReadRecord32();
+		}
+		else if (saveType == 3){ //ref dynamic
 			UInt32 index = ReadRecord32();
 			parent = LoadFromIndex(index);
 			refID = ReadRecord32();
 		}
-		else if (saveType == 2){ //baseform Dynamic
+		else if (saveType == 4) { //baseform dynamic
 
 			UInt32 index = ReadRecord32();
 			parent = LoadFromIndex(index);
 
 		}
-		else if (saveType == 3) { //Instances
+		else if (saveType == 5) { //vanilla Instances
+			refID = ReadRecord32();
+			instID = ReadRecord16();
+		}
+		else if (saveType == 6) { //instances
 
 			UInt32 index = ReadRecord32();
 			parent = LoadFromIndex(index);
 			instID = ReadRecord16();
-
 		}
 
-		return LoadDataLink(parent, refID, instID);
+		return LoadDataLink(parent, refID, instID, saveType);
+
+	}
+
+	TESForm* InstanceLoadManager::deduceLinkToForm(LoadDataLink* link) {
+
+		if (link->saveType == 1 || link->saveType == 2) { //Vanilla
+			if (ResolveRefID(link->refID, &link->refID) && link->refID) {
+				return LookupFormByRefID(link->refID);
+			};
+		}
+		else if (link->saveType == 3) { //ref dynamic
+			return LoadFromRefID(link->refID);
+		}
+		else if (link->saveType == 4) { //baseform dynamic
+			return link->parent;
+		}
+		else if (link->saveType == 5) { //Vanilla instance
+			if (SaveData::ResolveRefID(link->refID, &link->refID) && link->refID) {
+				TESForm* form = LookupFormByRefID(link->refID);
+				return form->LookupInstanceByID(link->instID)->clone;
+			};
+		}
+		else if (link->saveType == 6) { //Is an instance baseform
+			return link->parent->LookupInstanceByID(link->instID)->clone;
+		}
+
+		return nullptr;
 
 	}
 
@@ -123,31 +181,37 @@ namespace SaveSystem {
 
 		UInt8 saveType = ReadRecord8();
 
-		if (saveType == 0) { //Vanilla
+		if (saveType == 1) { //Vanilla
 			SkipNBytes(4);
 		}
-		else if (saveType == 1) { //ref dynamic
+		else if (saveType == 2) { //baseform Vanilla
+			SkipNBytes(4);
+		}
+		else if (saveType == 3) { //ref dynamic
 			SkipNBytes(8);
 		}
-		else if (saveType == 2) { //baseform Dynamic
+		else if (saveType == 4) { //baseform Dynamic
 			SkipNBytes(4);
 		}
-		else if (saveType == 3) { //Instances
+		else if (saveType == 5) { //Vanilla Instances
+			SkipNBytes(6);
+		}
+		else if (saveType == 6) { //Instances
 			SkipNBytes(6);
 		}
 
 	}
 
-	Instance* InstanceLoadManager::LoadInstance(ExtendedBaseType* baseInstance) {
+	Instance* InstanceLoadManager::LoadInstance(ExtendedBaseType* baseInstance, UInt32 modIndex) {
 		switch (baseInstance->extendedType) {
 		case 40:
-			return LoadInstanceDataWEAP((StaticInstance_WEAP*)baseInstance);
+			return LoadInstanceDataWEAP((StaticInstance_WEAP*)baseInstance, modIndex);
 			break;
 		case 222:
-			return LoadInstanceDataAkimbo((StaticInstance_Akimbo*)baseInstance);
+			return LoadInstanceDataAkimbo((StaticInstance_Akimbo*)baseInstance, modIndex);
 			break;
 		default:
-			return LoadInstanceData((StaticInstance*)baseInstance);
+			return LoadInstanceData((StaticInstance*)baseInstance, modIndex);
 			break;
 		}
 	}
@@ -169,48 +233,59 @@ namespace SaveSystem {
 		}
 	}
 
-	Instance* InstanceLoadManager::LoadInstanceData(StaticInstance* baseInstance) {
+	LifecycleManager* InstanceLoadManager::LoadLifecycle() {
+
+		UInt8 policies = ReadRecord8();
+		float lifetime = ReadRecordFloat();
+
+		return new LifecycleManager(policies, lifetime);
+
+	}
+
+	void InstanceLoadManager::LoadLifecycle_Skip() {
+		SkipNBytes(5);
+	}
+
+	Instance* InstanceLoadManager::LoadInstanceData(StaticInstance* baseInstance, UInt32 modIndex) {
 
 		UInt16 instID = ReadRecord16();
+		char* key = ReadRecordString();
+		LifecycleManager* lifeCycle = LoadLifecycle();
 
-		UInt32 length = ReadRecord32();
-		char* key = new char[length + 1];
-		ReadRecordData(key, length);
-		key[length] = '\0';
+		Instance* inst = baseInstance->loadInstance(instID, modIndex, key, lifeCycle);
 
-		return baseInstance->loadInstance(instID, key);
+		if (!ReconstructEvent(inst)) {
+			inst->destroy();
+			return nullptr;
+		}
+
+		return inst;
 
 	}
 
 	void InstanceLoadManager::LoadInstanceData_Skip() {
 
 		SkipNBytes(2);
-		UInt32 length = ReadRecord32();
-		SkipNBytes(length);
+		SkipRecordString();
+		LoadLifecycle_Skip();
 		return;
 
 	}
 
-	Instance_WEAP* InstanceLoadManager::LoadInstanceDataWEAP(StaticInstance_WEAP* baseInstance) {
+	Instance_WEAP* InstanceLoadManager::LoadInstanceDataWEAP(StaticInstance_WEAP* baseInstance, UInt32 modIndex) {
 
 		UInt16 instID = ReadRecord16();
+		char* key = ReadRecordString();
+		LifecycleManager* lifeCycle = LoadLifecycle();
 
-		UInt32 length = ReadRecord32();
-		char* key = new char[length + 1];
-		ReadRecordData(key, length);
-		key[length] = '\0';
-
-		Instance_WEAP* inst = (Instance_WEAP*)baseInstance->loadInstance(instID, key);
+		Instance_WEAP* inst = (Instance_WEAP*)baseInstance->loadInstance(instID, modIndex, key, lifeCycle);
 
 		//Deduce later
 
 		UInt32 size = ReadRecord32();
 		for (UInt32 i = 0; i < size; ++i) {
 
-			length = ReadRecord32();
-			char* slot = new char[length + 1];
-			SaveData::ReadRecordData(slot, length);
-			slot[length] = '\0';
+			char* slot = ReadRecordString();
 
 			LoadDataLink attachment = LoadLink();
 			TESForm* form = deduceLinkToForm(&attachment);
@@ -223,6 +298,11 @@ namespace SaveSystem {
 
 		}
 
+		if (!ReconstructEvent(inst)) {
+			inst->destroy();
+			return nullptr;
+		}
+
 		return inst;
 
 	}
@@ -230,14 +310,13 @@ namespace SaveSystem {
 	void InstanceLoadManager::LoadInstanceDataWEAP_Skip() {
 
 		SkipNBytes(2);
-		UInt32 length = ReadRecord32();
-		SkipNBytes(length);
+		SkipRecordString();
+		LoadLifecycle_Skip();
 
 		UInt32 size = ReadRecord32();
 		for (UInt32 i = 0; i < size; ++i) {
 
-			UInt32 length = ReadRecord32();
-			SkipNBytes(length);
+			SkipRecordString();
 			LoadLink_Skip();
 
 		}
@@ -246,60 +325,85 @@ namespace SaveSystem {
 
 	}
 
-	Instance_Akimbo* InstanceLoadManager::LoadInstanceDataAkimbo(StaticInstance_Akimbo* baseInstance) {
-
-		UInt16 leftID = ReadRecord16();	//Fetch static instance using these
-		UInt16 rightID = ReadRecord16();
-
-		//Deduce later
-			Instance_WEAP* right = (Instance_WEAP*)baseInstance->right->parent->LookupInstanceByID(leftID);
-			Instance_WEAP* left = (Instance_WEAP*)baseInstance->left->parent->LookupInstanceByID(rightID);
+	Instance_Akimbo* InstanceLoadManager::LoadInstanceDataAkimbo(StaticInstance_Akimbo* baseInstance, UInt32 modIndex) {
 
 		UInt16 instID = ReadRecord16();
+		char* key = ReadRecordString();
 
-		UInt32 length = ReadRecord32();
-		char* key = new char[length + 1];
-		ReadRecordData(key, length);
-		key[length] = '\0';
+		LifecycleManager* life = LoadLifecycle();
 
-		ExtraDataList* xDataLeft = LoadExtraDataList();
+		LoadDataLink right = LoadLink();
+		LoadDataLink left = LoadLink();
+
 		ExtraDataList* xDataRight = LoadExtraDataList();
+		ExtraDataList* xDataLeft = LoadExtraDataList();
 
-		Instance_Akimbo* inst = baseInstance->loadInstance(instID, right, left, xDataRight, xDataLeft, key);
-
-		if (!right || !left) {
-			failedLinks_Akimbo.emplace_back(new FailedAkimboLink(inst, leftID, rightID));
+		if (!PluginFunctions::kNVSE) {
+			return nullptr;
 		}
 
-		return inst;
+		TESObjectWEAP* rightWeap = (TESObjectWEAP*)deduceLinkToForm(&right);
+		TESObjectWEAP* leftWeap = (TESObjectWEAP*)deduceLinkToForm(&left);
+
+		if (leftWeap && rightWeap) {
+
+			TESObjectREFR* rightRef = TESObjectREFR::Create(false);
+			rightRef->SetRefID(GetNextFreeFormID(), true);
+			rightRef->baseForm = rightWeap;
+
+			TESObjectREFR* leftRef = TESObjectREFR::Create(false);
+			leftRef->SetRefID(GetNextFreeFormID(), true);
+			leftRef->baseForm = leftWeap;
+
+
+			if (!leftWeap || !rightWeap) {
+				return nullptr;
+			}
+
+			if (xDataRight) {
+				rightRef->extraDataList.CopyFrom(xDataRight, true);
+			}
+			if (xDataLeft) {
+				leftRef->extraDataList.CopyFrom(xDataLeft, true);
+			}
+
+			Instance_Akimbo* inst = baseInstance->loadInstance(instID, modIndex, rightRef, leftRef, key, life);
+			return inst;
+		}
+
+
+
+		//Make ordered list
+		/*
+		if (!rightWeap || !leftWeap) {
+			failedLinks_Akimbo.emplace_back(new FailedAkimboLink(inst, left, right));
+		}
+		*/
+
+		//if (!ReconstructEvent(inst)) {
+			//inst->destroy();
+			//return nullptr;
+		//}
+
+		//return inst;
+
+		return nullptr;
 
 	}
 
 	void InstanceLoadManager::LoadInstanceDataAkimbo_Skip() {
 
-		SkipNBytes(6);
-		UInt32 length = ReadRecord32();
-		SkipNBytes(length);
+		SkipNBytes(2);
+		SkipRecordString();
+		LoadLifecycle_Skip();
+
+		LoadLink_Skip();
+		LoadLink_Skip();
+
 		LoadExtraDataList_Skip();
 		LoadExtraDataList_Skip();
 
 		return;
-
-	}
-
-	void InstanceLoadManager::LoadInstanceLinksAkimbo() {
-
-		for (FailedAkimboLink* failedData : failedLinks_Akimbo) {
-
-			StaticInstance_Akimbo* baseInstance = (StaticInstance_Akimbo*)failedData->weap->baseInstance;
-			failedData->weap->right = (Instance_WEAP*)baseInstance->left->parent->LookupInstanceByID(failedData->leftID);
-			failedData->weap->left = (Instance_WEAP*)baseInstance->right->parent->LookupInstanceByID(failedData->rightID);
-
-			if (!failedData->weap->right || !failedData->weap->left) {
-				delete failedData->weap; //Delete akimbo
-			}
-			delete failedData;
-		}
 
 	}
 
@@ -311,41 +415,11 @@ namespace SaveSystem {
 				failedData->weap->aAttachments[failedData->slot] = attachment->refID;
 			}
 			else {
-				Console_Print("Attachment uninstalled %s", failedData->attachment.parent->GetEditorID());
+				TESForm* attachment = deduceLinkToForm(&failedData->attachment);
+
 			}
 			delete failedData;
 		}
-
-	}
-
-	TESForm* InstanceLoadManager::deduceLinkToForm(LoadDataLink* link) {
-
-		if (link->parent && link->instID != InvalidInstID) { //Is an instance baseform
-
-			return link->parent->LookupInstanceByID(link->instID)->clone;
-
-		}
-		else if (link->parent && !link->refID) { //Is a dynamic baseform
-
-			return link->parent;
-
-		}
-		else if (link->parent && link->refID) { //Is a dynamic worldRef
-
-			return LoadFromRefID(link->refID);
-
-		}
-		else if (link->refID) { //Vanilla
-
-			UInt32* result;
-			if (ResolveRefID(link->refID, result)) {
-				return LookupFormByRefID(*result);
-			};
-
-
-		}
-
-		return nullptr;
 
 	}
 
@@ -361,10 +435,7 @@ namespace SaveSystem {
 	void InstanceLoadManager::LoadRef(TESForm* baseform) {
 
 		UInt8 type = ReadRecord8();
-		if (type == 0) {						//Is link ref
-			//linkRefs.emplace_back(LoadLink());	//Not used
-		}
-		else if (type == 1){	//Is entry
+		if (type == 1){	//Is entry
 			LoadEntryRef(baseform);
 		}
 		else if (type == 2) {	//Is World ref
@@ -376,15 +447,30 @@ namespace SaveSystem {
 	void InstanceLoadManager::LoadEntryRef(TESForm* baseform) {
 
 		//logOperation("Save SaveDataEntry&");
-		entries.emplace_back(new LoadDataEntry(baseform, LoadLink(), LoadExtraDataList()));
+		LoadDataLink link = LoadLink();
+		ExtraDataList* xData = LoadExtraDataList();
+		SInt32 count = ReadRecord32();
+
+		entries.emplace_back(new LoadDataEntry(baseform, link, xData, count));
 
 	}
 
 	void InstanceLoadManager::LoadWorldRef(TESForm* baseform) {
 
-		worldRefs.emplace_back(new LoadDataWorldREFR(baseform, LoadLink(), LoadExtraDataList(), ReadRecord32(),
-			ReadRecordFloat(), ReadRecordFloat(), ReadRecordFloat(),
-			ReadRecordFloat(), ReadRecordFloat(), ReadRecordFloat()));
+		LoadDataLink link = LoadLink();
+		ExtraDataList* xData = LoadExtraDataList();
+		SInt32 count = ReadRecord32();
+
+		UInt32 worldRefID = ReadRecord32();
+		float x = ReadRecordFloat();
+		float y = ReadRecordFloat();
+		float z = ReadRecordFloat();
+
+		float xR = ReadRecordFloat();
+		float yR = ReadRecordFloat();
+		float zR = ReadRecordFloat();
+
+		worldRefs.emplace_back(new LoadDataWorldREFR(baseform, link, xData, count, worldRefID, x, y, z, xR, yR, zR));
 
 	}
 
@@ -406,43 +492,29 @@ namespace SaveSystem {
 	}
 
 	void InstanceLoadManager::LoadEntryRef_Skip() {
-		LoadLink_Skip(), LoadExtraDataList_Skip();
+		LoadLink_Skip(), LoadExtraDataList_Skip(), SkipNBytes(4);
 	}
 
 	void InstanceLoadManager::LoadWorldRef_Skip() {
 		LoadLink_Skip(), LoadExtraDataList_Skip();
-		SkipNBytes(4 * 7);
+		SkipNBytes(4 * 8);
 	}
 
 	void InstanceLoadManager::PlaceWorldRefs() {
 
-		for (LoadDataWorldREFR* ref : worldRefs) {
-			/*
-			queueToSpawn.emplace_back(
-				ref.baseform,
-				deduceLinkToForm(&ref.location),
-				ref.xData,
-				ref.x, ref.y, ref.z,
-				ref.xR, ref.yR, ref.zR
-			);
-			*/
-
-			TESForm* location = deduceLinkToForm(&ref->location);
-			if (!location || !ref->baseform) {
-				return;
+		for (size_t i = 0; i < worldRefs.size(); i++) {
+			auto worldRef = worldRefs[i];
+			TESForm* location = deduceLinkToForm(&worldRef->location);
+			if (location && worldRef->baseform) {
+				queueToSpawn.emplace_back(worldRef->baseform, location, worldRef->xData, worldRef->countDelta,
+					worldRef->x, worldRef->y, worldRef->z, worldRef->xR, worldRef->yR, worldRef->zR);
 			}
-
-			TESObjectREFR* refr = ThisCall<TESObjectREFR*>(0x55A2F0, Game_HeapAlloc<TESObjectREFR>());
-			refr->baseForm = ref->baseform;
-			refr->SetRefID(GetNextFreeFormID(), true);
-			refr->MoveToCell(location, refr->posX, refr->posY, refr->posZ, refr->rotX, refr->rotY, refr->rotZ);
-			ExtraDataList::CopyItemData(ref->xData, 1, &refr->extraDataList);
-			refLocations[ref->worldRefID] = refr;
-
-			delete ref;
-
 		}
 
+		for (auto& ref : worldRefs) {
+			delete ref;
+		}
+		worldRefs.clear();
 	}
 
 	void InstanceLoadManager::PlaceEntryRefs() {
@@ -456,11 +528,11 @@ namespace SaveSystem {
 
 			if (ref->xData && ref->xData->HasType(kExtraData_Worn)) {
 				ref->xData->RemoveByType(kExtraData_Worn);
-				((Actor*)location)->AddItem(ref->baseform, ref->xData, 1);
+				((Actor*)location)->AddItem(ref->baseform, ref->xData, ref->countDelta);
 				((Actor*)location)->SilentEquip(ref->baseform, ref->xData);
 			}
 			else {
-				((TESObjectREFR*)location)->AddItem(ref->baseform, ref->xData, 1);
+				((TESObjectREFR*)location)->AddItem(ref->baseform, ref->xData, ref->countDelta);
 			}
 
 			delete ref;
@@ -469,83 +541,209 @@ namespace SaveSystem {
 
 	}
 
-	void InstanceLoadManager::LinkRefs() {
+	void InstanceLoadManager::clearInstances() {
 
-		for (LoadDataREFR* ref : linkRefs) {
-			//Not used
+		InstanceInterface::cloneCount = 0;
+
+		for (auto& typeMap : StaticLinker) {
+			for (auto& pair : typeMap.second) {
+				StaticInstance* staticInst = pair.second;
+				if (staticInst) {
+					staticInst->clearInstances();
+				}
+			}
+		}
+
+		for (auto& akimboMap : AkimboSets) {
+			for (auto& akimboPair : akimboMap.second) {
+				StaticInstance_Akimbo* akimbo = akimboPair.second;
+				akimbo->clearInstances();
+			}
 		}
 
 	}
 
+	bool InstanceLoadManager::ReconstructEvent(Instance* inst) {
+
+		AuxVector filter{ inst->key.c_str() };
+		for (auto it = onInstanceReconstructEvent.handlers.begin(); it != onInstanceReconstructEvent.handlers.end(); ++it) {
+
+			if (it->CompareFilters(filter)) {
+
+				ArrayElementL scriptReturn;
+				g_scriptInterface->CallFunction(it->script, nullptr, nullptr, &scriptReturn, 1, inst->clone);
+				if (scriptReturn.IsValid()) {
+					return false;
+				}
+
+			}
+
+		}
+
+		return true;
+
+	}
+	/*
+	void InstanceLoadManager::ReconstructEvent() {
+
+		for (auto inst : reconstructEvent) {
+
+			AuxVector filter{ inst->key.c_str() };
+			for (auto it = onInstanceReconstructEvent.handlers.begin(); it != onInstanceReconstructEvent.handlers.end(); ++it) {
+
+				if (it->CompareFilters(filter)) {
+
+					ArrayElementL scriptReturn;
+					g_scriptInterface->CallFunction(it->script, nullptr, nullptr, &scriptReturn, 1, inst->clone);
+					if (scriptReturn.IsValid()) {
+						inst->baseInstance->aInstances.markForDelete(inst->InstID);
+						inst->destroy();
+					}
+
+				}
+
+			}
+
+		}
+
+	}
+	*/
+
+	Kit::KitData* InstanceLoadManager::LoadKitData() {
+
+		std::string name = ReadRecordString();
+		UInt32 index = ReadRecord32();
+		UInt32 oldVersion = ReadRecord32();
+		bool safeUninstall = ReadRecord8();
+
+		Kit::KitData* kit = Kit::GetKitDataByName(name);
+		if (!kit) {
+			//Run uninstaller
+			if (!safeUninstall) {
+				//Warning
+				Console_Print("%s is not safe to uninstall mid game", name.c_str());
+			}
+			return nullptr;
+		}
+
+		reverseKitDataMap[index] = kit;
+
+		if (!kit->updater.empty() && oldVersion < kit->version) {
+			kit->runUpdater(kit->version);
+		}
+
+		return kit;
+
+	}
+
+	UInt32* InstanceLoadManager::resolveModIndex(UInt32 oldIndex) {
+
+		auto iter = reverseKitDataMap.find(oldIndex);
+		if (iter != reverseKitDataMap.end()) {
+			return &iter->second->index;
+		}
+		return nullptr;
+	}
+
 	void InstanceLoadManager::loadAll() {
 
-		//SaveData::logOperation("Loading Forms:::::::::::::::::::::::::::::::::::::::::");
 		UInt32 size = ReadRecord32();
 
+		for (UInt32 i = 0; i < size; ++i) {
+			LoadKitData();
+		} //Load kit files
+
+
+		//SaveData::logOperation("Loading Forms:::::::::::::::::::::::::::::::::::::::::");
+		size = ReadRecord32();
 		for (UInt32 i = 0; i < size; ++i) {
 			LoadStaticLocations(i);
 		}
 
 		//SaveData::logOperation("Load instanceList::::::::::::::::::::::::::::::::::");
 		size = ReadRecord32();
-
 		for (UInt32 i = 0; i < size; ++i) {
 
 			UInt32 extendedType = ReadRecord32();
-			ExtendedBaseType* baseInstance = LoadBase(extendedType);
+			UInt32 extSize = ReadRecord32();
 
-			if (baseInstance) {
+			for (UInt32 ext = 0; ext < extSize; ++ext) {
 
-				UInt32 instSize = ReadRecord32();
+				ExtendedBaseType* baseInstance = LoadBase(extendedType);
 
-				for (UInt32 j = 0; j < instSize; ++j) {
+				if (baseInstance) {
 
-					Instance* inst = LoadInstance(baseInstance);
-					if (inst) {
-						LoadRefsList(inst->clone);
+					UInt32 instSize = ReadRecord32();
+
+					for (UInt32 j = 0; j < instSize; ++j) {
+
+						UInt32 modIndex = ReadRecord32();
+						UInt32* newModIndex = resolveModIndex(modIndex);
+
+						if (newModIndex) {
+							Instance* inst = LoadInstance(baseInstance, *newModIndex);
+							if (inst) {
+								LoadRefsList(inst->clone);
+							}
+							else if (baseInstance->parent && extendedType <= 120) {
+								LoadRefsList(baseInstance->parent);
+							}
+							else
+							{
+								LoadRefsList_Skip();
+							}
+						}
+						else {
+							LoadInstance_Skip(extendedType);
+							LoadRefsList_Skip();
+						}
+
 					}
-					else {
-						LoadRefsList_Skip();
+
+					//if worldRefs exist, that also happen to be dirived from dynamics.
+					if (extendedType <= 120) {
+						LoadRefsList(baseInstance->parent);
 					}
 
-
-				}
-
-				//if worldRefs exist, that also happen to be dirived from dynamics.
-				if (extendedType <= 120) {
-					LoadRefsList(((StaticInstance*)baseInstance)->parent);
 				}
 				else {
-					UInt32 size = SaveData::ReadRecord32();
+
+					UInt32 instSize = ReadRecord32();
+
+					for (UInt32 j = 0; j < instSize; ++j) {
+
+						SkipNBytes(4); //Mod index
+						LoadInstance_Skip(extendedType);
+						if (replacement) {
+							LoadRefsList(replacement);
+							replacement = nullptr;
+						}
+						else {
+							LoadRefsList_Skip();
+						}
+
+					}
+
+					if (extendedType <= 120) {
+
+						if (replacement) {
+							LoadRefsList(replacement);
+							replacement = nullptr;
+						}
+						else {
+							LoadRefsList_Skip();
+						}
+
+					}
+
 				}
 
 			}
-			else {
-
-				UInt32 instSize = ReadRecord32();
-
-				for (UInt32 j = 0; j < instSize; ++j) {
-
-					LoadInstance_Skip(extendedType);
-					LoadRefsList_Skip();
-
-				}
-
-				if (extendedType <= 120) {
-					LoadRefsList_Skip();
-				}
-				else {
-					UInt32 size = SaveData::ReadRecord32();
-				}
-
-			}
-
-
 
 		}//All Instances have been built
 
 		LoadInstanceLinksWEAP();
-		LoadInstanceLinksAkimbo();
+		//LoadInstanceLinksAkimbo();
 
 		//logOperation("Loading dynamic refs::::::::::::::::::::::::::::::::::");
 		size = ReadRecord32();
@@ -553,26 +751,18 @@ namespace SaveSystem {
 		for (UInt32 i = 0; i < size; ++i) {	//Iterate through left over dynamics
 
 			UInt32 extendedType = ReadRecord32();
-			ExtendedBaseType* baseInstance = LoadBase(extendedType);
+			if (extendedType <= 120) { //Only vanilla statics can be placed directly in the world.
 
-			if (baseInstance) {
-				if (extendedType <= 120) {
-					LoadRefsList(((StaticInstance*)baseInstance)->parent); //Dynamic World Refs
+				ExtendedBaseType* baseInstance = LoadBase(extendedType);
+
+				if (baseInstance) {
+					LoadRefsList(baseInstance->parent); //Dynamic World Refs
 				}
 				else {
-					UInt32 size = ReadRecord32();
-				}
-			}
-			else {
-				if (extendedType <= 120) {
 					LoadRefsList_Skip(); //Skip Dynamic World Refs
 				}
-				else {
-					UInt32 size = ReadRecord32();
-				}
+
 			}
-
-
 
 		}
 
@@ -617,9 +807,9 @@ namespace SaveSystem {
 			break;
 			case kXData_ExtraCount:
 			{
-				UInt32 iCount = SaveData::ReadRecord32();
+				SInt16 icount = SaveData::ReadRecord16();
 				xData = ExtraCount::Create();
-				((ExtraCount*)xData)->count = iCount;
+				((ExtraCount*)xData)->count = icount;
 				xDataList->Add(xData);
 			}
 			break;
@@ -627,6 +817,13 @@ namespace SaveSystem {
 			{
 				float fHealth = SaveData::ReadRecordFloat();
 				xData = ExtraHealth::Create(fHealth);
+				xDataList->Add(xData);
+			}
+			break;
+			case kExtraData_TimeLeft: 
+			{
+				float ftime = SaveData::ReadRecordFloat();
+				xData = ExtraTimeLeft::Create(ftime);
 				xDataList->Add(xData);
 			}
 			break;
@@ -667,10 +864,14 @@ namespace SaveSystem {
 
 			switch (type) {
 				case kXData_ExtraOwnership:
-				case kXData_ExtraCount:
 				case kXData_ExtraHealth:
+				case kExtraData_TimeLeft:
 				{
 					SkipNBytes(4);
+				}
+				break;
+				case kXData_ExtraCount: {
+					SkipNBytes(2);
 				}
 				break;
 				case kXData_ExtraHotkey:

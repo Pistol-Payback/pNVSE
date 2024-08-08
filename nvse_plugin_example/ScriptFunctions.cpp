@@ -68,50 +68,7 @@ namespace Kit {
 
     }
 
-    Script* CompileScriptAlt(Script* script)
-    {
-        const auto buffer = MakeUnique<ScriptBuffer, 0x5AE490, 0x5AE5C0>();
-
-        buffer->scriptName.Set(script->GetEditorID());
-        buffer->scriptText = script->text;
-        *buffer->scriptData = 0x1D;
-        buffer->dataOffset = 4;
-
-        buffer->partialScript = (script->flags & 1) != 0;
-        buffer->runtimeMode = ScriptBuffer::kEditor;
-        buffer->currentScript = script;
-
-        script->info.varCount = 0;
-        script->info.numRefs = 0;
-        script->varList.DeleteAll();
-        script->refList.DeleteAll();
-
-        //buffer->info.numRefs = script->info.numRefs;
-        //buffer->info.varCount = script->info.varCount;
-
-        const auto result = script->Compile(buffer.get());
-        buffer->scriptText = nullptr;
-        script->text = nullptr;
-        if (!result)
-            return nullptr;
-        if (script->quest) {
-
-            for (auto it = script->varList.begin(); it != script->varList.end(); ++it) {
-                VariableInfo* var = *it;
-                TESQuest::LocalVariableOrObjectivePtr* lvo = static_cast<TESQuest::LocalVariableOrObjectivePtr*>(FormHeap_Allocate(sizeof(TESQuest::LocalVariableOrObjectivePtr)));
-                lvo->varInfoIndex = var;
-                script->quest->lVarOrObjectives.Append(lvo);
-            }
-
-            ScriptEventList* eventList = script->CreateEventList();
-            script->quest->scriptEventList = eventList;
-
-        }
-
-        return script;
-
-    }
-
+    //Compiles in the linker faze
     void DevkitCompiler::CompileScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string scriptName;
@@ -141,7 +98,7 @@ namespace Kit {
 
         ++it;
 
-        while (it != this->fileManager.currentKitFile->file.end()) {
+        while (it != this->fileManager.currentFile->end()) {
 
             std::istringstream iss(*it);
 
@@ -187,9 +144,35 @@ namespace Kit {
 
     }
 
+    Script* DevkitCompiler::BuildScriptCondition(std::istringstream& iss)
+    {
+        std::string condition;
+        if (getQuotedString(iss, condition)) { //Inline
+
+            Script* partial = (Script*)TESForm::CreateNewForm(17);
+            if (!partial) {
+                PrintKitError("Failed to parse condition.", iss.str());
+            }
+            else {
+                partial->text = const_cast<char*>(condition.c_str()); //hold till linker faze
+                toCompile.push_back(partial);
+                return partial;
+            }
+        }
+        else if (!(iss >> condition)) {
+            PrintKitError("missing argument for condition.", iss.str());
+        }
+        else { //Passed a form
+            return (Script*)LookupEditorID<TESForm*>(condition.c_str());
+        }
+
+        return nullptr;
+
+    }
+
     void DevkitCompiler::skipDocument(std::vector<std::string>::const_iterator& it) {
 
-        while (it != fileManager.currentKitFile->file.end()) {
+        while (it != fileManager.currentFile->end()) {
 
             std::istringstream iss(*it);
             std::string scriptLine;
