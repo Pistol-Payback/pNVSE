@@ -77,7 +77,7 @@ namespace PluginFunctions {
     }
 
     //Extern Functions in ppNVSE.h
-    void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, std::unordered_set<UInt16>& groupIdFillSet, Script* conditionScript, bool pollCondition);
+    void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, Script* conditionScript, bool pollCondition);
     bool (*CopyAnimationsToForm)(TESForm* fromForm, TESForm* toForm);
     bool (*RemoveFormAnimations)(TESForm* form);
 
@@ -96,10 +96,7 @@ namespace PluginFunctions {
 
         if (m_kNVSE != NULL) {
 
-            OverrideFormAnimation = (void (*)(const TESForm * form, const char* path, bool firstPerson,
-                bool enable, std::unordered_set<UInt16>& groupIdFillSet, 
-                Script *conditionScript, bool pollCondition))
-                GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(3));
+            OverrideFormAnimation = (void (*)(const TESForm * form, const char* path, bool firstPerson, bool enable, Script *conditionScript, bool pollCondition))GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(3));
 
             CopyAnimationsToForm = (bool (*)(TESForm * fromForm, TESForm * toForm))GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(4));
             RemoveFormAnimations = (bool (*)(TESForm * form))GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(5));

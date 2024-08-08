@@ -199,7 +199,7 @@
     </Link>
     <PostBuildEvent>
       <Message>Installing DLL...</Message>
-      <Command>copy "$(TargetPath)" "C:\Users\Xavier\AppData\Local\ModOrganizer\Fallout NV\mods\ppNVSE\nvse\plugins\$(TargetFileName)"</Command>
+      <Command>copy "$(TargetPath)" "C:\Users\Xavier\AppData\Local\ModOrganizer\Fallout NV\mods\ppNVSE\nvse\plugins\pNVSE.dll"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release GECK|Win32'">

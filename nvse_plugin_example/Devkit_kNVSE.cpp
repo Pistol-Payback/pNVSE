@@ -4,7 +4,6 @@ namespace Kit {
 
     void OverrideFormAnimationForPerspective(bool firstPerson, TESForm* form, const std::filesystem::path& baseDirectory, Script* conditionScript, bool pollCondition) {
 
-        std::unordered_set<UInt16> variantIds;
         for (const auto& iter : std::filesystem::recursive_directory_iterator(baseDirectory))
         {
             if (_stricmp(iter.path().extension().string().c_str(), ".kf") != 0)
@@ -12,7 +11,7 @@ namespace Kit {
             const auto& path = iter.path().string();
             const auto& relPath = std::filesystem::path(path.substr(path.find("AnimGroupOverride\\")));
             std::string pathStr = relPath.string();
-            PluginFunctions::OverrideFormAnimation(form, pathStr.c_str(), firstPerson, true, variantIds, conditionScript, pollCondition);
+            PluginFunctions::OverrideFormAnimation(form, pathStr.c_str(), firstPerson, true, conditionScript, pollCondition);
         }
 
     }
@@ -35,7 +34,6 @@ namespace Kit {
                 continue;
             }
 
-            std::unordered_set<UInt16> variantIds;
             OverrideFormAnimationForPerspective(firstPerson, form, iter.path(), conditionScript, pollCondition);
 
         }
@@ -47,9 +45,8 @@ namespace Kit {
             OverrideFormAnimationForDirectory(form, newPath, conditionScript, pollCondition);
         }
         else if (std::filesystem::exists(newPath)) {
-            std::unordered_set<UInt16> groupIdFillSet;
             std::string pathStr = newPath.string();
-            PluginFunctions::OverrideFormAnimation(form, pathStr.c_str(), false, true, groupIdFillSet, conditionScript, pollCondition);
+            PluginFunctions::OverrideFormAnimation(form, pathStr.c_str(), false, true, conditionScript, pollCondition);
         }
     }
 

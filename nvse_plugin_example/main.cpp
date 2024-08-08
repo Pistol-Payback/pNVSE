@@ -24,7 +24,7 @@
 #include "DevkitCompiler.h"
 #include "ScriptConverter.h"
 
-IDebugLog		gLog("ppNVSE.log");
+IDebugLog		gLog("pNVSE.log");
 constexpr UInt32 g_PluginVersion = 1;
 
 PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
@@ -160,7 +160,7 @@ Script* CompileScriptAlt(Script* script)
 }
 
 void DumpInfoToLog(const std::string& info) {
-	std::string sFile = GetFalloutDirectory() + "ppNVSE.log1";
+	std::string sFile = GetFalloutDirectory() + "pNVSE.log1";
 
 	std::ifstream checkFile(sFile);
 	if (!checkFile.good()) {
@@ -475,7 +475,7 @@ bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info)
 
 	// fill out the info structure
 	info->infoVersion = PluginInfo::kInfoVersion;
-	info->name = "ppNVSE";
+	info->name = "pNVSE";
 	info->version = g_PluginVersion;
 
 	return true;
@@ -497,11 +497,11 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	if (nvse->isEditor)
 	{
-		_MESSAGE("ppNVSE Loaded successfully (Editor).\nppNVSE Plug Version: %u\n", g_PluginVersion);
+		_MESSAGE("pNVSE Loaded successfully (Editor).\npNVSE Plug Version: %u\n", g_PluginVersion);
 	}
 	else
 	{
-		_MESSAGE("ppNVSE Loaded successfully (In-Game).\nppNVSE Plug Version: %u\n", g_PluginVersion);
+		_MESSAGE("pNVSE Loaded successfully (In-Game).\npNVSE Plug Version: %u\n", g_PluginVersion);
 	}
 
 	// register to receive messages from NVSE
@@ -570,10 +570,10 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	//	See https://geckwiki.com/index.php?title=NVSE_Opcode_Base
 
-	UInt32 const ppNVSEPluginOpcodeBase = 0x3E1C;
+	UInt32 const pNVSEPluginOpcodeBase = 0x3E1C;
 
 	// register commands
-	nvse->SetOpcodeBase(ppNVSEPluginOpcodeBase);
+	nvse->SetOpcodeBase(pNVSEPluginOpcodeBase);
 
 	REG_CMD_ARR(pRotateAroundObject)
 	REG_CMD_ARR(pRotateAroundObjectLocally)

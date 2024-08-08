@@ -149,7 +149,7 @@ namespace PluginFunctions {
 
 	//kNVSE
 
-	extern void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, std::unordered_set<UInt16>& groupIdFillSet, Script* conditionScript, bool pollCondition);
+	extern void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, Script* conditionScript, bool pollCondition);
 	extern bool (*CopyAnimationsToForm)(TESForm* fromForm, TESForm* toForm);
 	extern bool (*RemoveFormAnimations)(TESForm* form);
 
