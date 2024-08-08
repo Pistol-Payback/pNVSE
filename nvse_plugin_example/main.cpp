@@ -23,8 +23,6 @@
 #include "DevkitCompiler.h"
 #include "ScriptConverter.h"
 
-//NoGore is unsupported in xNVSE
-
 IDebugLog		gLog("ppNVSE.log");
 constexpr UInt32 g_PluginVersion = 1;
 
@@ -34,8 +32,11 @@ NVSEMessagingInterface* g_messagingInterface{};
 NVSEInterface* g_nvseInterface{};
 NVSECommandTableInterface g_cmdTableInterface;
 
+NiCamera* g_mainCamera;
+
 //UI 11-15-2023
 InterfaceManager* g_interfaceManager;
+DIHookControl* g_keyInterface = nullptr;
 
 // RUNTIME = Is not being compiled as a GECK plugin.
 
@@ -92,28 +93,69 @@ Script* (*pCompileScript)(const char* scriptText);
 
 ExpressionEvaluatorUtils s_expEvalUtils;
 
-std::istringstream& getQuotedString(std::istringstream& argStream, std::string& argument) {
+bool getQuotedString(std::istringstream& argStream, std::string& argument) {
+
+	argStream >> std::ws; //Skip white space
 
 	char ch;
-	if (!(argStream >> ch) || ch != '"') {
-		return argStream;
+	if (argStream.peek() != '\"') {
+		return false;
 	}
 
+	argStream.get(); // Consume the quotation mark
 	argument.clear();
 	while (argStream.get(ch)) {
-		if (ch == '\\') { // Check for escape character
-			argument += ch;
-			if (!argStream.get(ch)) {
-				break; // Break if escape character is the last character
-			}
-		}
-		else if (ch == '"') {
-			break; // Exit loop when closing quotation mark is found
+		if (ch == '\"') {
+			return true;
 		}
 		argument += ch;
 	}
 
-	return argStream;
+	return false;
+}
+
+Script* CompileScriptAlt(Script* script)
+{
+	const auto buffer = MakeUnique<ScriptBuffer, 0x5AE490, 0x5AE5C0>();
+
+	buffer->scriptName.Set(script->GetEditorID());
+	buffer->scriptText = script->text;
+	*buffer->scriptData = 0x1D;
+	buffer->dataOffset = 4;
+
+	buffer->partialScript = (script->flags & 1) != 0;
+	buffer->runtimeMode = ScriptBuffer::kEditor;
+	buffer->currentScript = script;
+
+	script->info.varCount = 0;
+	script->info.numRefs = 0;
+	script->varList.DeleteAll();
+	script->refList.DeleteAll();
+
+	//buffer->info.numRefs = script->info.numRefs;
+	//buffer->info.varCount = script->info.varCount;
+
+	const auto result = script->Compile(buffer.get());
+	buffer->scriptText = nullptr;
+	script->text = nullptr;
+	if (!result)
+		return nullptr;
+	if (script->quest) {
+
+		for (auto it = script->varList.begin(); it != script->varList.end(); ++it) {
+			VariableInfo* var = *it;
+			TESQuest::LocalVariableOrObjectivePtr* lvo = static_cast<TESQuest::LocalVariableOrObjectivePtr*>(FormHeap_Allocate(sizeof(TESQuest::LocalVariableOrObjectivePtr)));
+			lvo->varInfoIndex = var;
+			script->quest->lVarOrObjectives.Append(lvo);
+		}
+
+		ScriptEventList* eventList = script->CreateEventList();
+		script->quest->scriptEventList = eventList;
+
+	}
+
+	return script;
+
 }
 
 void DumpInfoToLog(const std::string& info) {
@@ -156,7 +198,6 @@ ActorValueOwner* g_playerAVOwner = nullptr;
 DataHandler* g_dataHandler = nullptr;
 TESObjectWEAP* g_fistsWeapon = nullptr;
 TESObjectREFR* DevKitDummyMarker = nullptr;
-TESObjectSTAT* g_1stPersonWeapModel = nullptr;
 
 /****************
  * Here we include the code + definitions for our script functions,
@@ -205,8 +246,8 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 	case NVSEMessagingInterface::kMessage_DeferredInit: {
 		
 		g_interfaceManager = InterfaceManager::GetSingleton();
-		g_1stPersonWeapModel = (TESObjectSTAT*)TESObjectSTAT::CreateNewForm(32, "pNVSE1stPersonDummy", 0, 0, 0);
 		Hooks::CMDPatchHooks();
+		//g_mainCamera = g_interfaceManager->sceneGraph004->camera;
 
 		if (std::filesystem::exists(GetFalloutDirectory() + "Data\\ScriptConverter") && std::filesystem::is_directory(GetFalloutDirectory() + "Data\\ScriptConverter")) {
 			ScriptConverter* converter = ScriptConverter::Create();
@@ -215,9 +256,32 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 		}
 
 		if (std::filesystem::exists(GetFalloutDirectory() + "Data\\Devkit") && std::filesystem::is_directory(GetFalloutDirectory() + "Data\\Devkit")) {
+
+			#ifdef _DEBUG
+				auto createStart = std::chrono::high_resolution_clock::now();
+			#endif
+
 			Kit::DevkitCompiler* LoadKitFiles = new Kit::DevkitCompiler();
+
+			#ifdef _DEBUG
+				auto createEnd = std::chrono::high_resolution_clock::now(); // End timing creation
+			#endif
+
 			delete LoadKitFiles;
+
+			#ifdef _DEBUG
+				auto deleteEnd = std::chrono::high_resolution_clock::now(); // End timing after delete
+
+				std::chrono::duration<double, std::milli> creationTime = createEnd - createStart;
+				double time = creationTime.count();
+
+				std::chrono::duration<double, std::milli> totalTime = deleteEnd - createStart;
+				time = totalTime.count();
+
+			#endif
+
 		}
+
 
 	}
 		break;
@@ -226,6 +290,7 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 
 		if (!IsGamePaused() && !BGSSaveLoadGame::GetSingleton()->IsLoading()) {
 
+			//For skipping anim groups.
 			if (!queueToSkipGroup.empty()) {
 
 				for (auto it = queueToSkipGroup.begin(); it != queueToSkipGroup.end(); ) {
@@ -241,65 +306,161 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 
 			}
 
-			if (!SaveSystem::queueToSpawn.empty()) {
+			//When references with Timer Policies are moved. Generally depreciated code.
+			if (!newlyCreatedReferences.empty()) {
 
-				auto& queueToSpawn = SaveSystem::queueToSpawn;
+				for (auto it = newlyCreatedReferences.begin(); it != newlyCreatedReferences.end(); ++it) {
 
-				for (auto it = queueToSpawn.begin(); it != queueToSpawn.end(); ) {
-					SaveSystem::SpawnQueue& spawn = *it;
+					TESObjectREFR* form = *it;
+					if (Instance* inst = form->baseForm->pLookupInstance()) {
 
-					TESObjectREFR* placedRef = spawn.baseForm->PlaceAtCell(spawn.location, spawn.x, spawn.y, spawn.z, spawn.xR, spawn.yR, spawn.zR);
-					if (placedRef) {
-						if (spawn.xData) {
-							placedRef->extraDataList.CopyFrom(spawn.xData, 1);
+						if (inst->lifecycle.isPolicyEnabled(LifecycleManager::Timed)) {
+							float time = inst->lifecycle.getLifeTime();
+							LifecycleManager::addLifecycleTimer(form, form->baseForm, time, &form->extraDataList);
 						}
-						it = queueToSpawn.erase(it);
+
 					}
-					else {
-						++it;
+					else if (ExtendedBaseType* staticForm = form->baseForm->LookupStaticInstance()) {
+
+						if (staticForm->baseLifecycle.isPolicyEnabled(LifecycleManager::Timed)) {
+							float time = staticForm->baseLifecycle.getLifeTime();
+							LifecycleManager::addLifecycleTimer(form, form->baseForm, time, &form->extraDataList);
+						}
+
 					}
+
+				}
+
+				newlyCreatedReferences.clear();
+
+			}
+
+			//Tick objects with lifecycle timers.
+			if (!lifecycleTimer.empty()) {
+				for (auto it = lifecycleTimer.begin(); it != lifecycleTimer.end();) {
+					ExpirationTimer* expiration = *it;
+
+					// Check for invalid references and baseform mismatches
+					if (!expiration->ref || expiration->ref->baseForm != expiration->baseform) {
+						it = lifecycleTimer.erase(it);
+						continue;
+					}
+
+					if (expiration->type == kXData_ExtraContainerChanges) {
+
+						ExtraContainerChanges* xData = static_cast<ExtraContainerChanges*>(expiration->xDataList->GetByType(expiration->type));
+						ContChangesEntry* entry = expiration->ref->GetContainerChangesEntry(expiration->baseform);
+
+						UInt32 count = 0;
+						for (auto j = entry->extendData->begin(); j != entry->extendData->end();) {
+							++count;
+							ExtraDataList* xDataList = j.Get();
+							ExtraTimeLeft* xDataTimer = static_cast<ExtraTimeLeft*>(xDataList->GetByType(kExtraData_TimeLeft));
+
+							if (!xDataTimer) {
+								--count;
+								++j;
+								continue;
+							}
+
+							if ((xDataTimer->time -= g_timeGlobal->secondsPassed) <= 1e-5) {
+								--count;
+								expiration->ref->RemoveItem(expiration->baseform, xDataList, xDataList->GetCount(), false, false, nullptr, 0, 0, true, false);
+							}
+							else {
+								++j;
+							}
+						}
+
+						if (count == 0) {
+							it = lifecycleTimer.erase(it);
+						}
+						else {
+							++it;
+						}
+
+					}
+					else if (expiration->type == kExtraData_TimeLeft) {
+
+						ExtraTimeLeft* xDataTimer = static_cast<ExtraTimeLeft*>(expiration->xDataList->GetByType(expiration->type));
+
+						if (!xDataTimer) {
+							it = lifecycleTimer.erase(it);
+							continue;
+						}
+
+						if ((xDataTimer->time -= g_timeGlobal->secondsPassed) <= 1e-5) {
+
+							if (expiration->ref) {
+								expiration->ref->DeleteReference();
+							}
+							it = lifecycleTimer.erase(it);
+
+						}
+						else {
+							++it;
+						}
+
+					}
+
 				}
 
 			}
 
+			SaveSystem::ExecuteSpawnQueue();
+			SaveSystem::ExecuteUpdate3dQueue();
+
 		}
+	
+		if (!obsCallLoopBoth.infos.empty()) {
+			
+			std::vector<CallLoopInfo> infosToErase;
 
-		if (obsCallLoopBoth.size()) {
+			for (auto& info : obsCallLoopBoth.infos) {
 
-			std::vector<Script*> keysToErase;
-
-			for (auto& it : obsCallLoopBoth) {
-
-				Script* script = it.first;
-				CallLoopInfo& auxVector = it.second;
-
-				if (auxVector.timer <= 0) {
-
-					double result = auxVector.CallLoopFunction(it.first, auxVector.callingObj, auxVector.callingObj);
-
-					if (result == -1) {
-						keysToErase.push_back(script);
+				if (info.timer <= 0) {
+					double result = info.CallLoopFunction();
+					if (result == -1) { //If script returns -1, cancel.
+						infosToErase.push_back(info);
 					}
-
-					auxVector.timer = auxVector.delay;
-
+					else if (result >= 0) {
+						info.delay = result;
+					}
+					info.timer = info.delay;
 				}
 				else {
-
-					--auxVector.timer;
-
+					--info.timer;
 				}
-
-
-
 			}
 
-			for (Script* key : keysToErase) {
-				obsCallLoopBoth.erase(key);
+			for (const auto& info : infosToErase) {
+				obsCallLoopBoth.infos.erase(info); // Erase based on the exact info object
 			}
+
+			/* Vector based callback
+			if (!obsCallLoopBoth.infos.empty()) {
+				for (auto it = obsCallLoopBoth.infos.begin(); it != obsCallLoopBoth.infos.end(); ) {
+					if (it->timer <= 0) {
+						double result = it->CallLoopFunction();
+						if (result == -1) {
+							it = obsCallLoopBoth.infos.erase(it);
+							continue;
+						}
+						else {
+							it->delay = result;
+							it->timer = result;
+						}
+					}
+					else {
+						--it->timer;
+					}
+					++it;
+				}
+			}
+			*/
 
 		}
-		
+
 		break;
 
 	case NVSEMessagingInterface::kMessage_ScriptCompile: break;
@@ -379,6 +540,8 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 		g_eventInterface = (NVSEEventManagerInterface*)nvse->QueryInterface(kInterface_EventManager);
 
+		g_keyInterface = (DIHookControl*)nvse->QueryInterface(NVSEDataInterface::kNVSEData_DIHookControl);
+
 		#if WantLambdaFunctions
 				LambdaDeleteAllForScript = (_LambdaDeleteAllForScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaDeleteAllForScript);
 				LambdaSaveVariableList = (_LambdaSaveVariableList)nvseData->GetFunc(NVSEDataInterface::kNVSEData_LambdaSaveVariableList);
@@ -390,13 +553,13 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 				HasScriptCommand = (_HasScriptCommand)nvseData->GetFunc(NVSEDataInterface::kNVSEData_HasScriptCommand);
 				DecompileScript = (_DecompileScript)nvseData->GetFunc(NVSEDataInterface::kNVSEData_DecompileScript);
 		#endif
-
+;
 		PluginHandle pluginHandle = nvse->GetPluginHandle();
 		
 		SaveSystem::SaveWeaponInst(nvse, pluginHandle);
 		Hooks::initHooks();
-		//kNVSE::initkNVSE();
 		PluginFunctions::initJIP();
+		PluginFunctions::init_kNVSE();
 
 		InventoryRef::InitInventoryRefFunct(nvse);
 		DevKitDummyMarker = TESObjectREFR::Create(1);
@@ -441,7 +604,7 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	REG_CMD(GetFormInstanceID)
 	REG_CMD(IsStaticForm)
-	REG_CMD_ARR(GetAllFormInstances)
+	REG_CMD_ARR(GetAllBaseInstances)
 
 	REG_CMD(ReplaceItemInInventory)
 
@@ -473,11 +636,42 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD_FORM(GetBaseInstance)
 
 	REG_CMD(DeleteFormInstance)
+
+	REG_CMD_FORM(CreateAkimboInstance)
+	REG_CMD(IsAkimboForm)
+	REG_CMD_FORM(GetAkimboWeapons)
+
+	REG_CMD_FORM(GetWeaponAmmoType)
+	REG_CMD(GetWeaponAmmoCount)
+
+	REG_CMD(SetWeaponAmmoCount)
+	REG_CMD(SetWeaponAmmoType)
+	REG_CMD(LoadWeaponWithAmmo)
+
+	REG_CMD_FORM(GetStaticAkimbo)
+	REG_CMD(HasAkimboSet)
+
+	REG_CMD_FORM(FindWeaponAmmo)
+	REG_CMD_ARR(GetInventoryFromList)
+
+	REG_CMD(CallLoopAlt)
+
+	REG_CMD(GetWeaponClipRoundsAlt)
+
+	REG_CMD_ARR(GetObjectInstances)
+
+	//REG_CMD(SetSpeedMultAlt)
+		
 		
 	return true;
 }
 
 namespace StringUtils {
+
+	std::string extractFirstLine(const char* data, size_t length) {
+		size_t firstLineEnd = std::find(data, data + length, '\n') - data;
+		return std::string(data, firstLineEnd);
+	}
 
 	std::string toLowerCase(const std::string& str) {
 		std::string lowerStr;
@@ -494,7 +688,19 @@ namespace StringUtils {
 		lowerStr[length] = '\0';
 		return lowerStr;
 	}
-
+	/*
+	#include <locale>
+	char* toLowerCase(const char* str) {
+		if (!str) return nullptr;
+		size_t length = std::strlen(str);
+		char* lowerStr = new char[length + 1];  // Allocate space for the new string + null terminator
+		for (size_t i = 0; i < length; ++i) {
+			lowerStr[i] = std::tolower(static_cast<unsigned char>(str[i]), std::locale::classic());
+		}
+		lowerStr[length] = '\0';
+		return lowerStr;
+	}
+	*/
 	constexpr UInt32 ToUInt32(const char* str) {
 		if (!str) throw std::invalid_argument("Null string");
 
@@ -520,6 +726,19 @@ namespace StringUtils {
 
 		return result;
 	}
+
+	bool isNumber(const std::string& s) {
+		if (s.empty()) return false;
+		std::size_t start = (s[0] == '-' || s[0] == '+') ? 1 : 0;
+		if (start == 1 && s.size() == 1) return false;
+		return std::all_of(s.begin() + start, s.end(), [](unsigned char c) {
+			return std::isdigit(c);
+			});
+	}
+	/*
+	bool isNumber(const std::string& s) {
+		return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
+	}*/
 
 }
 
