@@ -261,16 +261,21 @@ namespace Kit {
 
     void DevkitCompiler::SetDescription(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
+        if (!PluginFunctions::SetDescriptionScriptJIP) {
+            PrintKitError("Error Function [Description:] Requires JIP", argStream.str());
+            return;
+        }
         std::string argument;
         if (!(getQuotedString(argStream, argument))) {
-            Console_Print("Error Function [Description:] failed to compile for object: %s", form->GetEditorID());
+            PrintKitError("Error Function [Description:] missing first argument, or quotation marks", argStream.str());
             return;
         }
 
         TESDescription* description = DYNAMIC_CAST(form, TESForm, TESDescription);
         if (description || (IS_ID(form, BGSNote) && (description = ((BGSNote*)form)->noteText)))
         {
-            PluginFunctions::SetDescriptionJIP(description, argument.c_str());
+            //PluginFunctions::SetDescriptionJIP(description, argument.c_str());
+            g_scriptInterface->CallFunction(PluginFunctions::SetDescriptionScriptJIP, nullptr, nullptr, nullptr, 2, form, argument.c_str());
         }
 
     }

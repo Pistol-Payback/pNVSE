@@ -37,20 +37,6 @@ enum QueuedIdleFlags
 	kIdleFlag_SomethingAnimatingReloadLoop = 0x40000,
 };
 
-enum eAnimSequence
-{
-	kSequence_None = -0x1,
-	kSequence_Idle = 0x0,
-	kSequence_Movement = 0x1,
-	kSequence_LeftArm = 0x2,
-	kSequence_LeftHand = 0x3,
-	kSequence_Weapon = 0x4,
-	kSequence_WeaponUp = 0x5,
-	kSequence_WeaponDown = 0x6,
-	kSequence_SpecialIdle = 0x7,
-	kSequence_Death = 0x14,
-};
-
 struct AnimStacks
 {
 	std::vector<SavedAnims> anims;

@@ -1134,42 +1134,46 @@ STATIC_ASSERT(sizeof(AnimIdle) == 0x38);
 // 100+
 struct AnimData
 {
-	struct Unk124
+	enum SequenceTypes
 	{
-		struct Unk18
-		{
-			UInt32			unk00[9];
-			UInt32			unk24;
-		};
-
-		UInt32			unk00[6];
-		Unk18* unk18;
+		kSequence_None = -1,
+		kSequence_Idle = 0,
+		kSequence_Movement = 1,
+		kSequence_LeftArm = 2,
+		kSequence_LeftHand = 3,
+		kSequence_Weapon = 4,
+		kSequence_WeaponUp = 5,
+		kSequence_WeaponDown = 6,
+		kSequence_SpecialIdle = 7,
+		kSequence_Death = 0x14
 	};
 
-	struct Unk128
+	enum AnimStates
 	{
-		UInt32			unk00[11];
-		TESIdleForm* idle2C;
+
+	};
+
+	struct PlayingIdle
+	{
+		TESIdleForm* idleForm;
+		float			replayDelay;
 	};
 
 	UInt32							unk000;				// 000
-	Actor* actor;				// 004
-	NiNode* nSceneRoot;		// 008
-	NiNode* nBip01;			// 00C
+	Actor*							actor;				// 004
+	NiNode*							nSceneRoot;		// 008
+	NiNode*							nBip01;			// 00C
 	UInt32							unk010;				// 010
 	float							flt014;				// 014
 	float							flt018;				// 018
-	UInt32							unk01C;				// 01C
-	float							flt020;				// 020
-	UInt32							unk024;				// 024
-	NiNode* nPelvis;			// 028
-	NiNode* nBip01Copy;		// 02C
-	NiNode* nLForearm;			// 030
-	NiNode* nHead;				// 034
-	NiNode* nWeapon;			// 038
-	NiNode* UNUSED03C;			// 03C
-	NiNode* UNUSED040;			// 040
-	NiNode* nNeck1;			// 044
+	NiVector3						pos01C;				// 01C
+	NiNode*							nPelvis;			// 028
+	NiNode*							nBip01Copy;		// 02C
+	NiNode*							nLForearm;			// 030
+	NiNode*							nHead;				// 034
+	NiNode*							nWeapon;			// 038
+	UInt32							unk03C[2];			// 03C
+	NiNode*							nNeck1;			// 044
 	float							unk048;				// 048
 	UInt16							groupIDs[8];		// 04C
 	SInt32							sequenceState1[8];	// 05C
@@ -1182,26 +1186,60 @@ struct AnimData
 	UInt8							byte0CF;			// 0CF
 	float							timePassed;			// 0D0
 	UInt32							unk0D4;				// 0D4
-	NiControllerManager* controllerManager;			// 0D8
+	NiControllerManager*			controllerManager;	// 0D8
 	NiTPointerMap<AnimSequenceBase>* mapAnimSequenceBase;// 0DC
-	BSAnimGroupSequence* animSequence[8];	// 0E0
-	BSAnimGroupSequence* animSeq100;		// 100
-	tList<KFModel>	loadingAnims;
-	float movementSpeedMult;
-	float rateOfFire;
-	float turboSpeedMult;
-	float weaponReloadSpeed;
-	float equipSpeed;
-	bool noBlend120;
-	UInt8 byte121;
-	UInt16 unk122;
-	AnimIdle* idleAnim;
-	AnimIdle* idleAnimQueued;
-	NiNode* node12C;
-	NiNode* node130;
-	tList<void> list134;
+	BSAnimGroupSequence*			animSequence[8];	// 0E0
+	BSAnimGroupSequence*			animSeq100;			// 100
+	tList<KFModel>					loadingAnims;		// 104
+	float							movementSpeedMult;
+	float							rateOfFire;
+	float							turboSpeedMult;
+	float							weaponReloadSpeed;
+	float							equipSpeed;
+	bool							noBlend120;
+	UInt8							byte121;
+	UInt16							unk122;
+	AnimIdle*						idleAnim;
+	AnimIdle*						idleAnimQueued;
+	NiObject*						object12C;			// 12C
+	NiObject*						object130;			// 130
+	tList<void>						playingIdleAnims;	// 134
 
-	AnimGroupID GetNextAttackGroupID(TESObjectWEAP* weap = nullptr) const;
+	AnimGroupID GetNextAttackGroupID() const;
+
+	__forceinline void PlayIdle(TESIdleForm* idleAnim)
+	{
+		ThisCall(0x497F20, this, idleAnim, actor, idleAnim->data.groupFlags & 0x3F, 3);
+	}
+
+	__forceinline void StopIdle()
+	{
+		ThisCall(0x498910, this, true, false);
+	}
+
+	__forceinline void Refresh()
+	{
+		ThisCall(0x499240, this, 0);
+	}
+
+	void BlendSequence(UInt32 sequenceIdx)
+	{
+		if (animSequence[sequenceIdx])
+			ThisCall(0x4994F0, this, sequenceIdx, 0);
+	}
+
+	BSAnimGroupSequence* GetActiveSequence(const char* path)
+	{
+		if (this->controllerManager) {
+			if (auto sequence = this->controllerManager->m_kSequenceMap.Lookup(path))
+			{
+				return static_cast<BSAnimGroupSequence*>(sequence);
+			}
+		}
+		return nullptr;
+	}
+
+
 
 };
 static_assert(sizeof(AnimData) == 0x13C);

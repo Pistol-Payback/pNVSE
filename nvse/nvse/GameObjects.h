@@ -430,15 +430,15 @@ class ImageSpaceModifierInstanceDRB;
 class ActorMover	// I need to call Func008
 {
 public:
-	virtual void		Unk_00(void);
-	virtual void		Unk_01(void);
-	virtual void		Unk_02(void);
+	virtual void		Destroy(void);
+	virtual void		SetMovementFlag(UInt32 flags);
+	virtual void		ClearMovementFlag(void);
 	virtual void		Unk_03(void);
 	virtual void		Unk_04(void);
 	virtual void		Unk_05(void);
 	virtual void		Unk_06(void);
 	virtual void		Unk_07(void);
-	virtual UInt32		Unk_08(void);	// for PlayerMover, it is GetMovementFlags
+	virtual UInt32		GetMovementFlags(void);	// for PlayerMover, it is GetMovementFlags
 		// bit 11 = swimming 
 		// bit 9 = sneaking
 		// bit 8 = run
@@ -632,6 +632,10 @@ public:
 	ContChangesEntry* GetEquippedWeaponInfo() const;
 	TESObjectWEAP* GetEquippedWeapon() const;
 	
+	//kNVSE
+	bool IsSwimming() { return (GetMovementFlags() >> 11) & 1; }
+	bool IsAnimActionReload() const;
+	UInt32 GetMovementFlags() { return actorMover->GetMovementFlags(); }	// 11: IsSwimming, 9: IsSneaking, 8: IsRunning, 7: IsWalking, 0: keep moving
 
 	// lStewieAl
 	void SetWantsWeaponOut(bool wantsWeaponOut);
@@ -744,7 +748,7 @@ public:
 		// D74: 96 bytes that are cleared when the 3D is cleared.
 
 	bool IsThirdPerson() { return bThirdPerson ? true : false; }
-	UInt32 GetMovementFlags() { return actorMover->Unk_08(); }	// 11: IsSwimming, 9: IsSneaking, 8: IsRunning, 7: IsWalking, 0: keep moving
+	UInt32 GetMovementFlags() { return actorMover->GetMovementFlags(); }	// 11: IsSwimming, 9: IsSneaking, 8: IsRunning, 7: IsWalking, 0: keep moving
 	bool IsPlayerSwimming() { return (GetMovementFlags()  >> 11) & 1; }
 
 	static PlayerCharacter*	GetSingleton();

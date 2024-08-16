@@ -144,7 +144,7 @@
     </Link>
     <PostBuildEvent>
       <Message>Installing DLL...</Message>
-      <Command>copy "$(TargetPath)" "C:\Users\Xavier\AppData\Local\ModOrganizer\Fallout NV\mods\ppNVSE\nvse\plugins\$(TargetFileName)"</Command>
+      <Command>copy "$(TargetPath)" "C:\Users\Xavier\AppData\Local\ModOrganizer\Fallout NV\mods\ppNVSE\nvse\plugins\pNVSE.dll"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug GECK|Win32'">
@@ -326,17 +326,20 @@
     <ClCompile Include="..\nvse\nvse\GameTypes.cpp" />
     <ClCompile Include="..\nvse\nvse\Hooks_DirectInput8Create.cpp" />
     <ClCompile Include="..\nvse\nvse\InventoryReference.cpp" />
+    <ClCompile Include="..\nvse\nvse\NiNodes.cpp" />
+    <ClCompile Include="..\nvse\nvse\NiTypes.cpp" />
     <ClCompile Include="..\nvse\nvse\printf.cpp" />
     <ClCompile Include="..\nvse\nvse\SafeWrite.cpp" />
     <ClCompile Include="..\nvse\nvse\Utilities.cpp" />
     <ClCompile Include="..\nvse\nvse\utility.cpp" />
     <ClCompile Include="Actor_Ext.cpp" />
+    <ClCompile Include="Animation_Ext.cpp" />
     <ClCompile Include="AuxVars.cpp" />
     <ClCompile Include="Base_Ext.cpp" />
     <ClCompile Include="DevkitListFunctions.cpp" />
     <ClCompile Include="Devkit_kNVSE.cpp" />
-    <ClCompile Include="InstanceLoadSave.cpp" />
     <ClCompile Include="KitInfoFunctions.cpp" />
+    <ClCompile Include="pInputManager.cpp" />
     <ClCompile Include="ReplaceFunctions.cpp" />
     <ClCompile Include="ScriptConverter.cpp" />
     <ClCompile Include="General.cpp" />
@@ -397,12 +400,17 @@
     <ClInclude Include="..\nvse\nvse\GameUI.h" />
     <ClInclude Include="..\nvse\nvse\Hooks_DirectInput8Create.h" />
     <ClInclude Include="..\nvse\nvse\InventoryReference.h" />
+    <ClInclude Include="..\nvse\nvse\NiNodes.h" />
+    <ClInclude Include="..\nvse\nvse\NiObjects.h" />
+    <ClInclude Include="..\nvse\nvse\NiPoint.h" />
+    <ClInclude Include="..\nvse\nvse\NiTypes.h" />
     <ClInclude Include="..\nvse\nvse\ParamInfosNVSE.h" />
     <ClInclude Include="..\nvse\nvse\PluginAPI.h" />
     <ClInclude Include="..\nvse\nvse\SafeWrite.h" />
     <ClInclude Include="..\nvse\nvse\Utilities.h" />
     <ClInclude Include="..\nvse\nvse\utility.h" />
     <ClInclude Include="Actor_Ext.h" />
+    <ClInclude Include="Animation_Ext.h" />
     <ClInclude Include="AuxVars.h" />
     <ClInclude Include="Base_Ext.h" />
     <ClInclude Include="class_vtbls.h" />
@@ -413,6 +421,7 @@
     <ClInclude Include="InventoryRef.h" />
     <ClInclude Include="DevkitCompiler.h" />
     <ClInclude Include="KitLoader.h" />
+    <ClInclude Include="pInputManager.h" />
     <ClInclude Include="ppNVSE.h" />
     <ClInclude Include="ppNVSE_Functions.h" />
     <ClInclude Include="ReplaceFunctions.h" />

@@ -4,34 +4,110 @@
 #include "Utilities.h" // for ThisStdCall
 #include <bit>
 
+const char* __cdecl GetNiFixedString(const char* inStr);
+
+class NiFixedString
+{
+	const char* str;
+
+	UInt32* Meta() const { return (UInt32*)(str - 8); }
+	/*
+	void Set(const char* inStr)
+	{
+		str = inStr;
+		if (str) InterlockedIncrement(Meta());
+	}
+	*/
+	void Unset()
+	{
+		if (str)
+		{
+			InterlockedDecrement(Meta());
+			str = nullptr;
+		}
+	}
+
+public:
+	NiFixedString() : str(nullptr) {}
+
+	explicit NiFixedString(const char* data): str(data){}
+
+	NiFixedString(const NiFixedString& inStr) { Set(inStr.str); }
+	~NiFixedString() { Unset(); }
+
+
+	void Set(const char* newString){ThisStdCall(0xA2E750, this, newString);}
+
+	const char* CStr() const
+	{
+		return str;
+	}
+
+	const char* Get() const { return str ? str : "NULL"; }
+
+	UInt32 Length() const { return str ? Meta()[1] : 0; }
+
+	explicit operator bool() const { return str != nullptr; }
+
+	operator const char* () const { return str; }
+
+	const char* operator*() const { return str; }
+
+	inline void operator=(const char* inStr)
+	{
+		Unset();
+		str = GetNiFixedString(inStr);
+	}
+	inline void operator=(const NiFixedString& inStr)
+	{
+		if (str != inStr.str)
+			Set(inStr.str);
+	}
+
+	inline bool operator==(const NiFixedString& rhs) const { return str == rhs.str; }
+	inline bool operator<(const NiFixedString& rhs) const { return str < rhs.str; }
+
+	UInt32 RefCount() const { return str ? Meta()[0] : 0; }
+};
+
 typedef void* (*memcpy_t)(void*, const void*, size_t);
 extern memcpy_t _memcpy, _memmove;
 
 //	Workaround for bypassing the compiler calling the d'tor on function-scope objects.
-template <typename T, bool InitConstructor = true> class TempObject
+template <typename T> class TempObject
 {
-	friend T;
-
-	struct Buffer
-	{
-		UInt8	bytes[sizeof(T)];
-	}
-	objData;
+	alignas(T) UInt8	objData[sizeof(T)];
 
 public:
-	TempObject()
+	TempObject() { Reset(); }
+	TempObject(const T& src) { memcpy((void*)this, (const void*)&src, sizeof(T)); }
+
+	template <typename ...Args>
+	TempObject(Args&& ...args)
 	{
-		if constexpr (InitConstructor)
-			Reset();
+		new (this) T(std::forward<Args>(args)...);
 	}
-	TempObject(const T &src) {objData = *(Buffer*)&src;}
 
-	void Reset() {new ((T*)&objData) T();}
+	void Reset() { new (this) T(); }
 
-	T& operator()() {return *(T*)&objData;}
+	void Destroy() { (*this)().~T(); }
 
-	TempObject& operator=(const T &rhs) {objData = *(Buffer*)&rhs;}
-	TempObject& operator=(const TempObject &rhs) {objData = rhs.objData;}
+	T& operator()() { return *(reinterpret_cast<T*>(this)); }
+	T* operator*() { return reinterpret_cast<T*>(this); }
+	T* operator->() { return reinterpret_cast<T*>(this); }
+
+	inline operator T& () { return *(reinterpret_cast<T*>(this)); }
+
+	TempObject& operator=(const T& rhs)
+	{
+		memcpy((void*)this, (const void*)&rhs, sizeof(T));
+		return *this;
+	}
+	TempObject& operator=(const TempObject& rhs)
+	{
+		memcpy((void*)this, (const void*)&rhs, sizeof(T));
+		return *this;
+	}
 };
 
 //	Assign rhs to lhs, bypassing operator=
@@ -74,7 +150,31 @@ template <typename T> __forceinline void RawSwap(const T &lhs, const T &rhs)
 #define NOP_0xE NOP_0x7 NOP_0x7
 #define NOP_0xF NOP_0x7 NOP_0x8
 
-#define EMIT_DW(b0, b1, b2, b3) EMIT(b3) EMIT(b2) EMIT(b1) EMIT(b0)
+#define GET_N_BYTE(a, n) ((a >> (n * 8)) & 0xFF)
+
+#define EMIT_W(a) EMIT(GET_N_BYTE(a, 0)) EMIT(GET_N_BYTE(a, 1))
+#define EMIT_DW(a) EMIT(GET_N_BYTE(a, 0)) EMIT(GET_N_BYTE(a, 1)) EMIT(GET_N_BYTE(a, 2)) EMIT(GET_N_BYTE(a, 3))
+
+alignas(16) const UInt32 kASinConsts[] =
+{
+	0xBC996E30, 0x3D981627, 0x3E593484, 0x3FC90FDB, 0x34000000, 0x3F800000, 0x40490FDB, 0x03800000,
+	0x37202A00, 0x37E24000, 0x38333600, 0x386E4C00, 0x38913200, 0x38A84000, 0x38BC5200, 0x38CDAC00,
+	0x38DC5000, 0x38E8C000, 0x38F2C800, 0x38FAA800, 0x39005600, 0x39029000, 0x3903C800, 0x39046400,
+	0x39042C00, 0x39036800, 0x39022800, 0x39003400, 0x38FB7000, 0x38F60800, 0x38EFD800, 0x38E8B800,
+	0x38E15800, 0x38D96000, 0x38D0C000, 0x38C83000, 0x38BF2000, 0x38B59800, 0x38AC5800, 0x38A2E000,
+	0x38998000, 0x388FD000, 0x38866000, 0x387AA000, 0x38678000, 0x3855E000, 0x3844A000, 0x38338000,
+	0x38234000, 0x3812E000, 0x38042000, 0x37EB4000, 0x37CF4000, 0x37B64000, 0x379D4000, 0x37874000,
+	0x37658000, 0x373F8000, 0x371A8000, 0x36F90000, 0x36C30000, 0x36900000, 0x364E0000, 0x360E0000,
+	0x35B40000, 0x35500000, 0x34D00000, 0x33C00000, 0x34000000, 0x34800000, 0x35400000, 0x35A80000,
+	0x36040000, 0x36400000, 0x367C0000, 0x36A60000, 0x36D60000, 0x37040000, 0x371D0000, 0x37390000,
+	0x37560000, 0x37750000, 0x378B0000, 0x379C0000, 0x37AC8000, 0x37BE8000, 0x37D08000, 0x37E30000,
+	0x37F58000, 0x3803C000, 0x380D0000, 0x3815C000, 0x381EC000, 0x38274000, 0x382F8000, 0x38380000,
+	0x383F8000, 0x38470000, 0x384E8000, 0x3854C000, 0x385B0000, 0x38604000, 0x38658000, 0x3869C000,
+	0x386D4000, 0x38708000, 0x3872C000, 0x38744000, 0x38750000, 0x38750000, 0x38740000, 0x38724000,
+	0x38700000, 0x386C0000, 0x3867C000, 0x3862C000, 0x385C8000, 0x38558000, 0x384D8000, 0x38450000,
+	0x383B0000, 0x38318000, 0x38260000, 0x381A0000, 0x380D8000, 0x38010000, 0x37E70000, 0x37CB0000,
+	0x37AF0000, 0x37930000, 0x376C0000, 0x37340000, 0x37020000, 0x36A00000, 0x36180000, 0x35000000
+};
 
 class PrimitiveCS
 {
@@ -129,6 +229,10 @@ char* __fastcall IntToStr(char *str, int num);
 UInt32 __fastcall StrHashCS(const char* inKey);
 
 UInt32 __fastcall StrHashCI(const char* inKey);
+
+float __vectorcall ASin(float x);
+float __vectorcall ACos(float x);
+float __vectorcall ATan2(float y, float x);
 
 class SpinLock
 {

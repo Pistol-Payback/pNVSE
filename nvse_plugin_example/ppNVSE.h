@@ -8,11 +8,14 @@
 
 #include "PluginAPI.h"
 #include "InventoryRef.h"
+#include "Animation_Ext.h"
 #include "GameUI.h" 
 #include "common/ICriticalSection.h"
 #include "GameData.h"
 #include "AuxVars.h"
 #include "Hooks_DirectInput8Create.h"
+#include "NiNodes.h"
+#include "NiObjects.h"
 
 using namespace std::literals;
 
@@ -41,6 +44,7 @@ extern bool (*AssignString)(COMMAND_ARGS, const char* newValue);
 extern const char* (*GetStringVar)(UInt32 stringID);
 extern NVSEMessagingInterface* g_msg;
 extern NVSEScriptInterface* g_scriptInterface;
+extern NiCamera* g_mainCamera;
 
 extern NVSECommandTableInterface g_cmdTableInterface;
 
@@ -145,13 +149,17 @@ namespace PluginFunctions {
 	extern AuxVarInfo (*CreateAuxVarInfo)(TESForm* form, TESObjectREFR* thisObj, char* pVarName);
 	extern void (*AuxVarErase)(AuxVarInfo* varInfo, SInt32 idx);
 	*/
+
 	extern void (*SetDescriptionJIP)(TESDescription* description, const char* altText);
+
+	extern Script* SetDescriptionScriptJIP;
 
 	//kNVSE
 
 	extern void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, Script* conditionScript, bool pollCondition);
 	extern bool (*CopyAnimationsToForm)(TESForm* fromForm, TESForm* toForm);
 	extern bool (*RemoveFormAnimations)(TESForm* form);
+	extern BSAnimGroupSequence* (*FindActiveAnimationForActor)(TESForm* form, const char* path);
 
 	void c_RemoveFormAnimations(TESForm* form);
 

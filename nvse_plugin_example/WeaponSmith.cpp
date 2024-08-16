@@ -165,6 +165,20 @@ StaticInstance* TESForm::LookupExtendedBase() const {
 	return nullptr;
 }
 
+//Lookup or create
+StaticInstance* TESForm::getExtendedBase(UInt32 kitIndex) {
+
+	if (Instance* inst = this->LookupInstance(this->typeID)) {
+		return inst->baseInstance;
+	}
+	auto iter = StaticLinker[typeID].find(refID);
+	if (iter != StaticLinker[typeID].end()) {
+		return iter->second;
+	}
+
+	return this->MarkAsStaticForm(kitIndex);
+}
+
 Instance* TESForm::LookupInstanceByID(UInt32 InstID) const {
 
 	auto it = StaticLinker[typeID].find(refID);
@@ -513,20 +527,21 @@ AuxVector* ExtendedBaseType::GetTrait(const std::string& trait, ExtendedBaseType
 AuxVector* ExtendedBaseType::SetTrait(const std::string& trait, ExtendedBaseType* linkedObj, const std::string& sSlot, UInt8 priorityFlag) {
 
 	if (!linkedObj || linkedObj == this) {
-		return this->SetBaseTrait(trait);
+		return this->SetBaseTrait(trait); //Set base trait
 	}
 
-	if (priorityFlag == 1) {
+	if (priorityFlag == 1) { //Set link trait if it exists.
 		if (AuxVector* aux = this->GetLinkedTrait(trait, linkedObj, sSlot)) {
 			return aux;
 		}
 		return this->SetBaseTrait(trait);
 	}
 
+	//Set linked trait and create it if it doesn't exists
 	if (AuxVector* aux = this->SetLinkedTrait(trait, linkedObj, sSlot)) {
 		return aux;
 	}
-	return this->SetBaseTrait(trait);
+	return this->SetBaseTrait(trait); //Fallback
 
 }
 

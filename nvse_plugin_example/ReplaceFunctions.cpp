@@ -71,16 +71,15 @@ bool Cmd_ListGetFormIndex_Execute(COMMAND_ARGS)
 */
 bool Hook_IsInList_Execute(COMMAND_ARGS)
 {
-	*result = -1;
+	*result = 0;
 	BGSListForm* pListForm = NULL;
 
-	if (ExtractArgs(EXTRACT_ARGS, &pListForm)) {
+	if (ExtractArgs(EXTRACT_ARGS, &pListForm) && pListForm && thisObj) {
 		TESForm* baseForm = thisObj->GetBaseObject();
 		if (baseForm) {
 			SInt32 index = pListForm->GetIndexOf(baseForm);
-			*result = index;
-			if (IsConsoleMode()) {
-				Console_Print("Index: %d", index);
+			if (index >= 0) {
+				*result = 1;
 			}
 		}
 	}
@@ -89,17 +88,18 @@ bool Hook_IsInList_Execute(COMMAND_ARGS)
 
 bool Hook_IsWeaponInList_Execute(COMMAND_ARGS)
 {
-	*result = -1;
+	*result = 0;
 	BGSListForm* pListForm = NULL;
 
-	if (ExtractArgs(EXTRACT_ARGS, &pListForm)) {
+	if (ExtractArgs(EXTRACT_ARGS, &pListForm) && pListForm && thisObj) {
 		TESObjectWEAP* weap = ((Actor*)thisObj)->GetEquippedWeapon();
-		TESForm* baseForm = weap->GetBaseObject();
-		if (baseForm) {
-			SInt32 index = pListForm->GetIndexOf(baseForm);
-			*result = index;
-			if (IsConsoleMode()) {
-				Console_Print("Index: %d", index);
+		if (weap) {
+			TESForm* baseForm = weap->GetBaseObject();
+			if (baseForm) {
+				SInt32 index = pListForm->GetIndexOf(baseForm);
+				if (index >= 0) {
+					*result = 1;
+				}
 			}
 		}
 	}

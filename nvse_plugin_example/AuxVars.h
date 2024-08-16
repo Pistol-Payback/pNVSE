@@ -167,8 +167,8 @@ struct CallLoopInfo {
 
     Type type = NONE;
 
-    mutable double timer = 0.0;
-    mutable double delay = 0.0;
+    mutable double timer;
+    mutable double delay;
 
     Script* script;
     UInt32 callingObj;
@@ -190,7 +190,7 @@ struct CallLoopInfo {
 
     bool operator==(const CallLoopInfo& other) const;
     double CallLoopFunction() const; // Implementation needed
-    double CallFunctionProxyAlt() const; // Implementation needed
+    bool CallFunctionProxyAlt(ArrayElementL& scriptReturn) const; // Implementation needed
     void clearInfo();
 
     struct Hash {
@@ -256,15 +256,20 @@ struct CallLoopHandler {
     }
 
     void removeInfo(const CallLoopInfo& targetInfo) {
-        for (auto it = infos.begin(); it != infos.end(); ) {
-            if (!targetInfo.script || it->script == targetInfo.script &&
-                (!targetInfo.callingObj || it->callingObj == targetInfo.callingObj) &&
-                (targetInfo.argumentsAux.empty() || it->argumentsAux == targetInfo.argumentsAux)) {
-                it = infos.erase(it);
-            }
-            else {
-                ++it;
+
+        std::vector<CallLoopInfo> infosToRemove;
+
+        for (const auto& info : infos) {
+            if ((!targetInfo.script || info.script == targetInfo.script) &&
+                (!targetInfo.callingObj || info.callingObj == targetInfo.callingObj) &&
+                (targetInfo.argumentsAux.empty() || info.argumentsAux == targetInfo.argumentsAux)) {
+                infosToRemove.push_back(info);
             }
         }
+
+        for (const auto& info : infosToRemove) {
+            infos.erase(info);
+        }
+
     }
 };

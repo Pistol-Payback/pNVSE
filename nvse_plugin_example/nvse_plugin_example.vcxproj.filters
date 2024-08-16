@@ -31,9 +31,6 @@
     <Filter Include="ppNVSE\Initializers">
       <UniqueIdentifier>{ef8d6125-bf4d-459c-8f82-ec760bdc3b29}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ppNVSE\InventoryRefs">
-      <UniqueIdentifier>{bf5f6eee-2f10-4e22-be69-8e36cf1451d9}</UniqueIdentifier>
-    </Filter>
     <Filter Include="ppNVSE\KitLoader">
       <UniqueIdentifier>{0c7eff26-8f58-4daf-b361-0ad53480202c}</UniqueIdentifier>
     </Filter>
@@ -46,8 +43,17 @@
     <Filter Include="ppNVSE\KitLoader\ScriptConverter">
       <UniqueIdentifier>{185fa757-be05-4c47-b5ca-5be34ca098bc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ppNVSE\Instances">
+    <Filter Include="Internal">
+      <UniqueIdentifier>{5d88af0d-caa0-484e-b9e9-480080ac1831}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\DataExtensions\Models">
+      <UniqueIdentifier>{cfcabadd-b9ad-4182-9302-56fe16dc8261}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\DataExtensions\Instances">
       <UniqueIdentifier>{c605b2bd-2935-449c-82d2-129fdb00edfb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ppNVSE\DataExtensions\InventoryRefs">
+      <UniqueIdentifier>{bf5f6eee-2f10-4e22-be69-8e36cf1451d9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -144,7 +150,7 @@
       <Filter>ppNVSE\DataExtensions</Filter>
     </ClCompile>
     <ClCompile Include="InventoryRef.cpp">
-      <Filter>ppNVSE\InventoryRefs</Filter>
+      <Filter>ppNVSE\DataExtensions\InventoryRefs</Filter>
     </ClCompile>
     <ClCompile Include="EventHandlers.cpp">
       <Filter>ppNVSE\DataExtensions</Filter>
@@ -186,10 +192,7 @@
       <Filter>ppNVSE\KitLoader\MainFunctions</Filter>
     </ClCompile>
     <ClCompile Include="WeaponSmith.cpp">
-      <Filter>ppNVSE\Instances</Filter>
-    </ClCompile>
-    <ClCompile Include="InstanceLoadSave.cpp">
-      <Filter>ppNVSE\Instances</Filter>
+      <Filter>ppNVSE\DataExtensions\Instances</Filter>
     </ClCompile>
     <ClCompile Include="ReplaceFunctions.cpp">
       <Filter>ppNVSE\functions</Filter>
@@ -199,6 +202,18 @@
     </ClCompile>
     <ClCompile Include="..\nvse\nvse\Hooks_DirectInput8Create.cpp">
       <Filter>nvse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\nvse\nvse\NiTypes.cpp">
+      <Filter>nvse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\nvse\nvse\NiNodes.cpp">
+      <Filter>nvse</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation_Ext.cpp">
+      <Filter>ppNVSE\DataExtensions\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="pInputManager.cpp">
+      <Filter>ppNVSE\DataExtensions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -306,7 +321,7 @@
       <Filter>ppNVSE\DataExtensions</Filter>
     </ClInclude>
     <ClInclude Include="InventoryRef.h">
-      <Filter>ppNVSE\InventoryRefs</Filter>
+      <Filter>ppNVSE\DataExtensions\InventoryRefs</Filter>
     </ClInclude>
     <ClInclude Include="EventHandlers.h">
       <Filter>ppNVSE\DataExtensions</Filter>
@@ -330,13 +345,31 @@
       <Filter>ppNVSE\KitLoader\ScriptConverter</Filter>
     </ClInclude>
     <ClInclude Include="WeaponSmith.h">
-      <Filter>ppNVSE\Instances</Filter>
+      <Filter>ppNVSE\DataExtensions\Instances</Filter>
     </ClInclude>
     <ClInclude Include="ReplaceFunctions.h">
       <Filter>ppNVSE\functions</Filter>
     </ClInclude>
     <ClInclude Include="..\nvse\nvse\Hooks_DirectInput8Create.h">
       <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\NiTypes.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\NiPoint.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\NiNodes.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nvse\nvse\NiObjects.h">
+      <Filter>nvse</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation_Ext.h">
+      <Filter>ppNVSE\DataExtensions\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="pInputManager.h">
+      <Filter>ppNVSE\DataExtensions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

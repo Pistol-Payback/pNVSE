@@ -138,7 +138,7 @@ bool Cmd_CreateFormInstance_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_ALT_PLUGIN(GetAkimboWeapons, GetAkimboWeapons, "Gets base akimbo instance", false, kParams_OneForm_OneInt);
+DEFINE_COMMAND_PLUGIN_EXP(GetAkimboWeapons, "Gets base akimbo instance", false, kNVSEParams_OneForm_OneInt);
 bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
 {
 
@@ -149,19 +149,20 @@ bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
 	Instance* akimbo = nullptr;
 	InventoryRef* invRef = nullptr;
 
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form, &bRightLeft)) {
 
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+		form = eval.GetNthArg(0)->GetTESForm();
+		bRightLeft = eval.GetNthArg(1)->GetInt();
 		TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
 
 		if (baseForm->IsStaticForm(222)) {
-			Console_Print("Error in %s, GetAkimboWeapons requires an akimbo instance, not a baseform.", scriptObj->GetEditorID());
+			eval.Error("Error in, GetAkimboWeapons requires an akimbo instance, not a baseform.");
 		}
 
 		akimbo = baseForm->pLookupInstance();
 
 		if (akimbo && akimbo->baseInstance->extendedType == 222) {
-
-			TESObjectREFR* weap = nullptr;
 
 			if (bRightLeft) {
 				*refResult = ((Instance_Akimbo*)akimbo)->left;
@@ -169,6 +170,45 @@ bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
 			else {
 				*refResult = ((Instance_Akimbo*)akimbo)->right;
 			}
+
+		}
+
+	}
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(GetAkimboWeaponsAlt, "Gets base akimbo instance", false, kNVSEParams_ThreeForms);
+bool Cmd_GetAkimboWeaponsAlt_Execute(COMMAND_ARGS)
+{
+
+	*result = 0;
+	UInt32* refResult = (UInt32*)result;
+	TESForm* form = NULL;
+	Instance* akimbo = nullptr;
+	InventoryRef* invRef = nullptr;
+
+	ScriptLocal* akimboLeft;
+	ScriptLocal* akimboRight;;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+		form = eval.GetNthArg(0)->GetTESForm();
+		akimboLeft = eval.GetNthArg(1)->GetScriptVar();
+		akimboRight = eval.GetNthArg(2)->GetScriptVar();
+
+		TESForm* baseForm = form->IsReference() ? ((TESObjectREFR*)form)->baseForm : form;
+
+		if (baseForm->IsStaticForm(222)) {
+			eval.Error("Error in, GetAkimboWeaponsAlt requires an akimbo instance, not a baseform.");
+		}
+
+		akimbo = baseForm->pLookupInstance();
+
+		if (akimbo && akimbo->baseInstance->extendedType == 222) {
+
+			akimboLeft->formId = ((Instance_Akimbo*)akimbo)->left;
+			akimboRight->formId = ((Instance_Akimbo*)akimbo)->right;
 
 		}
 
@@ -1309,7 +1349,7 @@ bool Cmd_SetOnInstanceDeconstruct_Execute(COMMAND_ARGS)
 	return true;
 }
 
-DEFINE_COMMAND_PLUGIN_EXP(SetOnAttachWeaponMod, "Dispatch when a weapon mod is attached", false, kNVSE_Event_OneForm_TwoFormsF);
+DEFINE_COMMAND_PLUGIN_EXP(SetOnAttachWeaponMod, "Dispatch when a weapon mod is attached", false, kNVSE_Event_OneNumber_TwoFormsF);
 bool Cmd_SetOnAttachWeaponMod_Execute(COMMAND_ARGS)
 {
 	SInt32 priority = 1;
@@ -1362,7 +1402,7 @@ bool Cmd_SetOnAttachWeaponMod_Execute(COMMAND_ARGS)
 	return true;
 }
 
-DEFINE_COMMAND_PLUGIN_EXP(SetOnDetachWeaponMod, "When instances is loaded in", false, kNVSE_Event_OneForm_TwoFormsF);
+DEFINE_COMMAND_PLUGIN_EXP(SetOnDetachWeaponMod, "When instances is loaded in", false, kNVSE_Event_OneNumber_TwoFormsF);
 bool Cmd_SetOnDetachWeaponMod_Execute(COMMAND_ARGS)
 {
 	SInt32 priority;
@@ -1472,8 +1512,85 @@ bool Cmd_GetFormInstance_Execute(COMMAND_ARGS)
 
 //........................................................................................................................................
 
-DEFINE_COMMAND_PLUGIN_EXP(GetFormTrait, "Gets the var effect", false, kNVSEParams_OneNumber_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
-bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
+void UnpackTraitArguments(PluginExpressionEvaluator& eval, SInt32& index, TESForm*& formBase, const char*& trait, ExtendedBaseType*& linkedObj, const char*& sSlot, UInt8& priority) {
+
+	UInt8 argCount = 0;
+	UInt8 type = eval.GetNthArg(argCount)->GetType();
+	if (type == kTokenType_Number || type == kTokenType_NumericVar) {
+		index = eval.GetNthArg(argCount)->GetInt();
+		++argCount;
+	}
+
+	formBase = eval.GetNthArg(argCount)->GetTESForm();
+	++argCount;
+	trait = eval.GetNthArg(argCount)->GetString();
+	++argCount;
+
+	int numArgs = eval.NumArgs() - 1;
+	if (numArgs >= argCount) {
+		TESForm* linked = eval.GetNthArg(argCount)->GetTESForm();
+		if (!linked) {
+			return;
+		}
+		linkedObj = linked->LookupExtendedBase();
+		if (!linkedObj) {
+			return;
+		}
+		++argCount;
+		if (numArgs >= argCount) {
+			sSlot = eval.GetNthArg(argCount)->GetString();
+			++argCount;
+			if (numArgs >= argCount) {
+				priority = eval.GetNthArg(argCount)->GetInt();
+			}
+		}
+	}
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(GetBaseTraitType, "Gets the var type", false, kNVSEParams_OneFormOrNumber_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
+bool Cmd_GetBaseTraitType_Execute(COMMAND_ARGS)
+{
+
+	*result = -2;
+	UInt32* refResult = (UInt32*)result;
+	SInt32 index = 0;
+	TESForm* formBase = NULL;
+	const char* trait = NULL;
+
+	ExtendedBaseType* linkedObj = nullptr;
+	const char* sSlot = "null";
+	UInt8 priority = 0;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+
+		UnpackTraitArguments(eval, index, formBase, trait, linkedObj, sSlot, priority);
+
+		if (!formBase) {
+			return true;
+		}
+
+		if (ExtendedBaseType* baseObj = formBase->LookupExtendedBase()) {
+
+			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
+
+			if (!aux || index < 0 || index >= aux->size()) {
+				*result = -2;
+				return true;
+			}
+
+			*result = (*aux)[index].type;
+
+		}
+
+	}
+
+	return true;
+
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(GetBaseTrait, "Gets the var", false, kNVSEParams_OneFormOrNumber_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
+bool Cmd_GetBaseTrait_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
@@ -1491,58 +1608,39 @@ bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
 
-		index = eval.GetNthArg(0)->GetFloat();
-		baseForm = eval.GetNthArg(1)->GetTESForm();
-		trait = eval.GetNthArg(2)->GetString();
-
-		int numArgs = eval.NumArgs();
-		if (numArgs >= 4) {
-
-			TESForm* linkedForm = eval.GetNthArg(3)->GetTESForm();
-			if (!linkedForm) {
-				//Console_Print("Error, linked Form invalid");
-				return true;
-			}
-			linkedObj = linkedForm->LookupExtendedBase();
-
-			if (numArgs >= 5) {
-				sSlot = eval.GetNthArg(4)->GetString();
-			}
-			if (numArgs >= 6) {
-				priority = eval.GetNthArg(5)->GetInt();
-			}
-		}
+		UnpackTraitArguments(eval, index, baseForm, trait, linkedObj, sSlot, priority);
 
 		if (!baseForm) {
 			return true;
 		}
 
-		if (ExtendedBaseType* baseObj = baseForm->LookupExtendedBase()) {
+		ExtendedBaseType* baseObj = baseForm->LookupExtendedBase();
+		if (!baseObj) {
+			return true;
+		}
 
-			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
+		const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
 
-			if (!aux || index < 0 || index >= aux->size()) {
-				return true;
-			}
+		if (!aux || index < 0 || index >= aux->size()) {
+			return true;
+		}
 
-			if ((*aux)[index].type != -1 ) {
-				eval.SetExpectedReturnType((CommandReturnType)(*aux)[index].type);
+		if ((*aux)[index].type != -1 ) {
+			eval.SetExpectedReturnType((CommandReturnType)(*aux)[index].type);
 
-				switch ((*aux)[index].type) {
-				case kRetnType_Default:
-					*result = (*aux)[index].num;
-					break;
-				case kRetnType_Form:
-					*refResult = (*aux)[index].refID;
-					break;
-				case kRetnType_String:
-					AssignString(PASS_COMMAND_ARGS, (*aux)[index].str);
-					break;
-				case kRetnType_Array:
-					g_arrInterface->AssignCommandResult((*aux)[index].CopyToNVSEArray(scriptObj), result);
-					break;
-				}
-
+			switch ((*aux)[index].type) {
+			case kRetnType_Default:
+				*result = (*aux)[index].num;
+				break;
+			case kRetnType_Form:
+				*refResult = (*aux)[index].refID;
+				break;
+			case kRetnType_String:
+				AssignString(PASS_COMMAND_ARGS, (*aux)[index].str);
+				break;
+			case kRetnType_Array:
+				g_arrInterface->AssignCommandResult((*aux)[index].CopyToNVSEArray(scriptObj), result);
+				break;
 			}
 
 		}
@@ -1553,15 +1651,54 @@ bool Cmd_GetFormTrait_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_PLUGIN_EXP(SetFormTrait, "Gets the var effect", false, kNVSEParams_OneBasicType_OneNumber_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
-bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
+void UnpackTraitArguments(PluginExpressionEvaluator& eval, PluginScriptToken*& value, SInt32& index, TESForm*& baseForm, const char*& trait, ExtendedBaseType*& linkedObj, const char*& sSlot, UInt8& priority, Script*& scriptObj) {
+
+	UInt8 argCount = 0;
+	value = eval.GetNthArg(argCount);
+	++argCount;
+
+	UInt8 type = eval.GetNthArg(argCount)->GetType();
+	if (type == kTokenType_Number || type == kTokenType_NumericVar) {
+		index = eval.GetNthArg(argCount)->GetInt();
+		++argCount;
+	}
+
+	baseForm = eval.GetNthArg(argCount)->GetTESForm();
+	++argCount;
+	trait = eval.GetNthArg(argCount)->GetString();
+	++argCount;
+
+	int numArgs = eval.NumArgs() - 1;
+	if (numArgs >= argCount) {
+		TESForm* linked = eval.GetNthArg(argCount)->GetTESForm();
+		if (!linked) {
+			return;
+		}
+		linkedObj = linked->getExtendedBase(scriptObj->GetModIndexAlt());
+		if (!linkedObj) {
+			return;
+		}
+		++argCount;
+		if (numArgs >= argCount) {
+			sSlot = eval.GetNthArg(argCount)->GetString();
+			++argCount;
+			if (numArgs >= argCount) {
+				priority = eval.GetNthArg(argCount)->GetInt();
+			}
+		}
+	}
+}
+
+
+DEFINE_COMMAND_PLUGIN_EXP(SetBaseTrait, "Set the var", false, kNVSEParams_OneBasicType_OneFormOrNumber_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
+bool Cmd_SetBaseTrait_Execute(COMMAND_ARGS) {
 
 	*result = 0;
 
 	//BasicType value;
-	TESForm* linkedForm = NULL;
+	SInt32 index = 0;
+	ExtendedBaseType* linkedObj = NULL;
 	TESForm* baseForm = NULL;
-	SInt32 index = -1;
 	const char* trait = NULL;
 
 	const char* sSlot = "null";
@@ -1569,70 +1706,39 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
-		PluginScriptToken* arg = eval.GetNthArg(0);
-		index = eval.GetNthArg(1)->GetFloat();
-		baseForm = eval.GetNthArg(2)->GetTESForm();
-		trait = eval.GetNthArg(3)->GetString();
-
-		int numArgs = eval.NumArgs();
-		if (numArgs >= 5) {
-
-			linkedForm = eval.GetNthArg(4)->GetTESForm();
-
-			if (numArgs >= 6) {
-				sSlot = eval.GetNthArg(5)->GetString();
-			}
-			if (numArgs >= 7) {
-				priority = eval.GetNthArg(6)->GetInt();
-			}
-		}
+		PluginScriptToken* value;
+		UnpackTraitArguments(eval, value, index, baseForm, trait, linkedObj, sSlot, priority, scriptObj);
 
 		if (!baseForm) {
 			return true;
 		}
 
-		ExtendedBaseType* baseObj = baseForm->LookupExtendedBase();
+		ExtendedBaseType* baseObj = baseForm->getExtendedBase(scriptObj->GetModIndexAlt());
 		if (!baseObj) {
-			//Console_Print("Error: object is not extended");
 			return true;
 		}
 
 		AuxVector* aux = nullptr;
 
-		if (linkedForm) {
-
-			ExtendedBaseType* linkedObj = linkedForm->LookupExtendedBase();
-			if (!linkedObj) {
-				//Console_Print("Error, linked form is not static");
-				return true;
-			}
-
-			aux = baseObj->SetTrait(trait, linkedObj, sSlot, priority);
-
-		}
-		else {
-
-			aux = baseObj->SetBaseTrait(trait);
-
-		}
+		aux = baseObj->SetTrait(trait, linkedObj, sSlot, priority);
 
 		if (!aux) {
 			Console_Print("Error: Unable to get trait");
 			return true;
 		}
 
-		switch (arg->GetType()) {
+		switch (value->GetType()) {
 		case kTokenType_Number:
 		case kTokenType_NumericVar:
 		{
-			double valueFlt = arg->GetFloat(); // Store the float value
+			double valueFlt = value->GetFloat(); // Store the float value
 			aux->AddValue(index, valueFlt);
 			break;
 		}
 		case kTokenType_Form:
 		case kTokenType_RefVar:
 		{
-			TESForm* valueRef = arg->GetTESForm();
+			TESForm* valueRef = value->GetTESForm();
 			if (valueRef) {
 				aux->AddValue(index, valueRef->refID);
 			}
@@ -1641,7 +1747,7 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 		case kTokenType_String:
 		case kTokenType_StringVar:
 		{
-			const char* valueStr = arg->GetString();
+			const char* valueStr = value->GetString();
 			if (valueStr) {
 				aux->AddValue(index, valueStr);
 			}
@@ -1650,7 +1756,7 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 		case kTokenType_Array:
 		case kTokenType_ArrayVar:
 		{
-			NVSEArrayVarInterface::Array* valueArr = arg->GetArrayVar();
+			NVSEArrayVarInterface::Array* valueArr = value->GetArrayVar();
 			if (valueArr) {
 				aux->AddValue(index, valueArr);
 			}
@@ -1664,8 +1770,32 @@ bool Cmd_SetFormTrait_Execute(COMMAND_ARGS) {
 
 }
 
-DEFINE_COMMAND_PLUGIN_EXP(GetFormTraitListSize, "Gets the var effect", false, kNVSEParams_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
-bool Cmd_GetFormTraitListSize_Execute(COMMAND_ARGS)
+void UnpackTraitArguments(PluginExpressionEvaluator& eval, TESForm*& baseForm, const char*& trait, ExtendedBaseType*& linkedObj, const char*& sSlot, UInt8& priority) {
+
+	baseForm = eval.GetNthArg(0)->GetTESForm();
+	trait = eval.GetNthArg(1)->GetString();
+
+	int numArgs = eval.NumArgs();
+	if (numArgs >= 3) {
+		TESForm* linked = eval.GetNthArg(2)->GetTESForm();
+		if (!linked) {
+			return;
+		}
+		linkedObj = linked->LookupExtendedBase();
+		if (!linkedObj) {
+			return;
+		}
+		if (numArgs >= 4) {
+			sSlot = eval.GetNthArg(3)->GetString();
+			if (numArgs >= 5) {
+				priority = eval.GetNthArg(4)->GetInt();
+			}
+		}
+	}
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(GetBaseTraitListSize, "Gets the var effect", false, kNVSEParams_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
+bool Cmd_GetBaseTraitListSize_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
@@ -1680,25 +1810,7 @@ bool Cmd_GetFormTraitListSize_Execute(COMMAND_ARGS)
 
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
-		baseForm = eval.GetNthArg(0)->GetTESForm();
-		trait = eval.GetNthArg(1)->GetString();
-
-		int numArgs = eval.NumArgs();
-		if (numArgs >= 3) {
-
-			TESForm* linkedForm = eval.GetNthArg(2)->GetTESForm();
-			if (!linkedForm) {
-				return true;
-			}
-			linkedObj = linkedForm->LookupExtendedBase();
-
-			if (numArgs >= 4) {
-				sSlot = eval.GetNthArg(3)->GetString();
-			}
-			if (numArgs >= 5) {
-				priority = eval.GetNthArg(4)->GetInt();
-			}
-		}
+		UnpackTraitArguments(eval, baseForm, trait, linkedObj, sSlot, priority);
 
 		if (!baseForm) {
 			return true;
@@ -1719,8 +1831,8 @@ bool Cmd_GetFormTraitListSize_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_PLUGIN_EXP(HasFormTrait, "Checks to see if the trait exists", false, kNVSEParams_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
-bool Cmd_HasFormTrait_Execute(COMMAND_ARGS)
+DEFINE_COMMAND_PLUGIN_EXP(HasBaseTrait, "Checks to see if the trait exists", false, kNVSEParams_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
+bool Cmd_HasBaseTrait_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
@@ -1736,25 +1848,7 @@ bool Cmd_HasFormTrait_Execute(COMMAND_ARGS)
 	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
 	{
 
-		baseForm = eval.GetNthArg(0)->GetTESForm();
-		trait = eval.GetNthArg(1)->GetString();
-
-		int numArgs = eval.NumArgs();
-		if (numArgs >= 3) {
-
-			TESForm* linkedForm = eval.GetNthArg(2)->GetTESForm();
-			if (!linkedForm) {
-				return true;
-			}
-			linkedObj = linkedForm->LookupExtendedBase();
-
-			if (numArgs >= 4) {
-				sSlot = eval.GetNthArg(3)->GetString();
-			}
-			if (numArgs >= 5) {
-				priority = eval.GetNthArg(4)->GetInt();
-			}
-		}
+		UnpackTraitArguments(eval, baseForm, trait, linkedObj, sSlot, priority);
 
 		if (!baseForm) {
 			return true;
@@ -1766,60 +1860,6 @@ bool Cmd_HasFormTrait_Execute(COMMAND_ARGS)
 			if (aux) {
 				*result = 1;
 			}
-
-		}
-
-	}
-
-	return true;
-
-}
-
-DEFINE_COMMAND_PLUGIN_EXP(GetFormTraitType, "Gets the var effect", false, kNVSEParams_OneNumber_OneForm_OneString_OneOptionalForm_OneOptionalString_OneOptionalNumber);
-bool Cmd_GetFormTraitType_Execute(COMMAND_ARGS)
-{
-
-	*result = 0;
-	UInt32* refResult = (UInt32*)result;
-	SInt32 index = -1;
-	TESForm* formBase = NULL;
-	const char* trait = NULL;
-
-	ExtendedBaseType* linkedObj = nullptr;
-	const char* sSlot = "null";
-	UInt8 priority = 0;
-
-	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
-	{
-		index = eval.GetNthArg(0)->GetFloat();
-		formBase = eval.GetNthArg(1)->GetTESForm();
-		trait = eval.GetNthArg(2)->GetString();
-
-		int numArgs = eval.NumArgs();
-		if (numArgs >= 4) {
-			linkedObj = eval.GetNthArg(3)->GetTESForm()->LookupExtendedBase();
-			if (numArgs >= 5) {
-				sSlot = eval.GetNthArg(4)->GetString();
-			}
-			if (numArgs >= 6) {
-				priority = eval.GetNthArg(5)->GetInt();
-			}
-		}
-
-		if (!formBase) {
-			return true;
-		}
-
-		if (ExtendedBaseType* baseObj = formBase->LookupExtendedBase()) {
-
-			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
-
-			if (!aux || index < 0 || index >= aux->size()) {
-				*result = -2;
-				return true;
-			}
-
-			*result = (*aux)[index].type;
 
 		}
 

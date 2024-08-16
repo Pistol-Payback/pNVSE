@@ -65,3 +65,6 @@ public:
 	}
 	[[nodiscard]] UInt32 GetOverwrittenAddr() const { return overwritten_addr; }
 };
+
+//Returns the jumpSrc address even if the function has been hooked.
+bool __stdcall AppendToCallChain(UInt32 jumpSrc, UInt32 jumpTgt, UInt32& originalCallAddr);

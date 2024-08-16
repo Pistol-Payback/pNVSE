@@ -976,6 +976,31 @@ __declspec(naked) float __vectorcall TESObjectREFR::GetDistance(TESObjectREFR* t
 	}
 }
 
+__declspec(naked) NiNode* __fastcall TESObjectREFR::GetNode(const char* nodeName) const
+{
+	__asm
+	{
+		mov		eax, [ecx + 0x64]
+		test	eax, eax
+		jz		done
+		mov		eax, [eax + 0x14]
+		test	eax, eax
+		jz		done
+		cmp[edx], 0
+		jz		done
+		mov		ecx, eax
+		call	NiNode::GetBlock
+		test	eax, eax
+		jz		done
+		xor edx, edx
+		mov		ecx, [eax]
+		cmp		dword ptr[ecx + 0xC], ADDR_ReturnThis
+		cmovnz	eax, edx
+		done :
+		retn
+	}
+}
+
 void Actor::SetWantsWeaponOut(bool wantsWeaponOut)
 {
 	ThisStdCall(0x8A6840, this, (UInt8)wantsWeaponOut);

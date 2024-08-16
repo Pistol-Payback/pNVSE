@@ -36,6 +36,7 @@ namespace PluginFunctions {
     void (*AuxVarErase)(AuxVarInfo* varInfo, SInt32 idx);
     */
     void (*SetDescriptionJIP)(TESDescription* description, const char* altText);
+    Script* SetDescriptionScriptJIP;
 
     HMODULE m_JIP = GetModuleHandle("jip_nvse.dll");
     bool JIP = false;
@@ -58,10 +59,14 @@ namespace PluginFunctions {
             */
             SetDescriptionJIP = (void (*)(TESDescription * description, const char* altText))GetProcAddress(m_JIP, MAKEINTRESOURCEA(12));
 
+            SetDescriptionScriptJIP = g_scriptInterface->CompileScript(R"(Begin Function{ref form, string_var description}
+                SetFormDescription form (description)
+            end)");
+
             if (/*AuxVarGetSize == NULL || AuxVarGetType == NULL || AuxVarGetFloat == NULL ||
                 AuxVarSetFloat == NULL || AuxVarGetRef == NULL || AuxVarSetRef == NULL ||
                 AuxVarGetString == NULL || AuxVarSetString == NULL || CreateAuxVarInfo == NULL || AuxVarErase == NULL ||*/ 
-                SetDescriptionJIP == NULL) {
+                SetDescriptionScriptJIP == NULL) {
                 gLog.Message("One or more function pointers from JIP are invalid");
             }
             else {
@@ -80,6 +85,7 @@ namespace PluginFunctions {
     void (*OverrideFormAnimation)(const TESForm* form, const char* path, bool firstPerson, bool enable, Script* conditionScript, bool pollCondition);
     bool (*CopyAnimationsToForm)(TESForm* fromForm, TESForm* toForm);
     bool (*RemoveFormAnimations)(TESForm* form);
+    BSAnimGroupSequence* (*FindActiveAnimationForActor)(TESForm* form, const char* path);
 
     //Wrapper function with build in validation
     void c_RemoveFormAnimations(TESForm* form) {
@@ -100,6 +106,7 @@ namespace PluginFunctions {
 
             CopyAnimationsToForm = (bool (*)(TESForm * fromForm, TESForm * toForm))GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(4));
             RemoveFormAnimations = (bool (*)(TESForm * form))GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(5));
+            FindActiveAnimationForActor = (BSAnimGroupSequence * (*)(TESForm * form, const char* path))GetProcAddress(m_kNVSE, MAKEINTRESOURCEA(6));
 
             if (OverrideFormAnimation == NULL || CopyAnimationsToForm == NULL || RemoveFormAnimations == NULL) {
                 gLog.Message("One or more function pointers from kNVSE are invalid");

@@ -115,6 +115,26 @@ bool __stdcall ReplaceCall(UInt32 jumpSrc, UInt32 jumpTgt, std::optional<std::ar
 	return true;
 }
 
+bool __stdcall AppendToCallChain(UInt32 jumpSrc, UInt32 jumpTgt, UInt32& originalCallAddr)
+{
+	if (*reinterpret_cast<UInt8*>(jumpSrc) != 0xE8) {
+		_ERROR("Cannot replace call at address 0x%X; another plugin's hook made it no longer a function call.", jumpSrc);
+		return false;
+	}
+	
+	originalCallAddr = GetRelJumpAddr(jumpSrc);
+
+	// ask to be able to modify the desired region of code (normally programs prevent code being modified by other code to prevent exploits)
+	UInt32 oldProtect;
+	VirtualProtect((void*)jumpSrc, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
+
+	*(UInt32*)(jumpSrc + 1) = jumpTgt - jumpSrc - 5;  // replace the relative offset for the existing call
+
+	// restore old protection of code
+	VirtualProtect((void*)jumpSrc, 5, oldProtect, &oldProtect);
+	return true;
+}
+
 void WriteRelJnz(UInt32 jumpSrc, UInt32 jumpTgt)
 {
 	// jnz rel32, same as jne

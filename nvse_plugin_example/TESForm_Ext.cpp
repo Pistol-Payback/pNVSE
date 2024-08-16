@@ -64,6 +64,11 @@ TESForm* TESForm::GetBaseObject()
     return form;
 }
 
+extern "C" __declspec(dllexport) TESForm* Export_GetBaseObject(TESForm* form)
+{
+    return form->GetBaseObject();
+}
+
 bool TESForm::IsBaseForm() const
 {
 	return !((*(UInt32**)this)[0x3C] == kAddr_ReturnTrue);

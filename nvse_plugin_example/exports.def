@@ -1,4 +1,5 @@
 LIBRARY	"pNVSE"
 EXPORTS
-NVSEPlugin_Query
-NVSEPlugin_Load
+    NVSEPlugin_Query               @1
+    NVSEPlugin_Load                @2
+    Export_GetBaseObject           @3

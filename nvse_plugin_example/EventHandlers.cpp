@@ -13,6 +13,8 @@ EventHandler onAttachWeapModReconstructEvent;
 EventHandler onDetachWeapModEvent;
 EventHandler onDetachWeapModDeconstructEvent;
 
+EventHandler onAnimationStart;
+
 Event::Event(SInt32 priority, Script* script) : priority(priority), script(script) {}
 
 Event::Event(SInt32 priority, Script* script, AuxVector filters)
@@ -140,6 +142,8 @@ void EventHandler::AddEvent(const Event& event) {
     for (it; it != handlers.end(); ++it) {
         if (it->CompareFilters(event.filters) && it->script == event.script) {
             it->priority = event.priority;
+            it->filters = event.filters;
+            return;
         }
     }
 

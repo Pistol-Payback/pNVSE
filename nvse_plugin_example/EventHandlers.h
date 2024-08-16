@@ -49,3 +49,5 @@ extern EventHandler onAttachWeapModReconstructEvent;
 
 extern EventHandler onDetachWeapModEvent;
 extern EventHandler onDetachWeapModDeconstructEvent;
+
+extern EventHandler onAnimationStart;

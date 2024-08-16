@@ -5,6 +5,8 @@
 #include "NiTypes.h"
 #include "GameTypes.h"
 #include "Utilities.h"
+#include "NiPoint.h"
+#include <numbers>
 
 /*** class hierarchy
  *
@@ -434,6 +436,7 @@
  ****/
 
 class NiAVObject;
+class NiTriShape;
 class BSFadeNode;
 class NiExtraData;
 class NiTimeController;
@@ -451,6 +454,22 @@ class TESObjectCELL;
 class TESObjectREFR;
 class TESEffectShader;
 class ActiveEffect;
+
+class NiColorInterpolator;
+class NiKeyBasedInterpolator;
+class NiObject;
+
+class NiTransformData;
+struct NiColorAlpha;
+class NiInterpolator;
+
+struct NiInterpController;
+struct NiVector3;
+struct NiQuaternion;
+
+struct NiPoint3;
+
+class TESSound;
 
 // member fn addresses
 #if RUNTIME
@@ -479,43 +498,43 @@ public:
 class NiObject : public NiRefObject
 {
 public:
-
 	NiObject();
 	~NiObject();
 
-	virtual NiRTTI *	GetType(void);		// 02
-	virtual NiNode *	GetAsNiNode(void);	// 03 
-	virtual UInt32		Unk_04(void);		// 04
-	virtual UInt32		Unk_05(void);		// 05
-	virtual UInt32		Unk_06(void);		// 06
-	virtual UInt32		Unk_07(void);		// 07
-	virtual UInt32		Unk_08(void);		// 08
-	virtual UInt32		Unk_09(void);		// 09
-	virtual UInt32		Unk_0A(void);		// 0A
-	virtual UInt32		Unk_0B(void);		// 0B
-	virtual UInt32		Unk_0C(void);		// 0C
-	virtual UInt32		Unk_0D(void);		// 0D
-	virtual UInt32		Unk_0E(void);		// 0E
-	virtual UInt32		Unk_0F(void);		// 0F
-	virtual UInt32		Unk_10(void);		// 10
-	virtual UInt32		Unk_11(void);		// 11
-	virtual NiObject *	Copy(void);			// 12 (returns this, GetAsNiObject ?). Big doubt with everything below, except last which is 022
-	virtual void		Load(NiStream * stream);
-	virtual void		PostLoad(NiStream * stream);
-	virtual void		FindNodes(NiStream * stream);	// give NiStream all of the NiNodes we own
-	virtual void		Save(NiStream * stream);
-	virtual bool		Compare(NiObject * obj);
-	virtual void		DumpAttributes(NiTArray <char *> * dst);
-	virtual void		DumpChildAttributes(NiTArray <char *> * dst);
-	virtual void		Unk_1A(void);
-	virtual void		Unk_1B(UInt32 arg);
-	virtual void		Unk_1C(void);
-	virtual void		GetType2(void);					// calls GetType
-	virtual void		Unk_1E(UInt32 arg);
-	virtual void		Unk_1F(void);
-	virtual void		Unk_20(void);
-	virtual void		Unk_21(void);
-	virtual void		Unk_22(void);
+	// VTable entries:
+	/*08*/ virtual NiRTTI* GetType();                       // 0x02
+	/*0C*/ virtual NiNode* GetNiNode();                     // 0x03
+	/*10*/ virtual BSFadeNode* GetFadeNode();               // 0x10
+	/*14*/ virtual void* GetMultiBoundNode();				// 0x10
+	/*18*/ virtual NiGeometry* GetNiGeometry();             // 0x11
+	/*1C*/ virtual void* GetTriBasedGeom();					// 0x12
+	/*20*/ virtual void* GetTriStrips();					// 0x13
+	/*24*/ virtual NiTriShape* GetTriShape();               // 0x14
+	/*28*/ virtual void* GetSegmentedTriShape();			// 0x15
+	/*2C*/ virtual void* GetResizableTriShape();			// 0x16
+	/*30*/ virtual void* GetNiParticles();					// 0x17 
+	/*34*/ virtual void* GetNiLines();						// 0x18
+	/*38*/ virtual void* GetCollisionObject();				// 0x19
+	/*3C*/ virtual void* GetBlendCollisionObject();			// 0x1A
+	/*40*/ virtual void* GetRigidBody();					// 0x1B
+	/*44*/ virtual void* GetLimitedHingeConstraint();		// 0x1C
+	/*48*/ virtual NiObject* Clone(void* copyInfo);				// 0x12 - Copy
+	/*4C*/ virtual void LoadBinary(NiStream* stream);			// 0x13 - Load
+	/*50*/ virtual void LinkObject(NiStream* stream);			// 0x14 - PostLoad
+	/*54*/ virtual void RegisterStreamables(NiStream* stream);	// 0x15 - FindNodes
+	/*58*/ virtual void SaveBinary(NiStream* stream);			// 0x16 - Save
+	/*5C*/ virtual bool Compare(NiObject* to);					// 0x17 - Compare
+	/*60*/ virtual void GetViewerStrings(NiTArray<char*>* strings); // 0x18 - DumpAttributes
+	/*64*/ virtual void AddViewerStrings(NiTArray<char*>* strings); // 0x19 - DumpChildAttributes
+	/*68*/ virtual void ProcessClone(void* copyInfo);				// 0x1A - Unk_1A
+	/*6C*/ virtual void PostLinkObject(NiStream* stream);			// 0x1B - Unk_1B
+	/*70*/ virtual bool StreamCanSkip();							// 0x1C - Unk_1C
+	/*74*/ virtual NiRTTI* GetStreamableRTTI();						// 0x1D - GetType2
+	/*78*/ virtual void SetWorldBound(void* worldBound);			// 0x1E - Unk_1E
+	/*7C*/ virtual UInt32 GetBlockAllocationSize();					// 0x1F - Unk_1F
+	/*80*/ virtual void Unk_20();									// 0x20 - Unk_20
+	/*84*/ virtual void Unk_21(UInt32 arg);							// 0x21 - Unk_21
+	/*88*/ virtual NiControllerManager* GetControllerManager();		// 0x22
 };
 
 class NiStream {
@@ -566,8 +585,30 @@ public:
 	// 018
 
 	void SetName(const char* newName);
+
+	TESForm* findRefFrom3D() {
+		return CdeclCall<TESForm*>(0x056F930, this);
+	}
 };
 STATIC_ASSERT(sizeof(NiObjectNET) == 0x18);
+
+/* 12659 */
+class NiTimeController : public NiObject
+{
+public:
+	UInt16 m_uFlags;
+	float m_fFrequency;
+	float m_fPhase;
+	float m_fLoKeyTime;
+	float m_fHiKeyTime;
+	float m_fStartTime;
+	float m_fLastTime;
+	float m_fWeightedLastTime;
+	float m_fScaledTime;
+	NiObjectNET* m_pkTarget;
+	NiPointer<NiTimeController> m_spNext;
+};
+static_assert(sizeof(NiTimeController) == 0x34);
 
 // 030
 class NiTexture : public NiObjectNET
@@ -864,8 +905,102 @@ public:
 	UInt32	numFaces;		// 06C
 };
 
+struct NiQuatTransform
+{
+	NiQuatTransform()
+	{
+		m_kTranslate.x = -FLT_MAX;
+		m_kTranslate.y = -FLT_MAX;
+		m_kTranslate.z = -FLT_MAX;
+		m_kRotate.x = -FLT_MAX;
+		m_kRotate.y = -FLT_MAX;
+		m_kRotate.z = -FLT_MAX;
+		m_kRotate.w = -FLT_MAX;
+		m_fScale = -FLT_MAX;
+	}
+
+	bool IsTranslateValid()
+	{
+		return m_kTranslate.x != -FLT_MAX;
+	}
+
+	bool IsRotateValid()
+	{
+		return m_kRotate.x != -FLT_MAX;
+	}
+
+	bool IsScaleValid()
+	{
+		return m_fScale != -FLT_MAX;
+	}
+
+	void SetRotation(float angle, const NiPoint3& axis) {
+
+		float halfAngle = angle / 2.0f;
+		float s = sin(halfAngle);
+		m_kRotate.w = cos(halfAngle);
+		m_kRotate.x = axis.x * s;
+		m_kRotate.y = axis.y * s;
+		m_kRotate.z = axis.z * s;
+
+		if (!IsRotateValid()) {
+			m_kRotate.x = 0;
+		}
+	}
+
+	void SetRotationDegrees(float angleDegrees, const NiPoint3& axis) {
+		float angleRadians = angleDegrees * std::numbers::pi / 180.0f;  // Convert degrees to radians
+		float halfAngle = angleRadians / 2.0f;
+		float s = sin(halfAngle);
+		m_kRotate.w = cos(halfAngle);
+		m_kRotate.x = axis.x * s;
+		m_kRotate.y = axis.y * s;
+		m_kRotate.z = axis.z * s;
+
+		if (!IsRotateValid()) {
+			m_kRotate.x = 0;
+		}
+	}
+
+	static NiQuaternion EulerToQuaternion(float roll, float pitch, float yaw) {
+		float cy = cos(std::numbers::pi * yaw / 360.0f);
+		float sy = sin(std::numbers::pi * yaw / 360.0f);
+		float cp = cos(std::numbers::pi * pitch / 360.0f);
+		float sp = sin(std::numbers::pi * pitch / 360.0f);
+		float cr = cos(std::numbers::pi * roll / 360.0f);
+		float sr = sin(std::numbers::pi * roll / 360.0f);
+
+		return NiQuaternion(
+			cr * cp * cy + sr * sp * sy,  // w
+			sr * cp * cy - cr * sp * sy,  // x
+			cr * sp * cy + sr * cp * sy,  // y
+			cr * cp * sy - sr * sp * cy   // z
+		);
+	}
+
+	void SetRotationFromEuler(float x, float y, float z) {
+		this->m_kRotate.setFromEuler(x, y, z);
+	}
+
+	static NiQuatTransform CreateRotationFromEuler(float x, float y, float z) {
+		NiQuatTransform transform;
+		transform.m_kRotate = NiQuatTransform::EulerToQuaternion(x, y, z);
+		return transform;
+	}
+
+	static NiQuatTransform SetRotationFromQuat(NiQuaternion quat) {
+		NiQuatTransform transform;
+		transform.m_kRotate = quat;
+		return transform;
+	}
+
+	NiPoint3 m_kTranslate;
+	NiQuaternion m_kRotate;
+	float m_fScale;
+};
+
 // 068
-class NiControllerSequence : public NiObject
+struct NiControllerSequence : public NiObject
 {
 public:
 	NiControllerSequence();
@@ -931,11 +1066,257 @@ public:
 		MAX_CYCLE_TYPES = 0x3,
 	};
 
+	class NiInterpolator : public NiObject
+	{
+	public:
+		/*8C*/virtual bool		Update(float fTime, NiAVObject* target, NiQuatTransform& transform);
+		/*90*/virtual void		Unk_24(void);
+		/*94*/virtual void		Unk_25(void);
+		/*98*/virtual void		Unk_26(void);
+		/*9C*/virtual void		Unk_27(void);
+		/*A0*/virtual void		Unk_28(void);
+		/*A4*/virtual void		Unk_29(void);
+		/*A8*/virtual void		Unk_2A(void);
+		/*AC*/virtual void		Unk_2B(void);
+		/*B0*/virtual void		Unk_2C(void);
+		/*B4*/virtual void		Unk_2D(void);
+		/*B8*/virtual void		Unk_2E(void);
+		/*BC*/virtual void		Unk_2F(void);
+		/*C0*/virtual void		Unk_30(void);
+		/*C4*/virtual void		Unk_31(float arg1, float arg2);
+		/*C8*/virtual void		Unk_32(void);
+		/*CC*/virtual void		Unk_33(void);
+		/*D0*/virtual void		Unk_34(void);
+		/*D4*/virtual void		Unk_35(void);
+		/*D8*/virtual void		Unk_36(void);
+
+		float		m_fLastTime;		// 08
+
+		bool TimeHasChanged(float fTime)
+		{
+			return (m_fLastTime != fTime);
+		}
+
+	};
+
+	enum InterpKeyType
+	{
+		kKeyType_Linear = 1,
+		kKeyType_Quadratic,
+		kKeyType_TBC,
+		kKeyType_XYZ,
+		kKeyType_Const
+	};
+
+	template <typename T_Data> struct InterpKey
+	{
+		float			time;
+		T_Data			value;
+	};
+
+	// 18
+	class NiFloatData : public NiObject
+	{
+	public:
+		UInt32				numKeys;	// 08
+		InterpKey<float>* data;		// 0C
+		UInt32				keyType;	// 10
+		UInt8				byte14;		// 14
+		UInt8				pad15[3];	// 15
+	};
+
+	// 18
+	class NiColorData : public NiObject
+	{
+	public:
+		UInt32					numKeys;	// 08
+		InterpKey<NiColorAlpha>* data;		// 0C
+		UInt32					keyType;	// 10
+		UInt32					unk14;		// 14
+	};
+
+
+	// 0C
+	class NiKeyBasedInterpolator : public NiInterpolator
+	{
+	public:
+		/*DC*/virtual void		Unk_37(void);
+		/*E0*/virtual void		Unk_38(void);
+		/*E4*/virtual void		Unk_39(void);
+		/*E8*/virtual void		Unk_3A(void);
+		/*EC*/virtual void		Unk_3B(void);
+		/*F0*/virtual void		Unk_3C(void);
+		/*F4*/virtual void		Unk_3D(void);
+	};
+
+	// 20 NiQuatTransform
+
+	// 18
+	class NiFloatInterpolator : public NiKeyBasedInterpolator
+	{
+	public:
+		float				value;		// 0C
+		NiFloatData* data;		// 10
+		UInt32				unk14;		// 14
+	};
+
+	// 24
+	class NiColorInterpolator : public NiKeyBasedInterpolator
+	{
+	public:
+		float				value[4];	// 0C
+		NiColorData* data;		// 1C
+		UInt32				unk20;		// 20
+	};
+
+	// 2C
+	class NiTransformData : public NiObject
+	{
+	public:
+		UInt16					numRotationKeys;	// 08
+		UInt16					numTranslationKeys;	// 0A
+		UInt16					numScaleKeys;		// 0C
+		UInt16					pad0E;				// 0E
+		UInt32					rotationKeyType;	// 10
+		UInt32					translationKeyType;	// 14
+		UInt32					scaleKeyType;		// 18
+		UInt8					rotationKeySize;	// 1C
+		UInt8					translationKeySize;	// 1D
+		UInt8					scaleKeySize;		// 1E
+		UInt8					pad1F;				// 1F
+		InterpKey<NiQuaternion>* rotationKeys;		// 20
+		InterpKey<NiVector3>* translationKeys;	// 24
+		InterpKey<float>* scaleKeys;			// 28
+	};
+	static_assert(sizeof(NiTransformData) == 0x2C);
+
+	// 48
+	class NiTransformInterpolator : public NiKeyBasedInterpolator
+	{
+	public:
+		NiQuatTransform		transformValue;	// 0C
+		NiTransformData*	transData;		// 2C
+		UInt16				lastTransIdx;	// 30
+		UInt16				lastRotIdx;		// 32
+		UInt16				lastScaleIdx;	// 34
+		UInt8				pad36[2];		// 36
+		float				flt38[3];		// 38
+		UInt8				byte44;			// 44
+		UInt8				pad45[3];		// 45
+
+		__forceinline static NiTransformInterpolator* Create() { return CdeclCall<NiTransformInterpolator*>(0xA403F0); }
+	};
+	static_assert(sizeof(NiTransformInterpolator) == 0x48);
+
+	// 30
+	class NiBlendInterpolator : public NiInterpolator
+	{
+	public:
+		/*DC*/virtual void		Unk_37(void);
+		/*E0*/virtual void		Unk_38(void);
+		/*E4*/virtual void		Unk_39(void); //Crashes
+		/*E8*/virtual void		Unk_3A(void);
+
+		// 18
+		struct InterpArrayItem
+		{
+			NiTransformInterpolator* interpolator;
+			float					weight;
+			float					normalizedWeight;
+			UInt8					priority;
+			UInt8					pad0D[3];
+			float					easeSpinner;
+			float					updateTime;
+		};
+
+		UInt8			flags;				// 0C
+		UInt8			arraySize;			// 0D
+		UInt8			interpCount;		// 0E
+		UInt8			singleIdx;			// 0F
+		UInt8			highPriority;		// 10
+		UInt8			nextHighPriority;	// 11
+		UInt8			pad12[2];			// 12
+		InterpArrayItem* interpArray;		// 14
+		NiInterpolator* singleInterp;		// 18
+		float			weightThreshold;	// 1C
+		float			singleTime;			// 20
+		float			highSumOfWeights;	// 24
+		float			nextHiSumOfWeights;	// 28
+		float			highEaseSpinner;	// 2C
+	};
+	static_assert(sizeof(NiBlendInterpolator) == 0x30);
+
+	class NiBlendTransformInterpolator : public NiBlendInterpolator
+	{
+	public:
+	};
+
+
+	// 34
+	class NiInterpController : public NiTimeController
+	{
+	public:
+		/*B4*/virtual void		Unk_2D(void);
+		/*B8*/virtual void		Unk_2E(void);
+		/*BC*/virtual void		Unk_2F(void);
+		/*C0*/virtual void		Unk_30(void);
+		/*C4*/virtual NiInterpolator* GetInterpolator(UInt32 arg1);
+		/*C8*/virtual void		SetInterpolator(NiInterpolator* pInterpolator, UInt32 arg2);
+		/*CC*/virtual void		Unk_33(void);
+		/*D0*/virtual void		Unk_34(void);
+		/*D4*/virtual void		Unk_35(void);
+		/*D8*/virtual void		Unk_36(void);
+		/*DC*/virtual void		Unk_37(void);
+		/*E0*/virtual void		Unk_38(float arg1, float arg2);
+		/*E4*/virtual void		Unk_39(void);
+	};
+
+	// 40
+	class NiMultiTargetTransformController : public NiInterpController
+	{
+	public:
+		NiBlendTransformInterpolator* blendInterp;	// 34
+		NiAVObject** targets;		// 38
+		UInt16							numInterps;		// 3C
+		UInt8							pad3E[2];		// 3E
+
+		std::vector<NiAVObject*> GetAllTargets() const;
+	};
+
+
+	struct ControlledBlock
+	{
+		NiInterpolator*						interpolator;
+		NiMultiTargetTransformController*	multiTargetCtrl;
+		NiBlendInterpolator*				blendInterpolator;
+		UInt8								blendIdx;
+		UInt8								priority;
+		UInt8								pad0E[2];
+
+		void UpdatePriority(UInt8 priority) {
+			if (this->blendInterpolator && this->blendInterpolator->highPriority != priority) {
+				this->blendInterpolator->highPriority = priority;
+				if(this->blendInterpolator->interpArray->interpolator) {
+					this->blendInterpolator->interpArray->interpolator->transformValue = NiQuatTransform::CreateRotationFromEuler(0, 0, 0);
+				}
+			}
+		}
+	};
+
+	struct IDTag
+	{
+		NiFixedString	m_kAVObjectName;
+		NiFixedString	m_kPropertyType;
+		NiFixedString	m_kCtlrType;
+		NiFixedString	m_kCtlrID;
+		NiFixedString	m_kInterpolatorID;
+	};
+
 	char* sequenceName;		// 008
 	UInt32 numControlledBlocks;		// 00C
 	UInt32	arrayGrowBy;			// 010
-	Unk014* controlledBlocks;		// 014
-	Unk018* IDTagArray;		// 018
+	NiControllerSequence::ControlledBlock* controlledBlocks; // 14
+	NiControllerSequence::IDTag* IDTagArray; // 18
 	float seqWeight;			// 01C
 	NiTextKeyExtraData* textKeyData;		// 020
 	UInt32	cycleType;		// 024
@@ -946,14 +1327,14 @@ public:
 	float	weightedLastTime;		// 038
 	float	lastScaledTime;		// 03C
 	NiControllerManager* owner;	// 040
-	UInt32	state;			// 044
+	AnimState	state;			// 044
 	float	offset;			// 048
 	float	CurrentTime;			// 04C - offset * -1?
 	float	endTime;			// 050
 	UInt32	destFrame;			// 054
 	NiControllerSequence* partnerSequence;			// 058
 	char* accumRootName;	// 05C - bone? (seen "Bip01")
-	NiNode*	niNode060;	// 060
+	NiNode*	node060;	// 060
 	NiStringPalette* deprecatedStringPalette;		// 064
 	SInt16 curAnimNIdx;
 	UInt16 wrd6A;
@@ -963,6 +1344,59 @@ public:
 	UInt8 byte73;
 
 	virtual bool Deactivate(float fEaseOutTime, bool bTransition);
+
+	bool Activate(char cPriority, bool bStartOver, float fWeight,
+		float fEaseInTime, NiControllerSequence* pkTimeSyncSeq,
+		bool bTransition);
+
+	std::span<ControlledBlock> GetControlledBlocks() const;
+	//std::vector<ControlledBlock*> GetControlledBlocks() const;
+	std::span<IDTag> GetIDTags() const;
+	ControlledBlock* GetControlledBlock(const char* name) const;
+	bool RemoveControlledBlock(const char* name);
+
+	NiControllerManager* GetOwner() const
+	{
+		return owner;
+	}
+
+	AnimState GetState() const
+	{
+		return state;
+	}
+
+	bool StartBlend(NiControllerSequence* pkDestSequence, float fDuration,
+		float fDestFrame, int iPriority, float fSourceWeight,
+		float fDestWeight, NiControllerSequence* pkTimeSyncSeq);
+	bool StartMorph(NiControllerSequence* pkDestSequence,
+		float fDuration, int iPriority, float fSourceWeight, float fDestWeight);
+
+	bool VerifyDependencies(NiControllerSequence* pkSequence) const;
+	bool VerifyMatchingMorphKeys(NiControllerSequence* pkTimeSyncSeq) const;
+	bool CanSyncTo(NiControllerSequence* pkTargetSequence) const;
+};
+
+enum AnimAction : SInt16
+{
+	kAnimAction_None = -1,
+	kAnimAction_Equip_Weapon = 0x0,
+	kAnimAction_Unequip_Weapon = 0x1,
+	kAnimAction_Attack = 0x2,
+	kAnimAction_Attack_Eject = 0x3,
+	kAnimAction_Attack_Follow_Through = 0x4,
+	kAnimAction_Attack_Throw = 0x5,
+	kAnimAction_Attack_Throw_Attach = 0x6,
+	kAnimAction_Block = 0x7,
+	kAnimAction_Recoil = 0x8,
+	kAnimAction_Reload = 0x9,
+	kAnimAction_Stagger = 0xA,
+	kAnimAction_Dodge = 0xB,
+	kAnimAction_Wait_For_Lower_Body_Anim = 0xC,
+	kAnimAction_Wait_For_Special_Idle = 0xD,
+	kAnimAction_Force_Script_Anim = 0xE,
+	kAnimAction_ReloadLoopStart = 0xF,
+	kAnimAction_ReloadLoopEnd = 0x10,
+	kAnimAction_ReloadLoop = 0x11,
 };
 
 // 06C
@@ -973,6 +1407,9 @@ public:
 	~BSAnimGroupSequence();
 
 	TESAnimGroup		* animGroup;	//068
+
+	BSAnimGroupSequence* Get3rdPersonCounterpart() const;
+
 };
 
 class NiNode;
@@ -1243,24 +1680,6 @@ public:
 
 class NiDefaultAVObjectPalette;
 
-/* 12659 */
-class NiTimeController : public NiObject
-{
-public:
-	UInt16 m_uFlags;
-	float m_fFrequency;
-	float m_fPhase;
-	float m_fLoKeyTime;
-	float m_fHiKeyTime;
-	float m_fStartTime;
-	float m_fLastTime;
-	float m_fWeightedLastTime;
-	float m_fScaledTime;
-	NiObjectNET* m_pkTarget;
-	NiPointer<NiTimeController> m_spNext;
-};
-static_assert(sizeof(NiTimeController) == 0x34);
-
 // 7C
 class NiControllerManager : public NiTimeController
 {
@@ -1290,6 +1709,20 @@ struct NiUpdateData
 	NiUpdateData() { ZeroMemory(this, sizeof(NiUpdateData)); }
 };
 
+enum eAnimSequence
+{
+	kSequence_None = -0x1,
+	kSequence_Idle = 0x0,
+	kSequence_Movement = 0x1,
+	kSequence_LeftArm = 0x2,
+	kSequence_LeftHand = 0x3,
+	kSequence_Weapon = 0x4,
+	kSequence_WeaponUp = 0x5,
+	kSequence_WeaponDown = 0x6,
+	kSequence_SpecialIdle = 0x7,
+	kSequence_Death = 0x14,
+};
+
 // 02C+
 class TESAnimGroup
 {
@@ -1301,35 +1734,59 @@ public:
 	virtual void Destructor(bool arg0);
 
 	// 24
-	struct AnimGroupInfo {
-		const char	* name;				// 00
-		UInt8		sequenceType;		// 04
-		UInt8		pad[3];
-		UInt32		unk08[7];			// 08
+	struct AnimGroupInfo
+	{
+		const char* name;
+		bool supportsVariants;
+		UInt8 pad[3];
+		UInt32 sequenceType;
+		UInt32 keyType;
+		UInt32 unk10;
+		UInt32 unk14[4];
 	};
 
-	//void**	vtbl			//000
-	UInt8		unk004;			//004
-	UInt8		unk005[3];
-	UInt8		animGroup;		//008 init'ed to word arg in c'tor
-	UInt8		unk009;			//009 does what?
-	UInt16		unk00A;
-	UInt32		numFrames;		//00C count of group frames (Start, Detach, Attack, End, etc)
-	float		** frameData;	//010 pointer to float array of group frame times (size numFrames)
-	UInt32		unk014;			//014
-	UInt32		unk018;			//018
-	UInt32		unk01C;			//01C
-	UInt8		unk020;			//020
-	UInt8		unk021;
-	UInt8		pad022[2];
-	UInt32		unk024;			//024
-	void		* unk028;		//028
+	bool IsAttack()
+	{
+		return ThisStdCall(0x4937E0, this);
+	}
+
+	TESAnimGroup::AnimGroupInfo* GetGroupInfo() const;
+
+	eAnimSequence GetSequenceType() const
+	{
+		return static_cast<eAnimSequence>(GetGroupInfo()->sequenceType);
+	}
+
+	AnimGroupID GetBaseGroupID() const;
+
+	struct __declspec(align(4)) AnimGroupSound
+	{
+		float playTime;
+		UInt8 soundID;
+		UInt8 gap05[3];
+		float unk08;
+		TESSound* sound;
+	};
+
+	UInt8 byte08[8];
+	UInt16 groupID;
+	UInt8 unk12[1];
+	UInt32 numKeys;
+	float* keyTimes;
+	NiPoint3 moveVector;
+	UInt8 leftOrRight_whichFootToSwitch;
+	UInt8 blend;
+	UInt8 blendIn;
+	UInt8 blendOut;
+	UInt8 decal;
+	UInt8 gap2D[3];
+	char* parentRootNode;
+	UInt32 numSounds;
+	AnimGroupSound* sounds;
 
 	static const char* StringForAnimGroupCode(UInt32 groupCode);
 	static UInt32 AnimGroupForString(const char* groupName);
 };
-
-extern std::span<AnimGroupID> g_animGroups;
 
 void DumpAnimGroups(void);
 

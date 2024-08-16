@@ -8,6 +8,7 @@
 #include "nvse/Hooks_DirectInput8Create.h"
 #include <string>
 #include "ppNVSE.h"
+
 #include "EventHandlers.h"
 
 #include "GameUI.h"
@@ -33,7 +34,7 @@ NVSEMessagingInterface* g_messagingInterface{};
 NVSEInterface* g_nvseInterface{};
 NVSECommandTableInterface g_cmdTableInterface;
 
-NiCamera* g_mainCamera;
+NiCamera* g_mainCamera = nullptr;
 
 //UI 11-15-2023
 InterfaceManager* g_interfaceManager;
@@ -248,7 +249,10 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 		
 		g_interfaceManager = InterfaceManager::GetSingleton();
 		Hooks::CMDPatchHooks();
-		//g_mainCamera = g_interfaceManager->sceneGraph004->camera;
+		PluginFunctions::initJIP();
+		SceneGraph* sing_SceneGraph = *(SceneGraph**)0x11DEB7C;
+		g_mainCamera = sing_SceneGraph->camera;
+
 
 		if (std::filesystem::exists(GetFalloutDirectory() + "Data\\ScriptConverter") && std::filesystem::is_directory(GetFalloutDirectory() + "Data\\ScriptConverter")) {
 			ScriptConverter* converter = ScriptConverter::Create();
@@ -338,6 +342,7 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 
 			//Tick objects with lifecycle timers.
 			if (!lifecycleTimer.empty()) {
+
 				for (auto it = lifecycleTimer.begin(); it != lifecycleTimer.end();) {
 					ExpirationTimer* expiration = *it;
 
@@ -407,9 +412,10 @@ void MessageHandler(NVSEMessagingInterface::Message* msg)
 				}
 
 			}
-
 			SaveSystem::ExecuteSpawnQueue();
 			SaveSystem::ExecuteUpdate3dQueue();
+
+			//AnimLockManager::UpdateAllAnims();
 
 		}
 	
@@ -559,7 +565,6 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		
 		SaveSystem::SaveWeaponInst(nvse, pluginHandle);
 		Hooks::initHooks();
-		PluginFunctions::initJIP();
 		PluginFunctions::init_kNVSE();
 
 		InventoryRef::InitInventoryRefFunct(nvse);
@@ -619,14 +624,14 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	REG_CMD(SetOnInstanceDeconstruct)
 
-	REG_CMD(SetFormTrait)
-	REG_CMD_AMB(GetFormTrait)
+	REG_CMD(SetBaseTrait)
+	REG_CMD_AMB(GetBaseTrait)
 
-	REG_CMD(GetFormTraitListSize)
+	REG_CMD(GetBaseTraitListSize)
 
 	REG_CMD_ARR(GetAllWeaponMods)
 
-	REG_CMD(GetFormTraitType)
+	REG_CMD(GetBaseTraitType)
 
 	REG_CMD(HasExtendedWeaponMods)
 
@@ -660,6 +665,21 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD(GetWeaponClipRoundsAlt)
 
 	REG_CMD_ARR(GetObjectInstances)
+
+	REG_CMD(GetPlayerCameraRotation)
+
+	REG_CMD(OverrideAnimatedNodePriority)
+	REG_CMD(RemoveAnimatedNodePriority)
+	REG_CMD(HasAnimatedNodeOverride)
+
+	REG_CMD(onAnimationStart)
+	REG_CMD(IsThirdPerson)
+
+	REG_CMD(pRenameFile)
+
+	REG_CMD(GetAkimboWeaponsAlt)
+		
+		
 
 	//REG_CMD(SetSpeedMultAlt)
 		

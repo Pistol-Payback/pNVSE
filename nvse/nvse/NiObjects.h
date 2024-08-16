@@ -59,64 +59,54 @@ class NiPSysModifier;
 class NiRenderer;
 class NiGeometryData;
 
-// 0AC
-class NiAVObject : public NiObjectNET
-{
+// 9C
+class NiAVObject : public NiObjectNET {
 public:
 	NiAVObject();
 	~NiAVObject();
 
-	virtual void			UpdatePropertiesAndControllers(float arg);	// calls Update on properties and controllers
-	virtual void			Unk_24(void);
-	virtual void			Unk_25(void);
-	virtual NiObjectNET *	GetObject(const char * name);
-	virtual bool			IsNameType(const char * name);	//verified
-	virtual void			Unk_28(float arg, bool updateProperties);	// if(updateProperties) UpdatePropertiesAndControllers(arg); Unk_1D(); Unk_1E();
-	virtual void			Unk_29(float arg);			// update controllers, if kFlag_SelUpdatePropControllers update properties, if(kFlag_SelUpdateTransforms) { Unk_1D(); Unk_1E(); }
-	virtual void			Unk_2A(float arg);			// update controllers, if kFlag_SelUpdatePropControllers update properties, if(kFlag_SelUpdateTransforms) { Unk_1D(); Unk_1E(); }
-	virtual void			Unk_2B(void * arg);			// empty
-	virtual void			Unk_2C(void * arg);			// empty
-	virtual void			UpdateTransform(void);		// update world transform based on local transform and parent (also update collision)
-	virtual void			Unk_2E(void);				// empty
-	virtual void			Cull(NiCullingProcess * tgt);	// accumulate for drawing? NiNode iterates children
-	virtual void			Unk_30(void * arg);			// get NiMaterialProperty, pass to arg if found
-	virtual void			Unk_31(void * arg);
-	virtual void			Unk_32(void * arg);
-	virtual void			Unk_33(void * arg);
-	virtual void			Unk_34(void * arg);
-	virtual void			Unk_35(void * arg);
-	virtual void			Unk_36(void * arg);	// last is 036 verified
+	virtual void			UpdateControllers(NiUpdateData& arData);
+	virtual void			ApplyTransform(NiMatrix33& arMat, NiVector3& arTrn, bool abOnLeft);
+	virtual void			Unk_39();
+	virtual NiAVObject*		GetObject_(const void* arName);
+	virtual NiAVObject*		GetObjectByName(const char* arName);
+	virtual void			SetSelectiveUpdateFlags(UInt8* bSelectiveUpdate, UInt32 bSelectiveUpdateTransform, UInt8* bRigid);
+	virtual void			UpdateDownwardPass(const NiUpdateData& arData, UInt32 auiFlags);
+	virtual void			UpdateSelectedDownwardPass(const NiUpdateData& arData, UInt32 auiFlags);
+	virtual void			UpdateRigidDownwardPass(const NiUpdateData& arData, UInt32 auiFlags);
+	virtual void			UpdatePropertiesDownward(NiPropertyState* apParentState);
+	virtual void			UpdateTransform(UInt32 arg);
+	virtual void			UpdateWorldData(const NiUpdateData& arData);
+	virtual void			UpdateWorldBound();
+	virtual void			UpdateTransformAndBounds(const NiUpdateData& arData);
+	virtual void			PreAttachUpdate(NiNode* apEventualParent, const NiUpdateData& arData);
+	virtual void			PreAttachUpdateProperties(NiNode* apEventualParent);
+	/*CC*/virtual void		DetachParent(UInt32 arg);
+	/*D0*/virtual void		UpdateUpwardPassParent();
+	virtual void			OnVisible(NiCullingProcess* apCuller);
+	virtual void			PurgeRendererData(void* apRenderer);
 
-	enum
-	{
-		kFlag_AppCulled =					1 << 0,	// originally named m_bAppCulled but they appear to have used bitfields
-		kFlag_SelUpdate =					1 << 1,
-		kFlag_SelUpdateTransforms =			1 << 2,
-		kFlag_SelUpdatePropControllers =	1 << 3,
-		kFlag_SelUpdateRigid =				1 << 4,
-	};
+	NiNode* m_parent;				// 18
+	void* m_collisionObject;		// 1C
+	NiSphere* m_kWorldBound;			// 20
+	DList<NiProperty>		m_propertyList;			// 24
+	UInt32					m_flags;				// 30
+	NiMatrix33				m_localRotate;			// 34
+	NiVector3				m_localTranslate;		// 58
+	float					m_localScale;			// 64
+	NiMatrix33				m_worldRotate;			// 68
+	NiVector3				m_worldTranslate;		// 8C
+	float					m_worldScale;			// 98
 
-	struct RotAndTranslate 
-	{
-		NiMatrix33	rotate;		// Init'd to 1 0 0, 0 1 0, 0 0 1
-		NiVector3	translate;	// Init'd to 0x011F426C[3]
-	};	// 30
+	NiProperty* GetProperty(UInt32 propID);
 
-	NiNode						* m_parent;				// 018 the implementation requires Func003A, so minimu NiNode.
-	UInt32						unk001C;				// 01C
-	UInt32						unk0020;				// 020 three members used as array, plus the following float
-	UInt32						unk0024;				// 024 -
-	UInt32						unk0028;				// 028 -
-	float						flt002C;				// 02C -
-	UInt32						unk0030;				// 030 Init'd to 10000000000000001110b
-	RotAndTranslate				dat0034;				// 034 local ?
-	RotAndTranslate				dat0064;				// 064 world ?
+	void DumpProperties();
+	void DumpParents();
 
-	void Dump(UInt32 level, const char * indent);
-	void Update();
-
+	void Update(NiUpdateData& arData) {
+		ThisStdCall(0xA59C60, this, &arData);
+	}
 };
-STATIC_ASSERT(sizeof(NiAVObject) == 0x94);
 
 #if 0
 
@@ -253,46 +243,118 @@ public:
 #endif
 
 // AC
-class NiNode : public NiAVObject
-{
+class NiNode : public NiAVObject {
 public:
 	NiNode();
 	~NiNode();
 
-	virtual void		AddObject(NiObject * obj, UInt32 arg1);							// 37 verified
-	virtual NiObject *	RemoveObject(NiObject ** out, NiObject* toRemove);				// 38 looks ok
-	virtual void		Unk_38(void);													// 39 either lookup or remove a child.
-	virtual void		Unk_39(void);													// 3A calls 39 then release returned child
-	virtual void		Unk_3A(void);													// 3B
-	virtual bool		Unk_3B(void);
-	virtual bool		Unk_3C(void);
-	virtual bool		Unk_3D(void);
-	virtual bool		Unk_3E(void);
-	virtual bool		Unk_3F(void);
+	virtual void			AttachChild(NiAVObject* apChild, bool abFirstAvail);
+	virtual void			InsertChildAt(UInt32 i, NiAVObject* apChild);
+	virtual void			DetachChild(NiAVObject* apChild, NiAVObject*& aspAVObject);
+	virtual void			DetachChildAlt(NiAVObject* apChild);
+	virtual void			DetachChildAt(UInt32 i, NiAVObject*& aspAVObject);
+	virtual NiAVObject* DetachChildAtAlt(UInt32 i);
+	virtual void			SetAt(UInt32 i, NiAVObject* apChild, NiAVObject*& aspAVObject);
+	virtual void			SetAtAlt(UInt32 i, NiAVObject* apChild);
+	virtual void			UpdateUpwardPass();
 
-	UInt32						unk0094;	// 094
-	UInt32						unk0098;	// 098
-	NiTArray <NiAVObject *>		m_children;	// 09C
+	NiTArray<NiAVObject*>	m_children;		// 9C
 
-};	// 0AC
+	static NiNode* __stdcall Create(const char* nodeName);
+	NiNode* CreateCopy();
 
-#if 0
+	NiAVObject* __fastcall GetBlockByName(const char* nameStr);	//	str of NiString
+	NiAVObject* __fastcall GetBlock(const char* blockName);
+	NiNode* __fastcall GetNode(const char* nodeName);
+	NiNode** GetNodeOffset(const char* nodeName);
 
-// F0
-class SceneGraph : public NiNode
+	bool IsMovable();
+	void ToggleCollision(bool enable);
+	void RemoveCollision();
+	void BulkSetMaterialPropertyTraitValue(UInt32 traitID, float value);
+	void GetContactObjects(void* contactObjs);
+	bool HasPhantom();
+	void GetBodyMass(float* totalMass);
+	void ApplyForce(void* forceVector);
+	void Dump();
+
+	NiAVObject* GetAt(UInt32 index) {
+		return m_children.Get(index);
+	}
+};
+STATIC_ASSERT(sizeof(NiNode) == 0xAC);
+
+// E4
+class BSFadeNode : public NiNode
 {
+public:
+	enum FadeType
+	{
+		kFade_Object = 1,
+		kFade_Item = 2,
+		kFade_Actor = 3,
+		kFade_Unknown6 = 6,
+		kFade_Unknown7 = 7,
+		kFade_Unknown8 = 8,
+		kFade_LODFadeOutMax = 0xA,
+	};
+
+	float			nearDistSqr;	// AC
+	float			farDistSqr;		// B0
+	float			lastFade;		// B4
+	float			currentFade;	// B8	[0.0, 1.0]; Used for fade-in/out
+	float			boundRadius;	// BC
+	float			timeSinceUpdate;// C0
+	UInt32			fadeType;		// C4
+	UInt32			frameCounter;	// C8
+	TESObjectREFR*	linkedObj;		// CC
+	UInt32			unkD0[5];		// D0
+
+	__forceinline static BSFadeNode* Create() { return ThisCall<BSFadeNode*>(0xB4E150, CdeclCall<void*>(0xAA13E0, sizeof(BSFadeNode))); }
+
+	void __fastcall SetVisible(bool visible);
+};
+static_assert(sizeof(BSFadeNode) == 0xE4);
+
+class BSSceneGraph : public NiNode {
+public:
+	BSSceneGraph();
+	~BSSceneGraph();
+
+	virtual void	Unk_40(void);
+	virtual void	Unk_41(void);
+};
+
+// C0
+class SceneGraph : public BSSceneGraph {
 public:
 	SceneGraph();
 	~SceneGraph();
 
-	NiCamera			* camera;			// 0DC
-	UInt32				unk0E0;				// 0E0
-	NiCullingProcess	* cullingProcess;	// 0E4
-	UInt32				unk0E8;				// 0E8
-	float				cameraFOV;			// 0EC
+	NiCamera* camera;			// AC
+	UInt32				unkB0;				// B0
+	NiCullingProcess* cullingProc;		// B4
+	UInt32				isMinFarPlaneDist;	// B8 The farplane is set to 20480.0 when the flag is true. Probably used for interiors.
+	float				cameraFOV;			// BC
 };
+STATIC_ASSERT(sizeof(SceneGraph) == 192);
 
-STATIC_ASSERT(sizeof(SceneGraph) == 0x0F0);
+// 114
+class NiCamera : public NiAVObject {
+public:
+	NiCamera();
+	~NiCamera();
+
+	float			worldToCam[4][4];	// 09C
+	NiFrustum		frustum;			// 0DC
+	float			minNearPlaneDist;	// 0F8
+	float			maxFarNearRatio;	// 0FC
+	NiViewport		viewPort;			// 100
+	float			LODAdjust;			// 110
+};
+STATIC_ASSERT(sizeof(NiCamera) == 0x114);
+
+#if 0
 
 // E0
 class BSTempNodeManager : public NiNode
@@ -332,24 +394,6 @@ public:
 	UInt8	unk0DD;	// 0DD
 	float	unk0E0;	// 0E0 - init'd to 283840
 	float	unk0E4;	// 0E4 - init'd to 100
-};
-
-// F0
-class BSFadeNode : public NiNode
-{
-public:
-	BSFadeNode();
-	~BSFadeNode();
-
-	// overload Draw to do LOD-based fade
-
-	UInt8	unk0DC;			// 0DC
-	UInt8	unk0DD[3];		// 0DD
-	float	fNearDistSqr;	// 0E0
-	float	fFarDistSqr;	// 0E4
-	float	fCurrentAlpha;	// 0E8
-	UInt8	cMultType;		// 0EC
-	UInt8	unk0ED[3];		// 0ED
 };
 
 // EC
@@ -520,21 +564,6 @@ public:
 	UInt32				unk128;		// 128
 	UInt8				unk12C;		// 12C
 	UInt8				pad12D[3];	// 12D
-};
-
-// 124
-class NiCamera : public NiAVObject
-{
-public:
-	NiCamera();
-	~NiCamera();
-
-	UInt32		unk0AC[(0xEC - 0xAC) >> 2];	// 0AC
-	NiFrustum	m_kViewFrustum;				// 0EC
-	float		m_fMinNearPlaneDist;		// 108
-	float		m_fMaxFarNearRatio;			// 10C
-	NiViewport	m_kPort;					// 110
-	float		unk120;						// 120
 };
 
 // 150

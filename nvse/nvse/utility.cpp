@@ -192,6 +192,166 @@ __declspec(naked) UInt32 __fastcall StrLen(const char *str)
 	}
 }
 
+__declspec(naked) float __vectorcall ASin(float x)
+{
+	__asm
+	{
+		xorps	xmm4, xmm4
+		comiss	xmm0, xmm4
+		jz		done
+		movq	xmm4, xmm0
+		andps	xmm4, PS_FlipSignMask0
+		xorps	xmm0, xmm4
+		movss	xmm3, kASinConsts + 0x14
+		comiss	xmm0, xmm3
+		jnb		ooRange
+		movss	xmm1, kASinConsts + 0x1C
+		paddd	xmm1, xmm0
+		movaps	xmm2, kASinConsts
+		cvttss2si	eax, xmm1
+		movq	xmm1, xmm2
+		mulss	xmm1, xmm0
+		psrldq	xmm2, 4
+		addss	xmm1, xmm2
+		mulss	xmm1, xmm0
+		psrldq	xmm2, 4
+		subss	xmm1, xmm2
+		mulss	xmm1, xmm0
+		subss	xmm3, xmm0
+		movshdup	xmm0, xmm2
+		addss	xmm1, xmm0
+		sqrtss	xmm2, xmm3
+		mulss	xmm2, xmm1
+		subss	xmm0, xmm2
+		addss	xmm0, kASinConsts[eax * 4 + 0x20]
+		xorps	xmm0, xmm4
+		done :
+		retn
+			ooRange :
+		movss	xmm0, kASinConsts + 0xC
+			xorps	xmm0, xmm4
+			retn
+	}
+}
+
+__declspec(naked) float __vectorcall ACos(float x)
+{
+	_asm
+	{
+		xorps	xmm4, xmm4
+		comiss	xmm0, xmm4
+		jz		isZero
+		movq	xmm4, xmm0
+		andps	xmm4, PS_FlipSignMask0
+		xorps	xmm0, xmm4
+		movss	xmm3, kASinConsts + 0x14
+		comiss	xmm0, xmm3
+		jnb		ooRange
+		movss	xmm1, kASinConsts + 0x1C
+		paddd	xmm1, xmm0
+		movaps	xmm2, kASinConsts
+		cvttss2si	eax, xmm1
+		movq	xmm1, xmm2
+		mulss	xmm1, xmm0
+		psrldq	xmm2, 4
+		addss	xmm1, xmm2
+		mulss	xmm1, xmm0
+		psrldq	xmm2, 4
+		subss	xmm1, xmm2
+		mulss	xmm1, xmm0
+		psrldq	xmm2, 4
+		addss	xmm1, xmm2
+		subss	xmm3, xmm0
+		sqrtss	xmm0, xmm3
+		mulss	xmm0, xmm1
+		subss	xmm0, kASinConsts[eax * 4 + 0x20]
+		movmskps	eax, xmm4
+		test	al, al
+		jz		done
+		xorps	xmm0, xmm4
+		addss	xmm0, kASinConsts + 0x18
+		done:
+		retn
+			isZero :
+		movss	xmm0, kASinConsts + 0xC
+			retn
+			ooRange :
+		movss	xmm0, kASinConsts + 0x18
+			psrad	xmm4, 0x1F
+			andps	xmm0, xmm4
+			retn
+	}
+}
+
+__declspec(naked) float __vectorcall ATan2(float y, float x)
+{
+	__asm
+	{
+		xorps	xmm2, xmm2
+		comiss	xmm0, xmm2
+		jz		zeroY
+		comiss	xmm1, xmm2
+		jz		zeroX
+		movq	xmm2, xmm0
+		unpcklpd	xmm2, xmm1
+		andps	xmm2, PS_AbsMask
+		movaps	xmm3, xmm2
+		pshufd	xmm4, xmm2, 0xFE
+		maxss	xmm3, xmm4
+		minss	xmm4, xmm2
+		divss	xmm4, xmm3
+		movq	xmm3, xmm4
+		mulss	xmm3, xmm4
+		movq	xmm5, xmm3
+		mulss	xmm5, kATanConsts
+		addss	xmm5, kATanConsts + 4
+		mulss	xmm5, xmm3
+		subss	xmm5, kATanConsts + 8
+		mulss	xmm5, xmm3
+		addss	xmm5, kATanConsts + 0xC
+		mulss	xmm5, xmm3
+		subss	xmm5, kATanConsts + 0x10
+		mulss	xmm5, xmm3
+		addss	xmm5, kATanConsts + 0x14
+		mulss	xmm4, xmm5
+		movss	xmm3, PS_FlipSignMask0
+		pshufd	xmm5, xmm2, 0xFE
+		comiss	xmm2, xmm5
+		jbe		doneCmp1
+		xorps	xmm4, xmm3
+		addss	xmm4, PS_V3_PId2
+		doneCmp1 :
+		xorps	xmm2, xmm2
+			comiss	xmm1, xmm2
+			jnb		doneCmp2
+			xorps	xmm4, xmm3
+			addss	xmm4, PS_V3_PI
+			doneCmp2 :
+		andps	xmm0, xmm3
+			xorps	xmm0, xmm4
+			retn
+			zeroY :
+		comiss	xmm1, xmm2
+			jnb		done
+			movss	xmm0, PS_V3_PI
+			retn
+			zeroX :
+		movss	xmm1, PS_V3_PId2
+			andps	xmm0, PS_FlipSignMask0
+			orps	xmm0, xmm1
+			done :
+		retn
+			ALIGN 16
+			kATanConsts :
+			EMIT_DW(0xBC5CDD30)
+			EMIT_DW(0x3D6B6D55)
+			EMIT_DW(0x3DF84C31)
+			EMIT_DW(0x3E4854C9)
+			EMIT_DW(0x3EAA7E45)
+			EMIT_DW(0x3F7FFFB7)
+	}
+}
+
 __declspec(naked) void __fastcall MemZero(void *dest, UInt32 bsize)
 {
 	__asm

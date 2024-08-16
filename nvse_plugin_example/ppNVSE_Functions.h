@@ -9,26 +9,154 @@
 
 #define PI 3.14159265
 
-static EquipData FindEquipped(TESObjectREFR* thisObj, FormMatcher& matcher) {
-	ExtraContainerChanges* pContainerChanges = static_cast<ExtraContainerChanges*>(thisObj->extraDataList.GetByType(kExtraData_ContainerChanges));
-	return (pContainerChanges) ? pContainerChanges->FindEquipped(matcher) : EquipData();
+DEFINE_COMMAND_PLUGIN_EXP(onAnimationStart, "Gets the player camera rotation", false, kNVSE_Event_OneFormF_OneStringF);
+bool Cmd_onAnimationStart_Execute(COMMAND_ARGS)
+{
+	SInt32 priority = 1;
+	Script* script = nullptr;
+
+	PluginScriptToken* arg1 = nullptr;
+	PluginScriptToken* arg2 = nullptr;
+	UInt32 order1 = 0;
+	UInt32 order2 = 0;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+
+		priority = eval.GetNthArg(0)->GetFloat();
+		script = (Script*)eval.GetNthArg(1)->GetTESForm();
+
+		if (eval.NumArgs() > 2) {
+			order1 = StringUtils::ToUInt32(eval.GetNthArg(2)->GetString());
+			arg1 = eval.GetNthArg(3);
+			if (eval.NumArgs() > 4) {
+				order2 = StringUtils::ToUInt32(eval.GetNthArg(4)->GetString());
+				arg2 = eval.GetNthArg(5);
+			}
+		}
+
+		AuxVector filter = Event::EvaluateEventArg(2, order1, arg1, order2, arg2);
+		Event eEvent(priority, script, filter);
+
+		if (priority != 0)
+		{
+			onAnimationStart.AddEvent(eEvent);
+		}
+		else
+		{
+			onAnimationStart.RemoveEvent(eEvent);
+		}
+
+	}
+
+	return true;
 }
 
+DEFINE_COMMAND_PLUGIN(IsThirdPerson, "Checks if the player is in third person", false, nullptr);
+bool Cmd_IsThirdPerson_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	PlayerCharacter* player = PlayerCharacter::GetSingleton();
+	if (player->bThirdPerson) {
+		*result = 1;
+	}
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN_EXP(GetPlayerCameraRotation, GetCameraRot, "Gets the player camera rotation", false, kNVSEParams_ThreeVars);
 bool Cmd_GetPlayerCameraRotation_Execute(COMMAND_ARGS)
 {
-	double outX;
-	double outY;
-	double outZ;
+	ScriptLocal* outX;
+	ScriptLocal* outY;
+	ScriptLocal* outZ;
 
 	PlayerCharacter* player = PlayerCharacter::GetSingleton();
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &outX, &outY, &outZ) && player->parentCell){
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs() && player->parentCell) {
+		outX = eval.GetNthArg(0)->GetScriptVar();
+		outY = eval.GetNthArg(1)->GetScriptVar();
+		outZ = eval.GetNthArg(2)->GetScriptVar();
+		//g_mainCamera->m_worldRotate.ExtractAngles(outX->data, outY->data, outZ->data);
+		outX->data = g_mainCamera->m_worldRotate.ExtractYaw();
+		outY->data = g_mainCamera->m_worldRotate.ExtractPitch();
+		outZ->data = g_mainCamera->m_worldRotate.ExtractRoll();
+	}
 
-		//NiMatrix33* angles = &g_mainCamera->WorldRotate();
-		//angles->data;
-		//outX = angles->data[0];
-		//outY = angles->data[1];
-		//outZ = angles->data[2];
+	return true;
+}
 
+DEFINE_COMMAND_ALT_PLUGIN_EXP(SetAnimatedNodePosition, SetAnimNodePos, "Overwrites the pos of an anim node", false, kNVSEParams_ThreeNumbers);
+bool Cmd_SetAnimatedNodePosition_Execute(COMMAND_ARGS)
+{
+	ScriptLocal* outX;
+	ScriptLocal* outY;
+	ScriptLocal* outZ;
+
+	PlayerCharacter* player = PlayerCharacter::GetSingleton();
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs() && player->parentCell) {
+		outX = eval.GetNthArg(0)->GetScriptVar();
+		outY = eval.GetNthArg(1)->GetScriptVar();
+		outZ = eval.GetNthArg(2)->GetScriptVar();
+		AnimData* data = player->GetAnimData();
+		auto list = data->animSequence[0]->GetControlledBlocks();
+		for (auto iter : list) {
+			//iter.blendInterpolator;
+			//iter.interpolator;
+		}
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN_EXP(OverrideAnimatedNodePriority, SetNodePriority, "Overrides the Priority of an anim node", true, kNVSEParams_OneNumber_OneString_OneOptionalString);
+bool Cmd_OverrideAnimatedNodePriority_Execute(COMMAND_ARGS)
+{
+	UInt32 priority = 0;
+	const char* node = nullptr;
+	const char* animPath = nullptr;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs() && thisObj && thisObj->parentCell) {
+		priority = eval.GetNthArg(0)->GetInt();
+		node = eval.GetNthArg(1)->GetString();
+		if (eval.NumArgs() > 2) {
+			animPath = eval.GetNthArg(2)->GetString();
+		}
+		const AnimDataLock* animLock = AnimLockManager::getAnimLockData(thisObj->refID, animPath);
+		animLock->SetPriority(node, priority);
+		animLock->AddAllCurrentAnimsToCache();
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN_EXP(HasAnimatedNodeOverride, HasNodeOverride, "Overrides the Priority of an anim node", true, kNVSEParams_OneString_OneOptionalString);
+bool Cmd_HasAnimatedNodeOverride_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	const char* node = nullptr;
+	const char* animPath = nullptr;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs() && thisObj && thisObj->parentCell) {
+		node = eval.GetNthArg(0)->GetString();
+		if (eval.NumArgs() > 1) {
+			animPath = eval.GetNthArg(1)->GetString();
+		}
+		*result = AnimLockManager::hasAnimLockData(thisObj->refID, animPath, true);
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_ALT_PLUGIN_EXP(RemoveAnimatedNodePriority, RemoveNodePriority, "Removes a Priority override if it exists", true, kNVSEParams_OneString_OneOptionalString);
+bool Cmd_RemoveAnimatedNodePriority_Execute(COMMAND_ARGS)
+{
+	const char* node = nullptr;
+	const char* animPath = nullptr;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs() && thisObj && thisObj->parentCell) {
+		node = eval.GetNthArg(0)->GetString();
+		if (eval.NumArgs() > 1) {
+			animPath = eval.GetNthArg(1)->GetString();
+		}
+		if (const AnimDataLock* animLock = AnimLockManager::findAnimLockData(thisObj->refID, animPath)) {
+			animLock->removeOverride(node, OverrideType::Priority);
+		}
 	}
 
 	return true;
@@ -91,7 +219,7 @@ bool Cmd_CallLoop_Execute(COMMAND_ARGS)
 			switch (arg->GetType()) {
 			case kTokenType_Number:
 			case kTokenType_NumericVar:
-				arguments.AddValue<Float32>(-1, arg->GetFloat()); //Convert to Float32 to later call bitcast.
+				arguments.AddValue<double>(-1, arg->GetFloat()); //Convert to Float32 to later call bitcast.
 				break;
 			case kTokenType_Form:
 			case kTokenType_RefVar:
@@ -615,6 +743,59 @@ bool Cmd_pSaveNif_Execute(COMMAND_ARGS)
 
 	return true;
 
+}
+
+DEFINE_COMMAND_PLUGIN(pRenameFile, "Renames or merges a file or directory.", false, kParams_TwoStrings);
+bool Cmd_pRenameFile_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+
+	char oldPath[MAX_PATH], newPath[MAX_PATH];
+	oldPath[0] = newPath[0] = 0;
+
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &oldPath, &newPath) && oldPath[0] && newPath[0]) {
+
+		std::filesystem::path oldFilePath(GetFalloutDirectory() + oldPath);
+		std::filesystem::path newFilePath(GetFalloutDirectory() + newPath);
+
+		if (!std::filesystem::exists(oldFilePath)) {
+			Console_Print("Rename Error: The source path '%s' does not exist.", oldPath);
+			return true;
+		}
+
+		try {
+
+			if (std::filesystem::is_directory(oldFilePath) && std::filesystem::exists(newFilePath) && std::filesystem::is_directory(newFilePath)) {
+				// It's a directory and needs merging
+				for (auto& entry : std::filesystem::directory_iterator(oldFilePath)) {
+					std::filesystem::path targetPath = newFilePath / entry.path().filename();
+					if (std::filesystem::exists(targetPath)) {
+						if (std::filesystem::is_directory(entry)) {
+							std::filesystem::remove(targetPath); // Remove the existing directory to avoid merge conflicts
+						}
+					}
+					std::filesystem::rename(entry.path(), targetPath);
+				}
+				std::filesystem::remove_all(oldFilePath); // Optionally remove the old directory after merging
+				Console_Print("Directories merged successfully.");
+				*result = 1; // Success
+			}
+			else {
+				// Regular file rename or directory rename without merging
+				std::filesystem::rename(oldFilePath, newFilePath);
+				Console_Print("File or directory renamed successfully.");
+				*result = 1; // Success
+			}
+		}
+		catch (const std::filesystem::filesystem_error& e) {
+			Console_Print("Rename Error: %s", e.what());
+		}
+	}
+	else {
+		Console_Print("Rename Error: Invalid arguments.");
+	}
+
+	return true;
 }
 
 static ParamInfo kParams_pWriteFile[3] =

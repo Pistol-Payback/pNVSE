@@ -30,12 +30,37 @@ struct NiVector4
 struct NiQuaternion
 {
 	float	x, y, z, w;
+
+	NiQuaternion(float w = 1.0f, float x = 0.0f, float y = 0.0f, float z = 0.0f)
+		: w(w), x(x), y(y), z(z) {}
+
+	void setFromEuler(float eulerX, float eulerY, float eulerZ);
+
+	static NiQuaternion createFromEuler(float eulerX, float eulerY, float eulerZ);
+
 };
 
 // 24
 struct NiMatrix33
 {
-	float	data[9];
+	float	cr[3][3];
+
+	float __vectorcall ExtractPitch() const;
+	float __vectorcall ExtractRoll() const;
+	float __vectorcall ExtractYaw() const;
+	void ExtractAngles(double& rotX, double& rotY, double& rotZ);
+	void ExtractAnglesDegrees(double& rotX, double& rotY, double& rotZ);
+	void RotationMatrix(float rotX, float rotY, float rotZ);
+	void Rotate(float rotX, float rotY, float rotZ);
+	void MultiplyMatrices(NiMatrix33& matA, NiMatrix33& matB);
+	void Dump(const char* title = NULL);
+	void Copy(NiMatrix33* toCopy);
+	float Determinant();
+	void Inverse(NiMatrix33& in);
+	void FromAxisAngle(float theta, float x, float y, float z);
+	void RotateDegrees(float rotX, float rotY, float rotZ);
+	void SetRotationFromEulerDegrees(float rotX, float rotY, float rotZ);
+	void RotationMatrixDegrees(float rotX, float rotY, float rotZ);
 };
 
 // 34
@@ -85,10 +110,32 @@ struct NiColor
 // 10
 struct NiColorAlpha
 {
-	float	r;
-	float	g;
-	float	b;
-	float	a;
+	float	r, g, b, a;
+
+	NiColorAlpha() {}
+	__forceinline NiColorAlpha(float _r, float _g, float _b, float _a) : r(_r), g(_g), b(_b), a(_a) {}
+	__forceinline NiColorAlpha(const NiColorAlpha& rhs) { *this = rhs; }
+	__forceinline explicit NiColorAlpha(const __m128 rhs) { SetPS(rhs); }
+
+	__forceinline void operator=(NiColorAlpha&& rgba)
+	{
+		r = rgba.r;
+		g = rgba.g;
+		b = rgba.b;
+		a = rgba.a;
+	}
+	__forceinline void operator=(const NiColorAlpha& rhs) { SetPS(rhs.PS()); }
+
+	__forceinline NiColorAlpha& SetPS(const __m128 rhs)
+	{
+		_mm_storeu_ps(&r, rhs);
+		return *this;
+	}
+
+	__forceinline NiColorAlpha& operator*=(float value) { return SetPS(_mm_mul_ps(PS(), _mm_set_ps1(value))); }
+
+	inline operator float* () { return &r; }
+	__forceinline __m128 PS() const { return _mm_loadu_ps(&r); }
 };
 
 // 10
@@ -420,9 +467,170 @@ public:
 #endif
 };
 
+template <typename T_Key, typename T_Data>
+struct MapNode
+{
+	MapNode* next;
+	T_Key	key;
+	T_Data* data;
+};
+
+template <typename T_Key, typename T_Data>
+class NiTPointerMap_t
+{
+public:
+
+	virtual ~NiTPointerMap_t();
+
+	typedef MapNode<T_Key, T_Data> Entry;
+
+	// note: traverses in non-numerical order
+	class Iterator
+	{
+		friend NiTPointerMap_t;
+
+	public:
+		Iterator(NiTPointerMap_t* table, Entry* entry = nullptr, UInt32 bucket = 0)
+			:m_table(table), m_entry(entry), m_bucket(bucket) {
+			FindValid();
+		}
+		~Iterator() { }
+
+		T_Data* Get(void);
+		UInt32		GetKey(void);
+		bool		Next(void);
+		bool		Done(void);
+
+		Iterator operator++()
+		{
+			Next();
+			return *this;
+		}
+
+		Entry* operator*() const
+		{
+			return m_entry;
+		}
+
+		bool operator!=(const Iterator& other)
+		{
+			return m_entry != other.m_entry;
+		}
+
+	private:
+		void		FindValid(void);
+
+		NiTPointerMap_t* m_table;
+		Entry* m_entry;
+		UInt32		m_bucket;
+	};
+
+	virtual UInt32	CalculateBucket(UInt32 key);
+	virtual bool	CompareKey(UInt32 lhs, UInt32 rhs);
+	virtual void	Fn_03(UInt32 arg0, UInt32 arg1, UInt32 arg2);	// assign to entry
+	virtual void	Fn_04(UInt32 arg);
+	virtual void	Fn_05(void);	// locked operations
+	virtual void	Fn_06(void);	// locked operations
+
+	T_Data*	Lookup(T_Key key);
+	bool		Insert(Entry* nuEntry);
+
+	void Replace(T_Key key, T_Data* data)
+	{
+		for (Entry* traverse = m_buckets[key % m_numBuckets]; traverse; traverse = traverse->next)
+			if (traverse->key == key)
+			{
+				traverse->data = data;
+				break;
+			}
+	}
+
+	[[nodiscard]] Iterator begin()
+	{
+		return Iterator(this);
+	}
+
+	[[nodiscard]] Iterator end()
+	{
+		return Iterator(this, static_cast<Entry*>(nullptr), m_numBuckets + 1);
+	}
+
+	//	void	** _vtbl;		// 0
+	UInt32	m_numBuckets;	// 4
+	Entry** m_buckets;	// 8
+	UInt32	m_numItems;		// C
+};
+
+template <typename T_Key, typename T_Data>
+T_Data* NiTPointerMap_t <T_Key, T_Data>::Lookup(T_Key key)
+{
+	const auto hashNiString = [](const char* str)
+		{
+			// 0x486DF0
+			UInt32 hash = 0;
+			while (*str)
+			{
+				hash = *str + 33 * hash;
+				++str;
+			}
+			return hash;
+		};
+	UInt32 hashIndex;
+	if constexpr (std::is_same_v<T_Key, const char*>)
+	{
+		hashIndex = hashNiString(key) % m_numBuckets;
+	}
+	else
+	{
+		hashIndex = key % m_numBuckets;
+	}
+	for (Entry* traverse = m_buckets[hashIndex]; traverse; traverse = traverse->next)
+	{
+		if constexpr (std::is_same_v<T_Key, const char*>)
+		{
+			if (!_stricmp(traverse->key, key))
+			{
+				return traverse->data;
+			}
+		}
+		else if (traverse->key == key)
+		{
+			return traverse->data;
+		}
+	}
+	return nullptr;
+}
+
+template <typename T_Key, typename T_Data>
+bool NiTPointerMap_t <T_Key, T_Data>::Insert(Entry* nuEntry)
+{
+	// game code does not appear to care about ordering of entries in buckets
+	UInt32 bucket = nuEntry->key % m_numBuckets;
+	Entry* prev = NULL;
+	for (Entry* cur = m_buckets[bucket]; cur; cur = cur->next) {
+		if (cur->key == nuEntry->key) {
+			return false;
+		}
+		else if (!cur->next) {
+			prev = cur;
+			break;
+		}
+	}
+
+	if (prev) {
+		prev->next = nuEntry;
+	}
+	else {
+		m_buckets[bucket] = nuEntry;
+	}
+
+	m_numBuckets++;
+	return true;
+}
+
 // 14
 template <typename T_Data>
-class NiTStringPointerMap : public NiTPointerMap <T_Data>
+class NiTStringPointerMap : public NiTPointerMap_t <const char*, T_Data>
 {
 public:
 	NiTStringPointerMap();
@@ -507,5 +715,3 @@ public:
 	UInt32	unk0C;		// 0C
 	UInt32	unk10;		// 10
 };
-
-float __vectorcall Point3Distance(const NiVector3& pt1, const NiVector3& pt2);

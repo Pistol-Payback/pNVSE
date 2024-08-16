@@ -372,6 +372,8 @@ public:
 
 	StaticInstance*			LookupStaticInstance() const;
 	StaticInstance*			LookupExtendedBase() const;
+	StaticInstance*			getExtendedBase(UInt32 kitIndex);
+
 	TESInstance*			pLookupInstance() const;
 	Instance*				LookupInstance(UInt32 type) const;
 
@@ -386,6 +388,7 @@ public:
 	static TESForm* CreateNewForm(TESForm* copyFrom, bool copyAnims = false, const char* editorID = nullptr, bool bPersist = false, UInt32 offset = 0);
 	bool IsReference() const;
 	bool IsBaseForm() const;
+	bool IsTypeActor();
 	TESForm* GetBaseObject();
 	UInt32 GetModIndexAlt() const;
 	std::vector<UInt32> GetFormEdits(bool getParentEdits) const;
@@ -2982,6 +2985,7 @@ public:
 	UInt8				unk385[3];			// 385
 
 
+	bool IsMeleeWeapon() const{return this->eWeaponType >= 0 && this->eWeaponType <= 2;}
 	bool IsAutomatic() const { return weaponFlags1.IsSet(eFlag_IsAutomatic); }
 	void SetIsAutomatic(bool bAuto) { weaponFlags1.Write(eFlag_IsAutomatic, bAuto); }
 	bool HasScope() const { return weaponFlags1.IsSet(eFlag_HasScope); }

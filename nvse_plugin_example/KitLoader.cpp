@@ -120,10 +120,15 @@ namespace Kit {
 
     bool KitFileManager::validateAndReorderLoadOrder() {
 
+        auto reorderPositions = [&](std::unordered_map<std::string, size_t>& positions) {
+            positions.clear();
+            for (size_t i = 0; i < loadOrder.size(); ++i) {
+                positions[loadOrder[i].name] = i;
+            }
+            };
+
         std::unordered_map<std::string, size_t> masterPositions;
-        for (size_t i = 0; i < loadOrder.size(); ++i) {
-            masterPositions[loadOrder[i].name] = i;
-        }
+        reorderPositions(masterPositions);
 
         bool isOrderValid = true;
         for (size_t i = 0; i < loadOrder.size();) {
@@ -132,18 +137,28 @@ namespace Kit {
             for (const auto& master : kit.masters) {
 
                 if (masterPositions.find(master) == masterPositions.end()) {
+
                     Console_Print("Master kit not found: %s for child %s", master.c_str(), kit.name.c_str());
+
                     loadOrder.erase(loadOrder.begin() + i);  // Remove the child as its master is not found
+                    reorderPositions(masterPositions);
+
                     isOrderValid = false;
+                    allMastersFound = false;
                     continue;
                 }
                 size_t masterPos = masterPositions[master];
                 if (masterPos > i) {
+
                     std::swap(loadOrder[i], loadOrder[masterPos]);
-                    std::swap(masterPositions[loadOrder[i].name], masterPositions[loadOrder[masterPos].name]);
+
+                    masterPositions[loadOrder[masterPos].name] = masterPos;
+                    masterPositions[loadOrder[i].name] = i;
+
                     i = min(i, masterPos) - 1;  // Revalidate from the earliest affected index
                     isOrderValid = false;
                     break;
+
                 }
 
             }

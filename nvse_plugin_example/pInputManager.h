@@ -17,6 +17,11 @@ struct ControlID {
     ControlType type;
     int code;
 
+    std::vector<Script*> onInputDown;
+    std::vector<Script*> onInputUp;
+    std::vector<std::pair<Script*, float>> onInputHold;
+    std::vector<Script*> onInputDouble;
+
     bool operator==(const ControlID& other) const {
         return type == other.type && code == other.code;
     }
@@ -31,6 +36,12 @@ struct ControlID {
 
 struct ControlSet {
 
+    std::string setName;
+
+    ControlSet() {
+
+    }
+
     std::unordered_set<ControlID, ControlID::Hash> keys;
     bool isMenuMode;
     std::vector<Script*> onActivate;
@@ -38,15 +49,16 @@ struct ControlSet {
 
     void activateScripts() const {
         for (const auto& script : onActivate) {
-            //script->run();
+            g_scriptInterface->CallFunction(script, nullptr, nullptr, nullptr, 1, setName);
         }
     }
 
     void deactivateScripts() const {
         for (const auto& script : onDeactivate) {
-            //script->run();
+            g_scriptInterface->CallFunction(script, nullptr, nullptr, nullptr, 1, setName);
         }
     }
+
 };
 
 class ControlManager {
@@ -57,19 +69,22 @@ public:
     std::unordered_map<ControlID, int, ControlID::Hash> keyUsageCount;
     std::unordered_set<std::string> activeMenuModes;
 
-    void enableMode(const std::string& modeName, const std::unordered_set<ControlID, ControlID::Hash>& controls, bool isMenuMode = false,
-        const std::vector<Script*>& activateScripts = {}, const std::vector<Script*>& deactivateScripts = {}) {
-        modes[modeName] = { controls, isMenuMode, activateScripts, deactivateScripts };
-        for (const ControlID& control : controls) {
+    void enableMode(const std::string& modeName) {
+
+        auto cSet = modes.find(modeName);
+
+        for (const ControlID& control : cSet->second.keys) {
             keyUsageCount[control]++;
         }
-        if (isMenuMode) {
+        if (cSet->second.isMenuMode) {
             activeMenuModes.insert(modeName);
         }
         modes[modeName].activateScripts();  // Execute activation scripts
+
     }
 
     void disableMode(const std::string& modeName) {
+
         auto it = modes.find(modeName);
 
         if (it != modes.end()) {
@@ -88,6 +103,7 @@ public:
             modes.erase(it);
 
         }
+
     }
 
     bool isControlDisabled(const ControlID& control) const {

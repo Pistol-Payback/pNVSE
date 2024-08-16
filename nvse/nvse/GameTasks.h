@@ -56,12 +56,13 @@ class BSTaskManagerThread;
 class ModelLoader;
 
 class NiNode;
-class NiControllerSequence;
 class NiRefObject;
 class RefNiObject;
 
 class BSAnimGroupSequence;
+
 struct BSAData;
+struct NiControllerSequence;
 
 class RefNiRefObject
 {
@@ -259,6 +260,11 @@ class KFModel
 	TESAnimGroup		* animGroup;			// 008
 	UInt32				unk0C;					// 00C
 	UInt32				unk10;					// 010
+
+	__forceinline KFModel* Init(const char* kfPath, void* stream)
+	{
+		return ThisCall<KFModel*>(0x43B640, this, kfPath, stream);
+	}
 };
 
 // 30
