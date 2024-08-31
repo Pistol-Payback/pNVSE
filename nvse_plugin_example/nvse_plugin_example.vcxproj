@@ -428,6 +428,7 @@
     <ClInclude Include="SaveSystem.h" />
     <ClInclude Include="ScriptConverter.h" />
     <ClInclude Include="TestHooks.h" />
+    <ClInclude Include="VariableFunctions.h" />
     <ClInclude Include="WS_Funct.h" />
     <ClInclude Include="WeaponSmith.h" />
   </ItemGroup>

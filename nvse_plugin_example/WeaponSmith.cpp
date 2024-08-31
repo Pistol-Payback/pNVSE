@@ -214,10 +214,8 @@ TESForm* TESForm::CreateInst(std::string key, UInt32 modIndex) {
 
 	StaticInstance* staticInstance = baseForm->LookupExtendedBase();
 
-	staticInstance = baseForm->MarkAsStaticForm(modIndex);
-
-	if (!staticInstance) { //Do not create modifiers of other modifiers. 
-		return nullptr;
+	if (!staticInstance) {
+		staticInstance = baseForm->MarkAsStaticForm(modIndex);
 	}
 
 	Instance* NewInst = staticInstance->newInstance(key, modIndex);
@@ -554,12 +552,6 @@ void ExtendedBaseType::MarkAsEdit(UInt32 modIndex) {
 void ExtendedBaseType::clearInstances() {
 	for (Instance* instance : aInstances) {
 		if (instance) {
-			AuxVector filter{ instance->key.c_str() };
-			for (auto it = onInstanceDeconstructEvent.handlers.begin(); it != onInstanceDeconstructEvent.handlers.end(); ++it) {
-				if (it->CompareFilters(filter)) {
-					g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 1, instance->clone);
-				}
-			}
 			delete instance;
 		}
 	}

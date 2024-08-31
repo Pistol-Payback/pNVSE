@@ -168,93 +168,89 @@ namespace Kit {
 
         while (i < numArguments && function.argumentTypes[i]) {
 
-            bool allowDuplicate = (function.argumentTypes[i] & function.allowDuplicate) != 0;
-            bool isOptional = (function.argumentTypes[i] & function.optional) != 0;
-            UInt8 argTypeCode = function.argumentTypes[i] & ~(function.allowDuplicate | function.optional);
+            UInt8 argTypeCode = function.argumentTypes[i];
 
-            switch (argTypeCode) {
-            case 1: { // 'r' argument type
-                std::string arg;
-                if (argStream >> arg) {
+            bool allowDuplicate = (argTypeCode & TypeFunction<DevkitCompiler>::allowDuplicate) != 0;
+            bool isOptional = (argTypeCode & TypeFunction<DevkitCompiler>::optional) != 0;
+            argTypeCode &= ~(TypeFunction<DevkitCompiler>::allowDuplicate | TypeFunction<DevkitCompiler>::optional);
 
-                    TESForm* reference = LookupEditorID<TESForm*>(arg.c_str());
+            std::string arg = "";
+            bool processed = false;
 
-                    if (allowDuplicate) {
-
-                        if (!reference) {
-                            PrintKitError("Trait [" + function.name + "] failed to compile, " + arg + " does not exist for argument " + std::to_string(i), argStream.str());
-                            numArguments = 0;
-                            break;
-                        }
-                        iOffset = aux->Find(reference->refID);
-                    }
-                    else if (!reference) {
-                        PrintKitError("Trait [" + function.name + "] failed to compile, " + arg + " does not exist for argument " + std::to_string(i), argStream.str());
-                        aux->AddEmptyValue(iOffset);
-                        break;
-                    }
-
-                    aux->AddValue(iOffset, reference->refID);
-
-                }
-                else if (isOptional) {
-                    aux->AddEmptyValue(iOffset);
-                }
-                else {
-                    PrintKitError("Trait [" + function.name + "] failed to compile, could not extract ref argument " + std::to_string(i), argStream.str());
-                    aux->AddEmptyValue(iOffset);
-                }
-                break;
-            }
-            case 2: // 'i' argument type
-            case 3: { // 'f' argument type
-                double arg;
-                if (argStream >> arg) {
-
-                    if (allowDuplicate) {
-                        iOffset = aux->Find(arg);
-                    }
-                    aux->AddValue(iOffset, arg);
-
-                }
-                else if (isOptional) {
-                    aux->AddEmptyValue(iOffset);
-                }
-                else {
-                    PrintKitError("Trait [" + function.name + "] failed to compile, could not extract float argument " + std::to_string(i), argStream.str());
-                    aux->AddEmptyValue(iOffset);
-                }
-                break;
-            }
-            case 4: { // 's' argument type
-                std::string arg;
+            // 1. Check for string
+            if (!processed && (argTypeCode & 0b00001000)) { // 's' string type
                 if (getQuotedString(argStream, arg)) {
-
                     if (allowDuplicate) {
                         iOffset = aux->Find(arg.c_str());
                     }
-                    aux->AddValue(iOffset, arg.c_str());
-
+                    aux->AddValue(iOffset, std::move(arg));
+                    processed = true;
                 }
-                else if (isOptional) {
+            }
+
+            // 2. Check for operator
+            if (argTypeCode & 0b00010000) { // 'o' operator type
+                if (argStream >> arg && (arg.size() == 2 || arg.size() == 1) &&
+                    (arg == "&&" || arg == "||" || arg == "!=" || arg == ">=" || arg == "<=" ||
+                    arg == "==" || arg == "+=" || arg == "-=" || arg == "*=" || arg == "/=")) {
+                    if (allowDuplicate) {
+                        iOffset = aux->Find(arg.c_str());
+                    }
+                    aux->AddValue(iOffset, std::move(arg));
+                    processed = true;
+                }
+            }
+
+            // 3. Check for reference
+            if (!processed && (argTypeCode & 0b00000001)) { // 'r' ref type
+                if (!arg.empty() || argStream >> arg) {
+                    TESForm* reference = LookupEditorID<TESForm*>(arg.c_str());
+                    if (reference) {
+                        if (allowDuplicate) {
+                            iOffset = aux->Find(reference->refID);
+                        }
+                        aux->AddValue(iOffset, reference->refID);
+                        processed = true;
+                    }
+                }
+
+            }
+
+            // 4. Check for float or int
+            if (!processed && (argTypeCode & 0b00000010 || argTypeCode & 0b00000100)) { // 'i' int type or 'f' float type
+                double argVal = 0.0;
+                if (!arg.empty()) {
+                    if (StringUtils::TryParseDouble(arg, argVal)) { // Use a helper function to safely parse
+                        if (allowDuplicate) {
+                            iOffset = aux->Find(argVal);
+                        }
+                        aux->AddValue(iOffset, argVal);
+                        processed = true;
+                    }
+                }
+                else if (argStream >> argVal) {
+                    if (allowDuplicate) {
+                        iOffset = aux->Find(argVal);
+                    }
+                    aux->AddValue(iOffset, argVal);
+                    processed = true;
+                }
+            }
+
+            if (!processed) {
+                if (isOptional) {
                     aux->AddEmptyValue(iOffset);
                 }
                 else {
-                    PrintKitError("Trait [" + function.name + "] missing quotation marks, could not extract string argument " + std::to_string(i), argStream.str());
-                    aux->AddValue(iOffset, "");
+                    PrintKitError("Trait [" + function.name + "] failed to compile, invalid or missing argument " + std::to_string(i), argStream.str());
+                    aux->AddEmptyValue(iOffset);
                 }
-                break;
-            }
-            default:
-                // Handle unsupported argument types or additional types if needed
-                break;
             }
 
             ++i;
             if (iOffset != -1) {
                 ++iOffset;
             }
-
         }
 
     }
@@ -349,7 +345,6 @@ namespace Kit {
             texture->ddsPath.Set(argument.c_str());
         }
 
-
     }
 
     void DevkitCompiler::SetMessageIcon(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
@@ -389,12 +384,64 @@ namespace Kit {
 
     }
 
+    void DevkitCompiler::SetTextureSetArmor(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        SInt32 index;
+        if (!(argStream >> index)) {
+            PrintKitError("TextureSet missing index for armor.", argStream.str());
+            return;
+        }
+
+        TESObjectARMO* armor = static_cast<TESObjectARMO*>(form);
+        if (!armor) {
+            PrintKitError("Critcal Error", argStream.str());
+            return;
+        }
+
+        TESModelTextureSwap* modelSwap = nullptr;
+
+        switch (index) {
+        case -1: {// Clear textures for all models
+            armor->bipedModel.bipedModel[0].textureList.RemoveAll();
+            armor->bipedModel.bipedModel[1].textureList.RemoveAll();
+            armor->bipedModel.groundModel[0].textureList.RemoveAll();
+            armor->bipedModel.groundModel[1].textureList.RemoveAll();
+            return;
+        }
+        case 1:
+            modelSwap = &armor->bipedModel.bipedModel[0]; // male biped
+            break;
+        case 2:
+            modelSwap = &armor->bipedModel.bipedModel[1]; // female biped
+            break;
+        case 3:
+            modelSwap = &armor->bipedModel.groundModel[0]; // male world
+            break;
+        case 4:
+            modelSwap = &armor->bipedModel.groundModel[1]; // female world
+            break;
+        default:
+            PrintKitError("Invalid index for armor texture setting.", std::to_string(index));
+            return;
+        }
+
+        if (modelSwap) {
+            SetTextureSet(it, argStream, modelSwap);
+        }
+        else {
+            PrintKitError("No valid model found for the given index.", std::to_string(index));
+        }
+    }
+
     void DevkitCompiler::SetTextureSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         TESModelTextureSwap* modelSwap = DYNAMIC_CAST(form, TESForm, TESModelTextureSwap);
         if (!modelSwap) {
             return;
         }
+        SetTextureSet(it, argStream, modelSwap);
+    }
+
+    void DevkitCompiler::SetTextureSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream, TESModelTextureSwap* modelSwap) {
 
         std::string path;
         if (!(argStream >> path)) {

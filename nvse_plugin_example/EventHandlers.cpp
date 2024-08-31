@@ -95,7 +95,7 @@ AuxVector Event::EvaluateEventArg(int num_args, ...) {
 
             }
             else {
-                va_arg(args, void*);    //Skip, priority out of scope.
+                va_arg(args, void*);    //Skip, index out of scope.
             }
         }
         else {

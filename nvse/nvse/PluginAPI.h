@@ -362,6 +362,13 @@ struct NVSEArrayVarInterface
 
 		friend class PluginAPI::ArrayAPI;
 
+		const char* GetString() const { return type == kType_String ? str : NULL; }
+		Array* GetArray() const { return type == kType_Array ? arr : NULL; }
+		UInt32 GetArrayID() const { return type == kType_Array ? reinterpret_cast<UInt32>(arr) : 0; }
+		TESForm* GetTESForm() const { return type == kType_Form ? form : NULL; }
+		UInt32 GetFormID() const { return type == kType_Form ? (form ? form->refID : 0) : 0; }
+		double GetNumber() const { return type == kType_Numeric ? num : 0.0; }
+
 		[[nodiscard]] bool IsValid() const { return type != kType_Invalid; }
 		[[nodiscard]] UInt8 GetType() const { return type; }
 
@@ -384,6 +391,22 @@ struct NVSEArrayVarInterface
 				return str && str[0];
 			default:
 				return false;
+			}
+		}
+		CommandReturnType GetReturnType() const
+		{
+			switch (GetType())
+			{
+			case kType_Numeric:
+				return kRetnType_Default;
+			case kType_Form:
+				return kRetnType_Form;
+			case kType_Array:
+				return kRetnType_Array;
+			case kType_String:
+				return kRetnType_String;
+			default:
+				return kRetnType_Ambiguous;
 			}
 		}
 	};
@@ -1231,6 +1254,8 @@ struct PluginScriptToken
 	{
 		return s_expEvalUtils.ScriptTokenGetType(this);
 	}
+
+	UInt8 GetTypeAlt();
 
 	bool CanConvertTo(UInt8 toType)
 	{

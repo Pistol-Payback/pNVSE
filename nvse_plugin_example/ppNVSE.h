@@ -53,6 +53,7 @@ extern const CommandInfo* (*GetCmdByName)(const char* name);
 extern bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 extern bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
 extern Script* (*pCompileScript)(const char* scriptText);
+extern Script* (*pCompileExpression)(const char* scriptText);
 
 template <class T>
 T LookupEditorID(const char* edid) {
@@ -125,6 +126,7 @@ namespace StringUtils {
 	char* toLowerCase(const char* str);
 
 	constexpr UInt32 ToUInt32(const char* str);
+	bool TryParseDouble(const std::string& str, double& outVal);
 
 	bool isNumber(const std::string& s);
 
@@ -169,4 +171,6 @@ namespace PluginFunctions {
 }
 
 extern bool getQuotedString(std::istringstream& argStream, std::string& argument);
-extern Script* CompileScriptAlt(Script* script);
+extern Script* CompileScriptAlt(Script* script, std::string& text);
+extern Script* CompileExpression(const std::string& text);
+extern Script* CompilePartial(Script* script, const std::string& text, const std::string& arguments);

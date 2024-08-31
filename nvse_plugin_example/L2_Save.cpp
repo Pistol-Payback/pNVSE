@@ -366,6 +366,55 @@ namespace SaveSystem {
 
 	}
 
+	//Needs work
+	void InstanceSaveManager::SaveQueue::queueAuxValue(const AuxValue& value) {
+		if (value.type == kRetnType_Form) {
+			TESForm* link = LookupFormByRefID(value.refID);
+			TESForm* parent = link->GetBaseObject();
+			queueToSave(parent);
+		}
+	}
+
+	void InstanceSaveManager::SaveAuxValue(const AuxValue& value) {
+		switch (value.type) {
+		case kRetnType_Default:
+			value.num;
+			break;
+		case kRetnType_Form: {
+			//TESForm* link = LookupFormByRefID(value.refID);
+			//TESForm* parent = link->GetBaseObject();
+			//SaveLink({ parent, nullptr });
+		}
+			break;
+		case kRetnType_String:
+			WriteRecordString(value.str);
+			break;
+		case kRetnType_Array:
+			SaveAuxVector(*value.GetArray());
+			break;
+		}
+	}
+
+	//Needs work
+	void InstanceSaveManager::SaveAuxVector(const AuxVector& auxVector) {
+		for (const auto& value : auxVector) {
+			SaveAuxValue(value);
+		}
+	}
+
+	//Needs work
+	void InstanceSaveManager::SaveFormTraits(TESForm* form) {
+
+		const auto traits = FormTraits::formTraitsSave.find(form->refID);
+		if (traits != FormTraits::formTraitsSave.end()) {
+			for (const auto& [traitName, auxVector] : traits->second) {
+				WriteRecordString(traitName);
+				SaveAuxVector(auxVector);  // Save each AuxVector
+			}
+		}
+
+	}
+
 	void InstanceSaveManager::SaveLink(const SaveDataLink& thisObj) {
 		TESForm* parent = LookupFormByRefID(thisObj.parentID);
 		if (parent->IsReference()) { //Is reference
@@ -413,7 +462,7 @@ namespace SaveSystem {
 
 		const char* EditorID = LookupFormByRefID(thisObj)->GetEditorID();
 		std::string editorIDStr = EditorID ? EditorID : "Unknown EditorID";
-		SaveData::logOperation("SAVE Error, GetSaveIndex failed to find form: " + editorIDStr);
+		SaveData::logOperation("SAVE Error, GetSaveIndex failed to find form in Queue: " + editorIDStr);
 
 		return nullptr;
 	}

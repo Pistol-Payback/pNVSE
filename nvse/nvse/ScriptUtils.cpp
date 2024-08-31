@@ -1287,11 +1287,12 @@ std::unique_ptr<ScriptToken> Eval_DotSyntax(OperatorType op, ScriptToken *lh, Sc
 		context->Error("Attempting to call a command on a non-form or a NULL reference");
 		return nullptr;
 	}
+	/*
 	if (!form->GetIsReference())
 	{
 		context->Error("Attempting to call a function on a base object (this must be a reference)");
 		return nullptr;
-	}
+	}*/
 	return context->ExecuteCommandToken(rh, static_cast<TESObjectREFR *>(form));
 }
 
@@ -4081,7 +4082,7 @@ bool ExpressionEvaluator::ConvertDefaultArg(ScriptToken *arg, ParamInfo *info, b
 	case kParamType_AnimationGroup:
 	{
 		UInt32 animGroup = arg->GetAnimationGroup();
-		if (animGroup != TESAnimGroup::kAnimGroup_Max)
+		if (animGroup != AnimGroupID::kAnimGroup_Max)
 		{
 			UInt32* out = va_arg(varArgs, UInt32*);
 			*out = animGroup;

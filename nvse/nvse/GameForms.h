@@ -263,10 +263,10 @@ public:
 	virtual void		GetDebugName(String * dst);
 	virtual bool		IsQuestItem(void);
 										// Unk_26 though Unk_36 get or set flag bits
-	virtual bool		Unk_26(void);		// 00000040
-	virtual bool		Unk_27(void);		// 00010000
+	/*098*/virtual bool		HasTalkedToPC();		// 00000040
+	/*09C*/virtual bool		GetHavokDeath();		// 00010000
 	virtual bool		Unk_28(void);		// 00010000
-	virtual bool		Unk_29(void);		// 00020000
+	/*0A4*/virtual bool		GetNeedToChangeProcess();		// 00020000
 	virtual bool		Unk_2A(void);		// 00020000
 	virtual bool		Unk_2B(void);		// 00080000
 	virtual bool		Unk_2C(void);		// 02000000
@@ -274,30 +274,30 @@ public:
 	virtual bool		Unk_2E(void);		// 00000200
 	virtual void		Unk_2F(bool set);	// 00000200
 	virtual bool		Unk_30(void);		// returns false
-	virtual void		Unk_31(bool set);	// 00000020 then calls Fn12 MarkAsModified
-	virtual void		Unk_32(bool set);	// 00000002 with a lot of housekeeping
+	/*0C4*/virtual void		UpdateDeleted(bool set);	// 00000020 then calls Fn12 MarkAsModified
+	/*0C8*/virtual void		SetAltered(bool set);	// 00000002 with a lot of housekeeping
 #if RUNTIME
 	virtual void		SetQuestItem(bool set);	// 00000400 then calls Fn12 MarkAsModified
 #else
 	virtual bool		Unk_33(void);
 #endif
-	virtual void		Unk_34(bool set);	// 00000040 then calls Fn12 MarkAsModified
-	virtual void		Unk_35(bool set);	// 00010000 then calls Fn12 MarkAsModified
-	virtual void		Unk_36(bool set);	// 00020000
+	/*0D0*/virtual void		SetTalkedToPC(bool set);	// 00000040 then calls Fn12 MarkAsModified
+	/*0D4*/virtual void		SetHavokDeath(bool set);	// 00010000 then calls Fn12 MarkAsModified
+	/*0D8*/virtual void		SetNeedToChangeProcess(bool set);	// 00020000
 	virtual void		Unk_37(void);		// write esp format
 	virtual void		readOBNDSubRecord(ModInfo * modInfo);	// read esp format
 	virtual bool		Unk_39(void);
 	virtual bool		IsBoundObject(void);
-	virtual bool		Unk_3B(void);
+	/*0EC*/virtual bool		IsMagicItem();		// EnchantmentItem, SpellItem, IngredientItem, AlchemyItem
 #if RUNTIME
 	virtual bool		GetIsReference() const;
 #else
 	virtual bool		Unk_3C();
 	bool GetIsReference() const { return typeID == kFormType_TESObjectREFR; }
 #endif
-	virtual bool		Unk_3D(void);
-	virtual bool		Unk_3E(void);
-	virtual bool		Unk_3F(void) const;	// returnTrue for refr whose baseForm is a TESActorBase
+	/*0F4*/virtual bool		IsArmorAddon();		// TESObjectARMA
+	/*0F8*/virtual bool		IsActorBase();		// TESNPC or TESCreature
+	/*0FC*/virtual bool		IsMobileObject();	// Actor, Projectile or Explosion
 	virtual bool		IsActor(void);
 	virtual UInt32		Unk_41(void);
 	virtual void		CopyFrom(const TESForm * form);
@@ -306,8 +306,8 @@ public:
 	virtual void		InitFormGRUP(void * dst, void * arg1);	// Fills the groupInfo with info valid for the form
 	virtual bool		Unk_46(void);
 	virtual bool		Unk_47(void);
-	virtual bool		Unk_48(UInt32 formType);	// returns if the same FormType is passed in
-	virtual bool		Unk_49(void * arg0, void * arg1, void * arg2, void * arg3, void * arg4);	// looks to be func33 in Oblivion
+	/*120*/virtual bool		Unk_48(UInt32 formType);	// returns if the same FormType is passed in
+	/*124*/virtual bool		ActivateRef(TESObjectREFR* activatedRef, TESObjectREFR* activatingRef, UInt8 arg3, TESForm* form, UInt32 count);	// looks to be func33 in Oblivion
 	virtual void		SetRefID(UInt32 refID, bool generateID);
 	virtual char *		GetName2(void);	// GetName as in OBSE ?
 	virtual char *		GetName(void) const;	// GetEditorID as in OBSE ?
@@ -325,10 +325,25 @@ public:
 
 	enum
 	{
-		kFormFlags_Initialized =	0x00000008,	// set by TESForm::InitItem()
-		kFormFlags_QuestItem =		0x00000400,
-		kFormFlags_DontSaveForm =	0x00004000,	// TODO: investigate
-		kFormFlags_Compressed =		0x00040000,
+		kFormFlag_IsMaster = 1,
+		kFormFlag_IsAltered = 2,
+		kFormFlag_Initialized = 8,
+		kFormFlag_DroppedRef = 0x100,
+		kFormFlag_CastShadows = 0x200,
+		kFormFlag_QuestItem = 0x400,
+		kFormFlag_IsRefPersistent = 0x400,
+		kFormFlag_IsPermanent = 0x800,
+		kFormFlag_DontSaveForm = 0x4000,
+		kFormFlag_VisibleDistant = 0x8000,
+		kFormFlag_HavokDeath = 0x10000,
+		kFormFlag_NeedToChangeProcess = 0x20000,
+		kFormFlag_Compressed = 0x40000,
+		kFormFlag_CenterRefOnCreation = 0x100000,
+		kFormFlag_StillLoading = 0x200000,
+		kFormFlag_Destructible = 0x1000000,
+		kFormFlag_IsVATSTargettable = 0x4000000,
+		kFormFlag_DisableFade = 0x8000000,
+		kFormFlag_TalkingActivator = 0x40000000
 	};
 
 	enum

@@ -314,7 +314,9 @@ struct Instance : TESRefr {
     }
 
     virtual ~Instance() {
+        onInstanceDeconstructEvent.DispatchEvent(key.c_str());
         PluginFunctions::c_RemoveFormAnimations(clone);
+        FormTraits::eraseAll(this->clone->refID);
         clone->Destroy(false);
     }
 
@@ -351,7 +353,9 @@ struct TESInstance : Instance {
     }
 
     ~TESInstance() override {
+        onInstanceDeconstructEvent.DispatchEvent(key.c_str());
         PluginFunctions::c_RemoveFormAnimations(clone);
+        FormTraits::eraseAll(this->clone->refID);
         InstanceLinker[this->clone->typeID].erase(this->clone->refID);
         clone->Destroy(false);
     }
@@ -378,6 +382,17 @@ struct Instance_WEAP : TESInstance {
         LifecycleManager&& lifecycle,
         const std::unordered_map<std::string, UInt32>& aAttachments = {}
     ) : TESInstance(InstID, baseInstance, clone, modIndex, key, std::move(lifecycle)), aAttachments(aAttachments) {}
+
+    ~Instance_WEAP() override {
+        onInstanceDeconstructEvent.DispatchEvent(key.c_str());
+        for (auto& [slot, refID] : aAttachments) {
+            onDetachWeapModDeconstructEvent.DispatchEvent(LookupFormByRefID(refID), clone);
+        }
+        PluginFunctions::c_RemoveFormAnimations(clone);
+        FormTraits::eraseAll(this->clone->refID);
+        InstanceLinker[this->clone->typeID].erase(this->clone->refID);
+        clone->Destroy(false);
+    }
 
     std::unordered_map<std::string, UInt32> aAttachments; //Use a map of cad objects, to avoid dupe strings.
 
@@ -419,6 +434,7 @@ struct Instance_Akimbo : Instance {
     ~Instance_Akimbo() override final {
         PluginFunctions::c_RemoveFormAnimations(clone);
         InstanceLinker[40].erase(this->clone->refID);
+        FormTraits::eraseAll(this->clone->refID);
         clone->Destroy(false);
     }
 

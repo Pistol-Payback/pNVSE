@@ -219,6 +219,8 @@ namespace SaveSystem {
 			bool isQueueToSave(Instance* instance);
 			void queueAllWithSaveBehavior();
 
+			void queueAuxValue(const AuxValue& value);
+
 		};
 
 	public:
@@ -256,6 +258,11 @@ namespace SaveSystem {
 
 		void SaveLink(const SaveDataLink& thisObj);
 		void SaveLinkType(UInt8 type, const UInt32* ID32, const UInt16* ID16 = nullptr);
+
+		void SaveFormTraits(TESForm* form);
+		void SaveAuxVector(const AuxVector& auxVector);
+		void SaveAuxValue(const AuxValue& value);
+
 		UInt32* GetSaveIndex(UInt32 thisObj);
 
 		void saveAll();
@@ -422,6 +429,7 @@ namespace SaveSystem {
 			void reset();
 			//void ReconstructEvent();
 			bool ReconstructEvent(Instance* inst);
+			bool ReconstructEvent(Instance* inst, TESForm* attachment);
 
 			//For situations where we are unsure what the link data could be.
 			TESForm* deduceLinkToForm(LoadDataLink* link);

@@ -9,7 +9,7 @@ struct AuxValue
     {
         double	num;
         UInt32	refID;
-        char* str;
+        char* str;                //Stop trying to convert these to std::string you lazy fuck.
         AuxVector* NVSEArray;
         Float32 fNum; //Used to prevent CallLoop conversions
     };
@@ -20,6 +20,7 @@ struct AuxValue
     AuxValue(UInt32 refID);
     AuxValue(TESForm* form);
     AuxValue(const char* value);
+    AuxValue(std::string&& value);
     AuxValue(NVSEArrayVarInterface::Array* ToCopy);
 
     //Copy constructor:
@@ -37,6 +38,7 @@ struct AuxValue
     AuxVector* CopyFromNVSEArray(NVSEArrayVarInterface::Array* ToCopy);
     NVSEArrayVarInterface::Array* CopyToNVSEArray(Script* resultArray) const;
 
+    bool IsEmpty() const { return type == -1; }
     UInt8 GetType() const { return type; }
     Float32 GetFlt() const { return (type == kRetnType_Float) ? fNum : 0; }
     double GetDouble() const { return (type == kRetnType_Default) ? num : 0; }
@@ -50,6 +52,8 @@ struct AuxValue
     void SetValue(UInt32 value);
     void SetValue(const char* value);
     void SetValue(NVSEArrayVarInterface::Array* value);
+    void SetValue(const std::string& value);
+    void SetValue(std::string&& value);
 
     UInt32* bitCast(Script* script) const; //Used for pushing unknown arguments to CallFunction
     double GetValue(double value);
@@ -57,6 +61,11 @@ struct AuxValue
     UInt32 GetValue(UInt32 value);
     const char* GetValue(const char* value);
     AuxVector* GetValue(NVSEArrayVarInterface::Array* value);
+
+    bool Compare(double value) const;
+    bool Compare(UInt32 value) const;
+    bool Compare(const char* value) const;
+    bool Compare(NVSEArrayVarInterface::Array* value) const;
 
     ArrayElementL GetAsElement() const;
 
@@ -111,6 +120,18 @@ struct AuxVector : public std::vector<AuxValue> {
         }
     }
 
+    void AddValue(int index, std::string&& value) {
+        if (index < 0) {
+            push_back(AuxValue{ std::move(value) });
+        }
+        else {
+            if (index >= size()) {
+                resize(index + 1);
+            }
+            (*this)[index].SetValue(std::move(value));
+        }
+    }
+
     template<class T>
     void SetValue(int index, T value) {
         if (index >= size()) {
@@ -131,15 +152,69 @@ struct AuxVector : public std::vector<AuxValue> {
         }
     }
 
+    void eraseIndex(int index) {
+        if (index >= 0 && index < this->size()) {
+            this->erase(this->begin() + index);
+        }
+    }
+
+    void ClearIndex(int index) {
+        if (index >= 0 && index < size()) {
+            if (index == size() - 1) {
+                pop_back();
+            }
+            else {
+                (*this)[index].SetValue(); //Sets to empty
+            }
+        }
+    }
+
+    void Cleanup() {
+        while (!empty() && back().IsEmpty()) {
+            pop_back();
+        }
+    }
+
     template<class T>
     SInt32 Find(T value) {
 
         for (size_t index = 0; index < this->size(); ++index) {
-            if ((*this)[index].GetValue(value) == value) {
+            if ((*this)[index].Compare(value)) {
                 return index;
             }
         }
         return -1; // Return a special value to indicate that the element was not found
+    }
+
+    void Dump() const {
+        for (size_t index = 0; index < this->size(); ++index) {
+
+            switch ((*this)[index].GetType()) {
+            case kRetnType_Default:
+            {
+                Console_Print("[%d] %d", index, (*this)[index].GetDouble());
+                break;
+            }
+            case kRetnType_Form:
+            {
+                if (TESForm* form = LookupFormByRefID((*this)[index].GetRef())) {
+                    Console_Print("[%d] %s", index, form->GetTheName());
+                }
+                break;
+            }
+            case kRetnType_String:
+            {
+                Console_Print("[%d] %s", index, (*this)[index].GetStr());
+                break;
+            }
+            case kRetnType_Array:
+            {
+                //Console_Print("[%d] %d", index, (*this)[index].GetArray());
+                break;
+            }
+            }
+
+        }
     }
 
     bool operator==(const AuxVector& rhs) const {
@@ -167,7 +242,7 @@ struct CallLoopInfo {
 
     Type type = NONE;
 
-    mutable double timer;
+    mutable double timer = delay;
     mutable double delay;
 
     Script* script;
@@ -181,10 +256,10 @@ struct CallLoopInfo {
     bool gameTimer = false;
 
     CallLoopInfo(double delay, Script* script, UInt32 callingObj, AuxVector&& arguments)
-        : delay(delay), script(script), callingObj(callingObj), argumentsAux(std::move(arguments)), type(AUX) {}
+        : delay(delay), timer(delay), script(script), callingObj(callingObj), argumentsAux(std::move(arguments)), type(AUX) {}
 
     CallLoopInfo(double delay, Script* script, UInt32 callingObj, std::vector<UInt32>&& arguments)
-        : delay(delay), script(script), callingObj(callingObj), arguments(std::move(arguments)), type(VECT) {}
+        : delay(delay), timer(delay), script(script), callingObj(callingObj), arguments(std::move(arguments)), type(VECT) {}
 
     ~CallLoopInfo() { clearInfo(); }
 
@@ -272,4 +347,16 @@ struct CallLoopHandler {
         }
 
     }
+};
+
+namespace FormTraits {
+
+    extern std::unordered_map <UInt32, std::unordered_map<std::string, AuxVector>> formTraitsSave;
+    extern std::unordered_map <UInt32, std::unordered_map<std::string, AuxVector>> formTraits;
+
+    extern AuxVector* findAuxVector(UInt32 refID, const std::string& trait);
+    extern AuxVector* setAuxVector(UInt32 refID, const std::string& trait);
+    extern void eraseAuxFromVector(UInt32 refID, const std::string& trait, UInt32 index, bool collapse = true);
+    extern void eraseAll(UInt32 refID);
+
 };

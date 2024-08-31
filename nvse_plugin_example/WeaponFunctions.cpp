@@ -197,4 +197,95 @@ namespace Kit {
 
     }
 
+    template<typename T, typename U>
+    void setProperty(TESObjectWEAP* weapon, std::istringstream& argStream, U T::* property) {
+        if (!weapon) return;
+
+        U argument;
+        if (!(argStream >> argument)) return;
+        weapon->*property = argument;
+    }
+
+    // Specialization for nested member within TESObjectWEAP
+    template<typename T, typename U>
+    void setSubProperty(TESObjectWEAP* weapon, std::istringstream& argStream, T TESObjectWEAP::* subObject, U T::* member) {
+        if (!weapon) return;
+
+        T* subObjectPtr = &(weapon->*subObject);
+        U argument;
+        if (!(argStream >> argument)) return;
+        subObjectPtr->*member = argument;
+    }
+
+    void DevkitCompiler::setStrReq(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::strRequired);
+    }
+    void DevkitCompiler::setSkillReq(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::skillRequirement);
+    }
+    void DevkitCompiler::setSkill(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::weaponSkill);
+    }
+    void DevkitCompiler::setFireRate(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::fireRate);
+    }
+    void DevkitCompiler::setSpread(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::spread);
+    }
+    void DevkitCompiler::setMinSpread(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::minSpread);
+    }
+    void DevkitCompiler::setCritDmg(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::criticalDamage);
+    }
+    void DevkitCompiler::setCritChance(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::criticalPercent);
+    }
+    void DevkitCompiler::setReach(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::reach);
+    }
+
+
+    void DevkitCompiler::setProjectile(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    }
+
+
+
+    void DevkitCompiler::setNumProjectiles(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::numProjectiles);
+    }
+    void DevkitCompiler::setAmmoUse(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::ammoUse);
+    }
+    void DevkitCompiler::setLimbDmgMult(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::limbDamageMult);
+    }
+    void DevkitCompiler::setDamage(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setSubProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::attackDmg, &TESAttackDamageForm::damage);
+    }
+
+
+
+
+    void DevkitCompiler::setActionPointsUsed(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    }
+    void DevkitCompiler::setCritEffect(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    }
+
+
+
+
+
+    void DevkitCompiler::setVatsHitChance(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::baseVATSChance);
+    }
+
+    void DevkitCompiler::setDegradationMult(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::damageToWeaponMult);
+    }
+
+    void DevkitCompiler::setClipSize(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+        setSubProperty(static_cast<TESObjectWEAP*>(form), argStream, &TESObjectWEAP::clipRounds, &BGSClipRoundsForm::clipRounds);
+    }
+
 }

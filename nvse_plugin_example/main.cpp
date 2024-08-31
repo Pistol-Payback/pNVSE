@@ -13,6 +13,7 @@
 
 #include "GameUI.h"
 
+#include "VariableFunctions.h"
 #include "ppNVSE_functions.h"
 #include "WS_Funct.h"
 
@@ -92,9 +93,49 @@ NVSEScriptInterface* g_scriptInterface = nullptr;
 bool (*FunctionCallScript)(Script* funcScript, TESObjectREFR* callingObj, TESObjectREFR* container, NVSEArrayElement* result, UInt8 numArgs, ...);
 bool (*FunctionCallScriptAlt)(Script* funcScript, TESObjectREFR* callingObj, UInt8 numArgs, ...);
 Script* (*pCompileScript)(const char* scriptText);
+Script* (*pCompileExpression)(const char* scriptText);
 
 ExpressionEvaluatorUtils s_expEvalUtils;
 
+bool getQuotedString(std::istringstream& argStream, std::string& argument) {
+
+	argStream >> std::ws; // Skip leading whitespace
+
+	char ch;
+	if (argStream.peek() != '\"') {
+		return false;
+	}
+
+	argStream.get(); // Consume the opening quotation mark
+	argument.clear();
+	bool escapeNextChar = false;
+
+	while (argStream.get(ch)) {
+
+		if (escapeNextChar) { //Quotes inside quotes
+			if (ch == '\"') {
+				argument += '\"';
+			}
+			else { //do regluar
+				argument += '\\';
+				argument += ch;
+			}
+			escapeNextChar = false;
+		}
+		else if (ch == '\\') {
+			escapeNextChar = true; // Escape the next character
+		}
+		else if (ch == '\"') {
+			return true; // End of quoted string
+		}
+		else {
+			argument += ch; // Regular character
+		}
+	}
+
+	return false;
+}
+/* Old
 bool getQuotedString(std::istringstream& argStream, std::string& argument) {
 
 	argStream >> std::ws; //Skip white space
@@ -115,18 +156,161 @@ bool getQuotedString(std::istringstream& argStream, std::string& argument) {
 
 	return false;
 }
+*/
+std::string processFormatString(const std::string& input, const std::unordered_map<char, std::function<std::string()>>& formatHandlers) {
+	std::ostringstream output;
+	std::istringstream inputStream(input);
+	char ch;
 
-Script* CompileScriptAlt(Script* script)
+	while (inputStream.get(ch)) {
+		if (ch == '%' && inputStream.peek() != '%') {
+			char specifier;
+			inputStream.get(specifier);
+
+			if (formatHandlers.count(specifier)) {
+				output << formatHandlers.at(specifier)();
+			}
+			else {
+				output << '%' << specifier;
+			}
+		}
+		else {
+			if (ch == '%' && inputStream.peek() == '%') {
+				inputStream.get();  // Consume the second '%'
+			}
+			output << ch;
+		}
+	}
+
+	return output.str();
+}
+
+UInt8 PluginScriptToken::GetTypeAlt()
+{
+	UInt8 type = s_expEvalUtils.ScriptTokenGetType(this);
+
+	if (type == kTokenType_ArrayElement) {
+
+		NVSEArrayVarInterface::ElementL elem;
+		this->GetElement(elem);
+		type = elem.GetType();
+
+		switch (type) {
+		case NVSEArrayVarInterface::kType_Numeric:
+		{
+			return kRetnType_Default;
+		}
+		case NVSEArrayVarInterface::kType_Form:
+		{
+			return kRetnType_Form;
+		}
+		case NVSEArrayVarInterface::kType_String:
+		{
+			return kRetnType_String;
+		}
+		case NVSEArrayVarInterface::kType_Array:
+		{
+			return kRetnType_Array;
+		}
+		}
+
+	}
+	else {
+
+		switch (type) {
+		case kTokenType_Number:
+		case kTokenType_NumericVar:
+		{
+			return kRetnType_Default;
+		}
+		case kTokenType_Form:
+		case kTokenType_RefVar:
+		{
+			return kRetnType_Form;
+		}
+		case kTokenType_String:
+		case kTokenType_StringVar:
+		{
+			return kRetnType_String;
+		}
+		case kTokenType_Array:
+		case kTokenType_ArrayVar:
+		{
+			return kRetnType_Array;
+		}
+		}
+
+	}
+
+}
+
+Script* CompileExpression(const std::string& text)
+{
+	Script* script = static_cast<Script*>(TESForm::CreateNewForm(17));
+	std::string scriptText = "Begin Function{} \n SetFunctionValue (eval " + text + ") \n end";
+
+	script->text = _strdup(scriptText.c_str());
+
+	const auto buffer = MakeUnique<ScriptBuffer, 0x5AE490, 0x5AE5C0>();
+
+	buffer->scriptName.Set("temp");
+	buffer->scriptText = script->text;
+	*buffer->scriptData = 0x1D;
+	buffer->dataOffset = 4;
+	buffer->partialScript = true;
+	buffer->runtimeMode = ScriptBuffer::kGameConsole;
+	buffer->currentScript = script;
+
+	const bool result = script->Compile(buffer.get());
+
+	buffer->scriptText = nullptr;
+
+	if (!result) {
+		script->Destroy(1);
+		return nullptr;
+	}
+	return script;
+}
+
+Script* CompilePartial(Script* script, const std::string& text, const std::string& arguments)
+{
+	std::string scriptText = "Begin Function{" + arguments + "} \n " + text + " \n end";
+
+	script->text = _strdup(scriptText.c_str());
+
+	const auto buffer = MakeUnique<ScriptBuffer, 0x5AE490, 0x5AE5C0>();
+
+	buffer->scriptName.Set("temp");
+	buffer->scriptText = script->text;
+	*buffer->scriptData = 0x1D;
+	buffer->dataOffset = 4;
+	buffer->partialScript = true;
+	buffer->runtimeMode = ScriptBuffer::kGameConsole;
+	buffer->currentScript = script;
+
+	const bool result = script->Compile(buffer.get());
+
+	buffer->scriptText = nullptr;
+
+	if (!result) {
+		script->Destroy(1);
+		return nullptr;
+	}
+	//free(script->text);
+	return script;
+}
+
+Script* CompileScriptAlt(Script* script, std::string& text)
 {
 	const auto buffer = MakeUnique<ScriptBuffer, 0x5AE490, 0x5AE5C0>();
 
 	buffer->scriptName.Set(script->GetEditorID());
-	buffer->scriptText = script->text;
+	buffer->scriptText = _strdup(text.c_str());
 	*buffer->scriptData = 0x1D;
 	buffer->dataOffset = 4;
 
 	buffer->partialScript = (script->flags & 1) != 0;
-	buffer->runtimeMode = ScriptBuffer::kEditor;
+	buffer->runtimeMode = ScriptBuffer::kGameConsole;
 	buffer->currentScript = script;
 
 	script->info.varCount = 0;
@@ -136,7 +320,6 @@ Script* CompileScriptAlt(Script* script)
 
 	//buffer->info.numRefs = script->info.numRefs;
 	//buffer->info.varCount = script->info.varCount;
-
 	const auto result = script->Compile(buffer.get());
 	buffer->scriptText = nullptr;
 	script->text = nullptr;
@@ -523,6 +706,7 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 		FunctionCallScript = g_scriptInterface->CallFunction;
 		FunctionCallScriptAlt = g_scriptInterface->CallFunctionAlt;
 		pCompileScript = g_scriptInterface->CompileScript;
+		pCompileExpression = g_scriptInterface->CompileExpression;
 
 		g_cmdTableInterface = *(NVSECommandTableInterface*)nvse->QueryInterface(kInterface_CommandTable);
 		GetCmdByName = g_cmdTableInterface.GetByName;
@@ -626,7 +810,6 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 
 	REG_CMD(SetBaseTrait)
 	REG_CMD_AMB(GetBaseTrait)
-
 	REG_CMD(GetBaseTraitListSize)
 
 	REG_CMD_ARR(GetAllWeaponMods)
@@ -678,7 +861,20 @@ bool NVSEPlugin_Load(NVSEInterface* nvse)
 	REG_CMD(pRenameFile)
 
 	REG_CMD(GetAkimboWeaponsAlt)
+
+	REG_CMD(evaluateString)
+
+	REG_CMD(DeleteTempForm)
 		
+	REG_CMD(GetFormTraitType)
+	REG_CMD(EraseFormTrait)
+	REG_CMD_AMB(GetFormTrait)
+	REG_CMD(SetFormTrait)
+	REG_CMD(GetFormTraitSize)
+	REG_CMD(HasFormTrait)
+	REG_CMD(FindFormTrait)
+	REG_CMD(NullFormTraitIndex)
+	REG_CMD(DumpFormTrait)
 		
 
 	//REG_CMD(SetSpeedMultAlt)
@@ -746,6 +942,19 @@ namespace StringUtils {
 		}
 
 		return result;
+	}
+
+	bool TryParseDouble(const std::string& str, double& outVal) {
+		try {
+			outVal = std::stod(str);
+			return true;
+		}
+		catch (const std::invalid_argument& e) {
+			return false;
+		}
+		catch (const std::out_of_range& e) {
+			return false;
+		}
 	}
 
 	bool isNumber(const std::string& s) {

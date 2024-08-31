@@ -148,7 +148,7 @@ public:
 	TESObjectREFR		* m_containingObj;
 	UInt8				* m_data;
 	ScriptToken			* m_args[kMaxArgs];
-	ParamInfo			* m_params;
+	ParamInfo		* m_params;
 	UInt8				m_numArgsExtracted;
 	CommandReturnType	m_expectedReturnType;
 	UInt16				m_baseOffset;

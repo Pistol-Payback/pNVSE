@@ -27,9 +27,10 @@ namespace Kit {
         void QuestDelay(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void QuestFlags(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void QuestScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        //void CompileScriptLink(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void BuildScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
-        Script* BuildScriptCondition(std::istringstream& iss);
+        Script* BuildScriptCondition(std::istringstream& iss, const std::string& arguments = "");
         void RegFloatVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void RegIntVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void RegRefVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
@@ -37,7 +38,7 @@ namespace Kit {
         void RegArrayVar(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetScriptType(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
-        void CompileScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        //void CompileScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         void BuildSlot(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void BuildWeaponModLink(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
@@ -45,6 +46,8 @@ namespace Kit {
         void Set1stPersonWeaponModel(bool isNested, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetWeaponWorldModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
+        void SetOnAttachWeaponMod(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void SetOnDetachWeaponMod(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetBaseMod(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void Set1stPersonAttachmentModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
@@ -58,6 +61,8 @@ namespace Kit {
         void SetMessageIcon(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetTextureSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void SetTextureSet(std::vector<std::string>::const_iterator& it, std::istringstream& argStream, TESModelTextureSwap* modelSwap);
+        void SetTextureSetArmor(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
         void SetQuestItem(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         //Akimbo
@@ -87,13 +92,36 @@ namespace Kit {
 
         //BuilderKit...................................................................................................................
 
+        void RegisterArmorTypeFunctions();
         void RegisterWeaponTypeFunctions();
         void RegisterWeaponModTypeFunctions();
         void RegisterLists();
         void RegisterStatic();
         void compileTraitFiles();
-        void compilePartials();
+        void compile();
         void clearAnimGroups();
+
+        //Weapons....................................................................................................................
+
+        void setStrReq(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setSkillReq(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setSkill(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setFireRate(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setSpread(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setMinSpread(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setCritDmg(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setCritChance(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setReach(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setProjectile(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setNumProjectiles(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setAmmoUse(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setLimbDmgMult(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setDamage(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setActionPointsUsed(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setVatsHitChance(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setCritEffect(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setClipSize(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
+        void setDegradationMult(std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
         //.........................................................................................................................
 
@@ -130,7 +158,21 @@ namespace Kit {
         void ClearNestedState();
         void RunOperatorOverloads(const char* m_operator, std::vector<std::string>::const_iterator& it, std::istringstream& argStream);
 
-        std::vector<Script*> toCompile; //For partials
+        struct scriptToCompile {
+
+            scriptToCompile(Script* scriptPtr, const std::string& scriptText, bool isPartial, const std::string& arguments = "")
+                : script(scriptPtr), text(scriptText), isPartial(isPartial), arguments(arguments) {
+            }
+
+            Script* script;
+            std::string text;
+            std::string arguments;
+            bool isPartial;
+        };
+
+        std::vector<scriptToCompile*> toCompile;
+        std::unordered_map<Script* , scriptToCompile*> toCompileLookup;
+
         std::unordered_set<TESForm*> AnimGroups; //For AnimGroups -1. All these get destoryed at the end.
         std::unordered_map<std::string, TESForm*> AnimGroupLookup;
 
@@ -211,12 +253,13 @@ namespace Kit {
             }
             fileManager.typeFunctions[0]["texture"] = TypeFunction{ &DevkitCompiler::SetTextureSet };
             
-            fileManager.typeFunctions[17]["scn"] = TypeFunction(&DevkitCompiler::CompileScript);
-            fileManager.typeFunctions[17]["name"] = TypeFunction(&DevkitCompiler::CompileScript);
+            //fileManager.typeFunctions[17]["scn"] = TypeFunction(&DevkitCompiler::CompileScript);
+            //fileManager.typeFunctions[17]["name"] = TypeFunction(&DevkitCompiler::CompileScript);
 
             fileManager.typeFunctions[71]["name"] = TypeFunction(&DevkitCompiler::SetName);
             fileManager.typeFunctions[71]["questdelay"] = TypeFunction(&DevkitCompiler::QuestDelay);
             fileManager.typeFunctions[71]["flags"] = TypeFunction(&DevkitCompiler::QuestFlags);
+            //fileManager.typeFunctions[71]["script"] = TypeFunction(&DevkitCompiler::CompileScriptLink);
 
             //Kit info Functions
             fileManager.typeFunctions[999]["conflicts"] = TypeFunction{ &DevkitCompiler::KitConflicts };
@@ -226,6 +269,7 @@ namespace Kit {
             fileManager.typeFunctions[999]["updater"] = TypeFunction{ &DevkitCompiler::KitUpdater };
             fileManager.typeFunctions[999]["uninstaller"] = TypeFunction{ &DevkitCompiler::KitUninstaller };
 
+            RegisterArmorTypeFunctions();
             RegisterWeaponTypeFunctions();
             RegisterWeaponModTypeFunctions();
             RegisterLists();
@@ -235,7 +279,7 @@ namespace Kit {
             fileManager.ReadKitFiles(*this);
 
             //Compile partials after core scripts have been compiled
-            compilePartials();
+            compile();
             clearAnimGroups();
 
         }

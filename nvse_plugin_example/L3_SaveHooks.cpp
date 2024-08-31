@@ -10,7 +10,14 @@ namespace Hooks
 		//return CdeclCall<TESObjectREFR*>(0x04839C0, refID);
 		TESForm* form = CdeclCall<TESForm*>(0x04839C0, refID);
 		//TESForm* form = LookupFormByRefID(refID);
-		if (!form || !form->IsReference()) {
+		if (!form) {
+			return nullptr;
+		}
+
+		if (!form->IsReference()) {
+			if (form->pIsDynamicForm()) {
+				return nullptr;
+			}
 			return form;
 		}
 

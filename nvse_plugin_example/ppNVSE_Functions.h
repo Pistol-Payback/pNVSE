@@ -52,6 +52,54 @@ bool Cmd_onAnimationStart_Execute(COMMAND_ARGS)
 	return true;
 }
 
+DEFINE_COMMAND_ALT_PLUGIN_EXP(evaluateString, evalString, "evaluates a string for an if statment", false, kNVSEParams_OneString_OneOptionalNumber);
+bool Cmd_evaluateString_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	Script* script = nullptr;
+	const char* scriptString = nullptr;
+	bool destroy = true;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+		scriptString = eval.GetNthArg(0)->GetString();
+		if (eval.NumArgs() == 2) {
+			destroy = eval.GetNthArg(1)->GetBool();
+		}
+		script = CompileExpression(scriptString);
+		if(script){
+			NVSEArrayVarInterface::ElementL scriptResult;
+			if (g_scriptInterface->CallFunction(script, *g_thePlayer, nullptr, &scriptResult, 0) && scriptResult.Bool()) {
+				*result = 1;
+			}
+			if (destroy) {
+				script->Destroy(1);
+			}
+		}
+	}
+
+	return true;
+}
+
+DEFINE_COMMAND_PLUGIN_EXP(DeleteTempForm, "Deletes a baseform", false, kNVSEParams_OneForm_OneOptionalNumber);
+bool Cmd_DeleteTempForm_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	bool destroy = true;
+	TESForm* form;
+
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+		form = eval.GetNthArg(0)->GetTESForm();
+		if (eval.NumArgs() == 2) {
+			destroy = eval.GetNthArg(1)->GetBool();
+		}
+		form->Destroy(destroy);
+	}
+
+	return true;
+}
+
 DEFINE_COMMAND_PLUGIN(IsThirdPerson, "Checks if the player is in third person", false, nullptr);
 bool Cmd_IsThirdPerson_Execute(COMMAND_ARGS)
 {

@@ -371,6 +371,9 @@
     <ClInclude Include="pInputManager.h">
       <Filter>ppNVSE\DataExtensions</Filter>
     </ClInclude>
+    <ClInclude Include="VariableFunctions.h">
+      <Filter>ppNVSE\functions</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="exports.def" />

@@ -330,21 +330,38 @@ namespace Kit {
     }
 
     void KitFolder::CompileTypes() {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(filePath)) {
-            if (entry.is_regular_file()) {
-                SInt32 type = EvaluateType(entry.path());
+
+        SInt32 currentType = -9999;
+        std::filesystem::recursive_directory_iterator dirIter(filePath), endIter;
+
+        for (; dirIter != endIter; ++dirIter) {
+
+            if (dirIter.depth() == 0) {
+                currentType = -9999; // Reset type at the top level
+            }
+
+            const auto& entry = *dirIter;
+            if (entry.is_directory()) {
+                currentType = EvaluateType(entry.path());
+            }
+            else if (entry.is_regular_file()) {
+                SInt32 type = (currentType == -9999) ? EvaluateType(entry.path()) : currentType;
                 if (type != -9999) {
                     filesByType[type].push_back(entry.path());
+                    ++fileCount;
                 }
             }
         }
     }
 
     SInt32 KitFolder::EvaluateType(const std::filesystem::path& filePath) {
-        std::string filename = filePath.filename().string();
+        const std::string filename = filePath.filename().string();
+        return EvaluateType(filename);
+    }
+
+    SInt32 KitFolder::EvaluateType(const std::string& filename) {
         size_t startBracket = filename.find('[');
         size_t endBracket = filename.find(']');
-
         if (startBracket != std::string::npos && endBracket != std::string::npos && startBracket < endBracket) {
             std::string typeTag = filename.substr(startBracket + 1, endBracket - startBracket - 1);
             return ConvertExtensionToType(StringUtils::toLowerCase(typeTag));

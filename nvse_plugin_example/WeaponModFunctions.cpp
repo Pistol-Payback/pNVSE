@@ -5,7 +5,6 @@ namespace Kit {
     void DevkitCompiler::Set1stPersonAttachmentModel(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string modelPath;
-        bool quoted = argStream.peek() == '"';
 
         if (!getQuotedString(argStream, modelPath)) {
             return;
@@ -54,6 +53,74 @@ namespace Kit {
             if (staticForm) {
                 staticForm->SetBaseTrait("IsBaseMod");
             }
+        }
+
+    }
+
+    void DevkitCompiler::SetOnAttachWeaponMod(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        if (!form) {
+            return;
+        }
+
+        bool runOnReconstruct;
+        if (!(argStream >> runOnReconstruct)) {
+            return;
+        }
+
+        Script* script = BuildScriptCondition(argStream, "ref rModifier, ref rWeapon");
+
+        if (!script) {
+            return;
+        }
+
+        AuxVector filter(2);
+        filter.SetValue(0, form->refID);
+
+        if (staticParent && staticParent->extendedType == 40 && ((StaticInstance*)staticParent)->parent->typeID == 40) { //If linked
+
+            filter.SetValue(1, staticParent->parent->refID); //Only apply the event for this attachment on this weapon
+
+        }
+
+        Event eEvent(0, script, filter);
+        onAttachWeapModEvent.AddEvent(eEvent);
+        if (runOnReconstruct) {
+            onAttachWeapModReconstructEvent.AddEvent(eEvent);
+        }
+
+    }
+
+    void DevkitCompiler::SetOnDetachWeaponMod(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+
+        if (!form) {
+            return;
+        }
+
+        bool runOnDeconstruct;
+        if (!(argStream >> runOnDeconstruct)) {
+            return;
+        }
+
+        Script* script = BuildScriptCondition(argStream, "ref rModifier, ref rWeapon");
+
+        if (!script) {
+            return;
+        }
+
+        AuxVector filter(2);
+        filter.SetValue(0, form->refID);
+
+        if (staticParent && staticParent->extendedType == 40 && ((StaticInstance*)staticParent)->parent->typeID == 40) { //If linked
+
+            filter.SetValue(1, staticParent->parent->refID); //Only apply the event for this attachment on this weapon
+
+        }
+
+        Event eEvent(0, script, filter);
+        onDetachWeapModEvent.AddEvent(eEvent);
+        if (runOnDeconstruct) {
+            onDetachWeapModDeconstructEvent.AddEvent(eEvent);
         }
 
     }

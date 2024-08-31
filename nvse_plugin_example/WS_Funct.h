@@ -138,7 +138,7 @@ bool Cmd_CreateFormInstance_Execute(COMMAND_ARGS)
 
 }
 
-DEFINE_COMMAND_PLUGIN_EXP(GetAkimboWeapons, "Gets base akimbo instance", false, kNVSEParams_OneForm_OneInt);
+DEFINE_COMMAND_PLUGIN_EXP(GetAkimboWeapons, "Gets base akimbo instance", false, kNVSEParams_OneForm_OneNumber);
 bool Cmd_GetAkimboWeapons_Execute(COMMAND_ARGS)
 {
 
@@ -622,15 +622,6 @@ bool Cmd_DeleteAkimboInstance_Execute(COMMAND_ARGS)
 			Instance* rInstance = baseForm->LookupInstance(40);
 			if (rInstance) {
 
-				AuxVector filter{ rInstance->key.c_str() };
-				for (auto it = onInstanceDeconstructEvent.handlers.begin(); it != onInstanceDeconstructEvent.handlers.end(); ++it) {
-
-					if (it->CompareFilters(filter)) {
-						g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 1, rInstance->clone);
-					}
-
-				}
-
 				BGSSaveLoadGame* saveGame = BGSSaveLoadGame::GetSingleton();
 				BGSSaveLoadChangesMap* saveChanges = saveGame->changesMap;
 
@@ -693,15 +684,6 @@ bool Cmd_DeleteFormInstance_Execute(COMMAND_ARGS)
 
 			Instance* rInstance = form->pLookupInstance();
 			if (rInstance) {
-
-				AuxVector filter{ rInstance->key.c_str() };
-				for (auto it = onInstanceDeconstructEvent.handlers.begin(); it != onInstanceDeconstructEvent.handlers.end(); ++it) {
-
-					if (it->CompareFilters(filter)) {
-						g_scriptInterface->CallFunction(it->script, nullptr, nullptr, nullptr, 1, rInstance->clone);
-					}
-
-				}
 
 				BGSSaveLoadGame* saveGame = BGSSaveLoadGame::GetSingleton();
 				BGSSaveLoadChangesMap* formChangeMap = saveGame->changesMap;
@@ -1219,7 +1201,7 @@ bool Cmd_GetAllBaseInstances_Execute(COMMAND_ARGS) {
 				auto& instances = form->LookupStaticInstance()->aInstances;
 				if (!instances.empty()) {
 					for (Instance* inst : instances) {
-						if (inst->key == key) {
+						if (inst && inst->key == key) {
 							g_arrInterface->AppendElement(aResult, ArrayElementL(inst->clone));
 						}
 					}
@@ -1574,7 +1556,7 @@ bool Cmd_GetBaseTraitType_Execute(COMMAND_ARGS)
 
 			const AuxVector* aux = baseObj->GetTrait(trait, linkedObj, sSlot, priority);
 
-			if (!aux || index < 0 || index >= aux->size()) {
+			if (!aux || index >= aux->size()) {
 				*result = -2;
 				return true;
 			}
@@ -1799,7 +1781,6 @@ bool Cmd_GetBaseTraitListSize_Execute(COMMAND_ARGS)
 {
 
 	*result = 0;
-	UInt32* refResult = (UInt32*)result;
 	TESForm* baseForm = NULL;
 	const char* trait = NULL;
 

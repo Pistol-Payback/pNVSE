@@ -2,6 +2,10 @@
 
 namespace Kit {
 
+    void DevkitCompiler::RegisterArmorTypeFunctions() {
+        fileManager.typeFunctions[24]["texture"] = TypeFunction(&DevkitCompiler::SetTextureSetArmor);
+    }
+
     void DevkitCompiler::RegisterWeaponModTypeFunctions() {
 
         fileManager.typeFunctions[103]["name"] = TypeFunction(&DevkitCompiler::SetName);
@@ -21,6 +25,8 @@ namespace Kit {
         fileManager.typeFunctions[103]["isbasemod"] = TypeFunction(&DevkitCompiler::SetBaseMod);
         fileManager.typeFunctions[103]["worldmodel"] = TypeFunction(&DevkitCompiler::SetModel);
         fileManager.typeFunctions[103]["attachedmodel"] = TypeFunction(&DevkitCompiler::Set1stPersonAttachmentModel);
+        fileManager.typeFunctions[103]["ondetachweaponmod"] = TypeFunction(&DevkitCompiler::SetOnDetachWeaponMod);
+        fileManager.typeFunctions[103]["onattachweaponmod"] = TypeFunction(&DevkitCompiler::SetOnAttachWeaponMod);
 
         //fileManager.typeFunctions[103]["1stpersonmodel"] = TypeFunction(&DevkitCompiler::SetModel);
 
@@ -69,6 +75,23 @@ namespace Kit {
     }
 
     void DevkitCompiler::RegisterWeaponTypeFunctions() {
+
+        fileManager.typeFunctions[40]["dmg"] = TypeFunction(&DevkitCompiler::setDamage);
+        fileManager.typeFunctions[40]["strreq"] = TypeFunction(&DevkitCompiler::setStrReq);
+        fileManager.typeFunctions[40]["skillreq"] = TypeFunction(&DevkitCompiler::setSkillReq);
+        fileManager.typeFunctions[40]["weaponskill"] = TypeFunction(&DevkitCompiler::setSkill);
+        fileManager.typeFunctions[40]["firerate"] = TypeFunction(&DevkitCompiler::setFireRate);
+        fileManager.typeFunctions[40]["spread"] = TypeFunction(&DevkitCompiler::setSpread);
+        fileManager.typeFunctions[40]["minspread"] = TypeFunction(&DevkitCompiler::setMinSpread);
+        fileManager.typeFunctions[40]["critdmg"] = TypeFunction(&DevkitCompiler::setCritDmg);
+        fileManager.typeFunctions[40]["critchance"] = TypeFunction(&DevkitCompiler::setCritChance);
+        fileManager.typeFunctions[40]["reach"] = TypeFunction(&DevkitCompiler::setReach);
+        fileManager.typeFunctions[40]["projectilesfired"] = TypeFunction(&DevkitCompiler::setNumProjectiles);
+        fileManager.typeFunctions[40]["ammoused"] = TypeFunction(&DevkitCompiler::setAmmoUse);
+        fileManager.typeFunctions[40]["limbdmgmult"] = TypeFunction(&DevkitCompiler::setLimbDmgMult);
+        fileManager.typeFunctions[40]["vatshitchance"] = TypeFunction(&DevkitCompiler::setVatsHitChance);
+        fileManager.typeFunctions[40]["clipsize"] = TypeFunction(&DevkitCompiler::setClipSize);
+        fileManager.typeFunctions[40]["degmult"] = TypeFunction(&DevkitCompiler::setDegradationMult);
 
         /*
             fileManager.typeFunctions[40]["objecteffect"] = TypeFunction(&DevkitCompiler::SetScript);
@@ -169,14 +192,26 @@ namespace Kit {
                 }
 
             }
+
         }
 
     }
 
-    void DevkitCompiler::compilePartials() {
-        for (Script* script : this->toCompile) {
-            CompileScriptAlt(script);
+    void DevkitCompiler::compile() {
+
+        std::partition(toCompile.begin(), toCompile.end(), [](const scriptToCompile* script) {
+            return script->script->info.type == Script::eType_Quest;
+            });
+
+        for (scriptToCompile* iter : this->toCompile) {
+            if (!iter->isPartial && !CompileScriptAlt(iter->script, iter->text)) {
+                Console_Print("failed to compile script: %s", iter->script->GetEditorID());
+            }
+            else if (!CompilePartial(iter->script, iter->text, iter->arguments)) {
+                Console_Print("failed to compile script: %s", iter->text.c_str());
+            }
         }
+
     }
 
     void DevkitCompiler::clearAnimGroups() {

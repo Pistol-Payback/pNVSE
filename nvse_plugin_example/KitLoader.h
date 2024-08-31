@@ -42,6 +42,7 @@ struct TypeFunction {
 
         std::string argType;
         bool isOptional = false;
+        bool allowDupe = false;
         int index = 0;
 
         while (arguments >> argType && index < this->argumentTypes.size()) {
@@ -49,12 +50,37 @@ struct TypeFunction {
                 isOptional = true;
             }
             else {
-                int typeCode = this->convertArgumentType(argType);  // Assuming convertArgumentType is accessible
+
+                if (argType.front() == '*') {
+                    allowDupe = true;
+                    argType.erase(0, 1);
+                }
+
+                if (argType.front() == '(') {
+                    std::string multiArg;
+                    while (argType.back() != ')') {
+                        multiArg += argType + " ";
+                        if (!(arguments >> argType)) {
+                            throw std::runtime_error("Mismatched parentheses in argument type for function '" + functionName + "'");
+                        }
+                    }
+                    multiArg += argType;
+                    argType = multiArg.substr(1, multiArg.size() - 2); // Remove '(' and ')'
+                }
+
+                UInt8 typeCode = this->convertArgumentType(argType);
                 if (typeCode) {
+
                     if (isOptional) {
                         typeCode |= TypeFunction<IterConverter>::optional;
                     }
+                    if (allowDupe) {
+                        typeCode |= TypeFunction<IterConverter>::allowDuplicate;
+                        allowDupe = false;
+                    }
+
                     this->argumentTypes[index++] = typeCode;
+
                 }
                 else {
                     throw std::runtime_error("Invalid argument type '" + argType + "' for function '" + functionName + "'");
@@ -67,21 +93,24 @@ struct TypeFunction {
         }
     }
 
-    int convertArgumentType(const std::string& argType) const {
-        switch (argType[0]) {
-        case '*': switch (argType[1]) {
-        case 'r': return allowDuplicate | 1;
-        case 'i': return allowDuplicate | 2;
-        case 'f': return allowDuplicate | 3;
-        case 's': return allowDuplicate | 4;
-        default: return 0;
+    UInt8 convertArgumentType(const std::string& argType) const {
+        UInt8 typeCode = 0;
+        std::istringstream stream(argType);
+        std::string word;
+
+        while (stream >> word) {  //Go through grouped arguments
+            char c = word[0];
+            switch (c) {
+            case 'r': typeCode |= 0b00000001; break; // Set bit 1 for ref
+            case 'i': typeCode |= 0b00000010; break; // Set bit 2 for int
+            case 'f': typeCode |= 0b00000100; break; // Set bit 3 for float
+            case 's': typeCode |= 0b00001000; break; // Set bit 4 for string
+            case 'o': typeCode |= 0b00010000; break; // Set bit 5 for op
+            default: return 0; // Invalid type
+            }
         }
-        case 'r': return 1;
-        case 'i': return 2;
-        case 'f': return 3;
-        case 's': return 4;
-        default: return 0;
-        }
+
+        return typeCode;
     }
 
 };
@@ -323,11 +352,14 @@ namespace Kit {
         explicit KitFolder(const std::filesystem::path& path);
         const std::filesystem::path filePath;
         std::map<SInt32, std::vector<std::filesystem::path>> filesByType;
-
+        UInt32 fileCount = 0;
     private:
         void CompileTypes();
         SInt32 EvaluateType(const std::filesystem::path& filePath);
+        SInt32 EvaluateType(const std::string& filename);
     };
+
+    //Kit info...................................................................................
 
     struct KitInfo {
 
@@ -425,7 +457,8 @@ namespace Kit {
 
         KitCompressedFile(const KitFolder& kitFolder, KitFileManager& fileManager, KitData* kitData)
             : KitCompressedFile(fileManager, kitData) {
-            file.reserve(kitFolder.filesByType.size());
+            file.reserve(kitFolder.fileCount * 4); //We assume 4 lines per file
+            formBuilder.reserve(kitFolder.fileCount);
             for (const auto& typeEntry : kitFolder.filesByType) {
                 processTypeEntry(typeEntry);
             }
@@ -452,12 +485,19 @@ namespace Kit {
     private:
 
         void processTypeEntry(const std::pair<int, std::vector<std::filesystem::path>>& typeEntry) {
+
             for (const auto& filePath : typeEntry.second) {
                 std::string fileStringPath = filePath.string();
-                file.push_back("type: " + std::to_string(typeEntry.first));
-                formBuilder.push_back("type: " + std::to_string(typeEntry.first));
-                fileManager.type = typeEntry.first;
-                ProcessFile(fileStringPath);
+                if (typeEntry.first == 17) {
+                    formBuilder.push_back("type: " + std::to_string(typeEntry.first));
+                    ProcessScript(fileStringPath);
+                }
+                else { //Devkit comp
+                    file.push_back("type: " + std::to_string(typeEntry.first));
+                    formBuilder.push_back("type: " + std::to_string(typeEntry.first));
+                    fileManager.type = typeEntry.first;
+                    ProcessFile(fileStringPath);
+                }
             }
         }
 
@@ -465,6 +505,28 @@ namespace Kit {
             file.push_back("type: " + std::to_string(type));
             fileManager.type = type;
             ProcessInputString(kitInfo);
+        }
+
+        //For devkit Scripts
+        void ProcessScript(const std::string& filePath) {
+
+            std::ifstream inputFile(filePath);
+            if (!inputFile.is_open()) {
+                throw std::runtime_error("Failed to open file: " + filePath);
+            }
+
+            auto initialFileSize = file.size();
+            auto initialFormBuilderSize = formBuilder.size();
+
+            std::string line;
+            std::string scriptName;
+            bool scriptNameFound = false;
+
+            while (std::getline(inputFile, line)) {
+                formBuilder.push_back(line);
+            }
+            formBuilder.push_back("}clear");
+            inputFile.close();
         }
 
         void ProcessLine(std::string line, bool toBuilder) {
@@ -486,6 +548,7 @@ namespace Kit {
 
         }
 
+        //For procesing single strings
         void ProcessInputString(const std::string& input) {
             std::istringstream stream(input);
             std::string line;
@@ -495,6 +558,7 @@ namespace Kit {
             file.push_back("}clear");
         }
 
+        //For devkit
         void ProcessFile(const std::string& filePath) {
             std::ifstream inputFile(filePath);
             if (!inputFile.is_open()) {

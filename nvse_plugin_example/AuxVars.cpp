@@ -4,6 +4,86 @@
 #include <list>
 #include <variant>
 
+namespace FormTraits {
+
+    std::unordered_map <UInt32, std::unordered_map<std::string, AuxVector>> formTraits;
+    std::unordered_map <UInt32, std::unordered_map<std::string, AuxVector>> formTraitsSave;
+
+    inline auto& getTraitMap(const std::string& trait) {
+        return (trait.front() == '*') ? formTraitsSave : formTraits;
+    }
+
+    AuxVector* setAuxVector(UInt32 refID, const std::string& trait) {
+        auto& traitsMap = getTraitMap(trait);  // Determine the correct map
+        return &traitsMap[refID][trait];
+    }
+
+    AuxVector* findAuxVector(UInt32 refID, const std::string& trait) {
+
+        auto& traitsMap = getTraitMap(trait);  // Determine the correct map
+
+        auto traits = traitsMap.find(refID);
+        if (traits != traitsMap.end()) {
+            auto aux = traits->second.find(trait);
+            if (aux != traits->second.end()) {
+                return &(aux->second);
+            }
+        }
+        return nullptr;
+    }
+
+    void eraseAuxFromVector(UInt32 refID, const std::string& trait, UInt32 index, bool collapse) {
+
+        auto& refMap = getTraitMap(trait);
+        auto refIDIt = refMap.find(refID);
+
+        if (refIDIt == refMap.end()) return;  // Exit early if refID is not found
+
+        auto& traitMap = refIDIt->second;
+        auto traitIt = traitMap.find(trait);
+
+        if (traitIt == traitMap.end()) return;  // Exit early if trait is not found
+
+        AuxVector& aux = traitIt->second;
+
+        if (index == static_cast<UInt32>(-1)) {
+            // Erase the entire trait
+            traitMap.erase(traitIt);
+        }
+        else {
+            // Erase or clear the specific index
+            if (collapse) {
+                aux.eraseIndex(index);
+            }
+            else {
+                aux.ClearIndex(index);
+                aux.Cleanup(); // Clean up trailing empty values
+            }
+
+            if (aux.empty()) {
+                traitMap.erase(traitIt);
+            }
+        }
+
+        // Remove the refID entry if no traits are left
+        if (traitMap.empty()) {
+            refMap.erase(refIDIt);
+        }
+    }
+
+    void eraseAll(UInt32 refID) {
+        auto traits = formTraits.find(refID);
+        if (traits != formTraits.end()) {
+            formTraits.erase(refID);
+        }
+        traits = formTraitsSave.find(refID);
+        if (traits != formTraitsSave.end()) {
+            formTraitsSave.erase(refID);
+        }
+    }
+
+}
+
     void AuxValue::SetValue() {
         this->CleanUpUnion();
         type = -1;
@@ -36,6 +116,18 @@
         }
     }
 
+    void AuxValue::SetValue(const std::string& value) {
+        this->CleanUpUnion();
+        type = kRetnType_String;
+        str = strdup(value.c_str());
+    }
+
+    void AuxValue::SetValue(std::string&& value) {
+        this->CleanUpUnion();
+        type = kRetnType_String;
+        str = strdup(value.c_str());
+    }
+
     void AuxValue::SetValue(NVSEArrayVarInterface::Array* value) {
         this->CleanUpUnion();
         type = kRetnType_Array;
@@ -54,7 +146,7 @@
         }
         case kRetnType_Form: {
             TESForm* value = LookupFormByRefID(refID);
-            return std::bit_cast<UInt32*>(&value);
+            return std::bit_cast<UInt32*>(value);
         }
         case kRetnType_Array:
             return std::bit_cast<UInt32*>(CopyToNVSEArray(script));
@@ -62,6 +154,20 @@
 
         return 0;
 
+    }
+
+    bool AuxValue::Compare(double value) const {
+        return GetDouble() == value;
+    }
+    bool AuxValue::Compare(UInt32 value) const {
+        return GetRef() == value;
+    }
+    bool AuxValue::Compare(const char* value) const {
+        return (GetType() == kRetnType_String && str && strcmp(str, value) == 0);
+    }
+    bool AuxValue::Compare(NVSEArrayVarInterface::Array* value) const {
+        //return GetArray() == value;
+        return false;
     }
 
     double AuxValue::GetValue(double value) {
@@ -212,6 +318,14 @@
             str = strdup(value);
         }
 
+    }
+
+    AuxValue::AuxValue(std::string&& value)
+        : type(kRetnType_String), str(nullptr)
+    {
+        if (!value.empty()) {
+            str = strdup(value.c_str());
+        }
     }
 
     AuxValue::AuxValue(

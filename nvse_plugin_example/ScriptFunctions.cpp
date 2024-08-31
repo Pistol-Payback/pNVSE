@@ -58,36 +58,28 @@ namespace Kit {
         Script* script = LookupEditorID<Script*>(argument.c_str());
 
         if (script) {
-
             TESQuest* questForm = static_cast<TESQuest*>(this->form);
             questForm->scriptable.script = script;
             script->quest = questForm;
             script->info.type = Script::eType_Quest;
-
         }
 
     }
 
-    //Compiles in the linker faze
-    void DevkitCompiler::CompileScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
+    void DevkitCompiler::BuildScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
 
         std::string scriptName;
-
         if (!(argStream >> scriptName)) {
-            this->skipDocument(it);
             return;
         }
 
         Script* script = LookupEditorID<Script*>(scriptName.c_str());
-
         if (!script) {
-            this->skipDocument(it);
-            return;
+            script = (Script*)TESForm::CreateNewForm(17, scriptName.c_str());
         }
 
         std::stringstream scriptStream;
         std::string scriptLine;
-
         if ((script->flags & 1) == 0) {
             scriptStream << (this->fileManager.currentFunction + " " + scriptName) << '\n';
         }
@@ -113,38 +105,28 @@ namespace Kit {
                 }
 
             }
-            else {
-                Console_Print("Error: Unable to extract script line: %s", iss.str().c_str());
-            }
             ++it;
         }
-        std::string scriptText = scriptStream.str();
-        script->text = const_cast<char*>(scriptText.c_str());
-        if (!CompileScriptAlt(script)) {
-            Console_Print("Failed to compile %s, in kit file %s", scriptName.c_str(), this->fileManager.currentKitFile->data->name.c_str());
+        auto iter = toCompileLookup.find(script);
+
+        if (iter == toCompileLookup.end()) { //set to be compiled
+
+            scriptToCompile* toCompileScript = new scriptToCompile{ script, scriptStream.str(), false};
+            toCompile.push_back(toCompileScript);
+            toCompileLookup[script] = toCompileScript;
+
         }
+        else {
+
+            iter->second->text = scriptStream.str(); //Overwrite the text for the script.
+
+        }
+
+        form = script;
 
     }
 
-    void DevkitCompiler::BuildScript(std::vector<std::string>::const_iterator& it, std::istringstream& argStream) {
-
-        std::string argument;
-        if (!(argStream >> argument)) {
-            return;
-        }
-
-        DataHandler::Get()->DisableAssignFormIDs(true);
-        auto script = MakeUnique<Script, 0x5AA0F0, 0x5AA1A0>();
-        DataHandler::Get()->DisableAssignFormIDs(false);
-
-        script->SetRefID(GetNextFreeFormID(GetFirstFormIDForModIndex(0)), true);
-        script->SetEditorID(argument.c_str());
-
-        form = script.release();
-
-    }
-
-    Script* DevkitCompiler::BuildScriptCondition(std::istringstream& iss)
+    Script* DevkitCompiler::BuildScriptCondition(std::istringstream& iss, const std::string& arguments)
     {
         std::string condition;
         if (getQuotedString(iss, condition)) { //Inline
@@ -154,8 +136,7 @@ namespace Kit {
                 PrintKitError("Failed to parse condition.", iss.str());
             }
             else {
-                partial->text = const_cast<char*>(condition.c_str()); //hold till linker faze
-                toCompile.push_back(partial);
+                toCompile.push_back(new scriptToCompile{ partial, condition, true, arguments});
                 return partial;
             }
         }

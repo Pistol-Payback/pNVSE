@@ -291,6 +291,7 @@ namespace SaveSystem {
 			TESForm* form = deduceLinkToForm(&attachment);
 			if (form) {
 				inst->aAttachments[slot] = form->refID;
+				onAttachWeapModReconstructEvent.DispatchEvent(form, inst->clone);
 			}
 			else { //Will happen when attachments are instances and attached to other instances.
 				failedLinks_WEAP.emplace_back(new FailedWeaponLink{ inst, slot, attachment });
@@ -565,7 +566,7 @@ namespace SaveSystem {
 
 	bool InstanceLoadManager::ReconstructEvent(Instance* inst) {
 
-		AuxVector filter{ inst->key.c_str() };
+		AuxVector filter{ inst->key.c_str()};
 		for (auto it = onInstanceReconstructEvent.handlers.begin(); it != onInstanceReconstructEvent.handlers.end(); ++it) {
 
 			if (it->CompareFilters(filter)) {

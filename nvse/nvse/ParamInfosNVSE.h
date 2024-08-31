@@ -157,6 +157,25 @@ static constexpr NVSEParamInfo kNVSEParams_OneString_OneStringOrNumber[2] =
 	{	"string or num",	kNVSEParamType_StringOrNumber,	0	},
 };
 
+static constexpr NVSEParamInfo kNVSEParams_OneString_OneOptionalNumber[2] =
+{
+	{	"string",	kNVSEParamType_String,	0	},
+	{	"num",		kNVSEParamType_Number,	1	},
+};
+
+static constexpr NVSEParamInfo kNVSEParams_OneString_OneOptionalForm[3] =
+{
+	{	"string",	kNVSEParamType_String,	0	},
+	{	"form",		kNVSEParamType_Form,	1	},
+};
+
+static constexpr NVSEParamInfo kNVSEParams_OneString_OneOptionalNumber_OneOptionalForm[3] =
+{
+	{	"string",	kNVSEParamType_String,	0	},
+	{	"num",		kNVSEParamType_Number,	1	},
+	{	"form",		kNVSEParamType_Form,	1	},
+};
+
 static constexpr NVSEParamInfo kNVSEParams_OneBasicType_OneBoolean[2] =
 {
 	{	"string",	kNVSEParamType_BasicType,	0	},
@@ -175,10 +194,19 @@ static constexpr NVSEParamInfo kNVSEParams_OneBasicType_OneOptionalBoolean[2] =
 	{	"bool",	kNVSEParamType_Boolean,	1	},
 };
 
-static constexpr NVSEParamInfo kNVSEParams_OneNumber_OneOptionalString[2] =
+static constexpr NVSEParamInfo kNVSEParams_OneBasicType_OneString_OneOptionalNumber[3] =
 {
-	{	"num",	kNVSEParamType_Number,	0	},
-	{	"string",	kNVSEParamType_String,	1	},
+	{	"basicType",	kNVSEParamType_BasicType,	0	},
+	{	"string",		kNVSEParamType_String,		0	},
+	{	"num",			kNVSEParamType_Number,		1	}
+};
+
+static constexpr NVSEParamInfo kNVSEParams_OneBasicType_OneString_OneOptionalNumber_OneOptionalForm[4] =
+{
+	{	"basicType",	kNVSEParamType_BasicType,	0	},
+	{	"string",		kNVSEParamType_String,		0	},
+	{	"num",			kNVSEParamType_Number,		1	},
+	{	"form",			kNVSEParamType_Form,		1	}
 };
 
 static constexpr NVSEParamInfo kNVSEParams_OneOptionalString_TwoOptionalNumbers[3] =
@@ -195,6 +223,12 @@ static constexpr NVSEParamInfo kNVSEParams_ThreeVars[3] =
 	{	"var",	kNVSEParamType_Variable,	0	},
 };
 
+static constexpr NVSEParamInfo kNVSEParams_OneNumber_OneOptionalString[2] =
+{
+	{	"num",	kNVSEParamType_Number,	0	},
+	{	"string",	kNVSEParamType_String,	1	},
+};
+
 static constexpr NVSEParamInfo kNVSEParams_ThreeNumbers[3] =
 {
 	{	"num",	kNVSEParamType_Number,	0	},
@@ -209,10 +243,18 @@ static constexpr NVSEParamInfo kNVSEParams_ThreeForms[3] =
 	{	"form",	kNVSEParamType_Form,	0	},
 };
 
-static constexpr NVSEParamInfo kNVSEParams_OneForm_OneInt[2] =
+static constexpr NVSEParamInfo kNVSEParams_OneForm_OneNumber[2] =
 {
 	{	"form",	kNVSEParamType_Form,	0	},
 	{	"num",	kNVSEParamType_Number,	0	},
+};
+
+
+
+static constexpr NVSEParamInfo kNVSEParams_OneForm_OneOptionalNumber[2] =
+{
+	{	"form",	kNVSEParamType_Form,	0	},
+	{	"num",	kNVSEParamType_Number,	1	},
 };
 
 static constexpr NVSEParamInfo kNVSEParams_OneNumber_OneString_OneOptionalString[3] =
